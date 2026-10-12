@@ -5,8 +5,8 @@ title: Web UI and sign-in
 # Web UI and sign-in
 
 The web UI is served at the root of the hub. It shows each server's state, tools and versions,
-restarts servers, updates and rolls back packages, and manages keys. It refreshes itself every few
-seconds.
+restarts servers, updates and rolls back packages, reloads the server file, and creates, edits,
+disables and deletes keys. It refreshes itself every few seconds.
 
 <picture>
   <source srcset="assets/servers-dark.png" media="(prefers-color-scheme: dark)">

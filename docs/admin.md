@@ -23,6 +23,7 @@ claude mcp add --transport http mcpyard-admin https://mcpyard.example.lan/admin/
 | `list_servers` | State, last error, tool count and package versions of every server. |
 | `get_server` | One server in detail, with each tool and whether the configuration exposes it. |
 | `restart_server` | Restarts a server, waits up to 30 seconds for it to settle, returns its status. |
+| `reload_config` | Re-reads the server file and applies it; returns the added, removed and restarted servers. |
 
 A `list_servers` entry looks like this:
 
@@ -45,7 +46,9 @@ ready, retrying) and `stopped`.
 The same scope rules apply as for client keys:
 
 - `scope.servers` limits the servers the key sees and restarts.
-- `scope.tools` filters the three tool names. `{ "deny": ["restart_server"] }` gives a read-only key,
-  handy for monitoring.
+- `scope.tools` filters the tool names. `{ "deny": ["restart_server", "reload_config"] }` gives a
+  read-only key, handy for monitoring.
+- `reload_config` is offered only to keys that manage every server, since a reload can touch any of
+  them.
 
 Calls appear in the audit log with the tool prefixed by `admin:`.

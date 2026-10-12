@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -63,6 +63,14 @@ test('merges tools under <server>-<tool> and routes calls', async () => {
   await client.close();
 });
 
+test('a used key records when it was last used', async () => {
+  const client = await connect(full.token);
+  await client.listTools();
+  await client.close();
+  const stored = (JSON.parse(readFileSync(join(dir, 'keys.json'), 'utf8')) as { id: string; lastUsed: string | null }[]).find((k) => k.id === full.key.id)!;
+  assert.ok(stored.lastUsed && Date.now() - Date.parse(stored.lastUsed) < 60_000);
+});
+
 test('upstreams never inherit the hub environment', async () => {
   const client = await connect(full.token);
   const result = await client.callTool({ name: 'fix-ture-env' });
@@ -89,7 +97,7 @@ const json = (result: Awaited<ReturnType<Client['callTool']>>) => JSON.parse((re
 
 test('admin endpoint reports and restarts servers', async () => {
   const client = await connect(admin.token, '/admin/mcp');
-  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), ['get_server', 'list_servers', 'restart_server']);
+  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), ['get_server', 'list_servers', 'reload_config', 'restart_server']);
   const [server] = json(await client.callTool({ name: 'list_servers' }));
   assert.equal(server.name, 'fix-ture');
   assert.equal(server.state, 'ready');

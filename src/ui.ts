@@ -88,6 +88,19 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     return c.redirect('/', 303);
   });
 
+  app.post('/reload', guard, async (c) => {
+    let notice: Fragment;
+    try {
+      const { added, removed, changed } = await hub.reload();
+      const parts = [['added', added], ['removed', removed], ['restarted', changed]].filter(([, names]) => names.length).map(([verb, names]) => `${verb} ${(names as string[]).join(', ')}`);
+      notice = html`<section class="card notice"><p>Configuration reloaded: ${parts.length ? parts.join('; ') : 'no changes'}.</p></section>`;
+      log(c, 'config_reloaded');
+    } catch (e) {
+      notice = html`<section class="card notice failed"><p>Configuration not reloaded, the running servers are unchanged:</p><pre class="mono">${(e as Error).message}</pre></section>`;
+    }
+    return c.html(page(c, 'Servers', html`${notice}${serversView(hub)}`));
+  });
+
   app.get('/keys', guard, (c) => c.html(page(c, 'Keys', keysView(hub, loadKeys(keysPath)))));
 
   app.post('/keys', guard, async (c) => {
@@ -95,15 +108,31 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     const name = String(form.name ?? '').trim();
     if (!name || name.length > 64) return c.text('Bad request: name is required, 64 characters at most', 400);
     const { token, key } = newKey(name, form.kind === 'admin' ? 'admin' : 'client');
-    const servers = ([] as unknown[]).concat(form.servers ?? []).map(String);
-    key.scope.servers = servers.length === 0 || servers.includes('*') ? ['*'] : servers;
-    const allow = globs(form.allow);
-    const deny = globs(form.deny);
-    key.scope.tools = { ...(allow.length ? { allow } : {}), ...(deny.length ? { deny } : {}) };
+    key.scope = scopeFrom(form);
     const keys = loadKeys(keysPath);
     saveKeys(keysPath, [...keys, key]);
-    console.log(JSON.stringify({ event: 'key_created', time: new Date().toISOString(), key: key.name, by: c.get('user')?.name ?? null }));
+    log(c, 'key_created', key.name);
     return c.html(page(c, 'Keys', html`${created(key, token, base(c))}${keysView(hub, [...keys, key])}`));
+  });
+
+  app.get('/keys/:id/edit', guard, (c) => {
+    const key = loadKeys(keysPath).find((k) => k.id === c.req.param('id'));
+    if (!key) return c.text('Not found', 404);
+    return c.html(page(c, 'Edit key', html`<section><h1>Edit key ${key.name}</h1>${keyForm(hub, key)}</section>`));
+  });
+
+  app.post('/keys/:id', guard, async (c) => {
+    const form = await c.req.parseBody({ all: true });
+    const name = String(form.name ?? '').trim();
+    if (!name || name.length > 64) return c.text('Bad request: name is required, 64 characters at most', 400);
+    const keys = loadKeys(keysPath);
+    const key = keys.find((k) => k.id === c.req.param('id'));
+    if (!key) return c.text('Not found', 404);
+    key.name = name;
+    key.scope = scopeFrom(form);
+    saveKeys(keysPath, keys);
+    log(c, 'key_updated', key.name);
+    return c.redirect('/keys', 303);
   });
 
   for (const action of ['enable', 'disable', 'delete'] as const) {
@@ -115,7 +144,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
       if (action === 'delete') keys.splice(keys.indexOf(key), 1);
       else key.enabled = action === 'enable';
       saveKeys(keysPath, keys);
-      console.log(JSON.stringify({ event: `key_${action}`, time: new Date().toISOString(), key: key.name, by: c.get('user')?.name ?? null }));
+      log(c, `key_${action}`, key.name);
       return c.redirect('/keys', 303);
     });
   }
@@ -129,6 +158,29 @@ function sameOrigin(origin: string | undefined, base: string): boolean {
   } catch {
     return false;
   }
+}
+
+function log(c: Context<Env>, event: string, key?: string): void {
+  console.log(JSON.stringify({ event, time: new Date().toISOString(), ...(key ? { key } : {}), by: c.get('user')?.name ?? null }));
+}
+
+function scopeFrom(form: Record<string, unknown>): Key['scope'] {
+  const servers = ([] as unknown[]).concat(form.servers ?? []).map(String);
+  const allow = globs(form.allow);
+  const deny = globs(form.deny);
+  return {
+    servers: servers.length === 0 || servers.includes('*') ? ['*'] : servers,
+    tools: { ...(allow.length ? { allow } : {}), ...(deny.length ? { deny } : {}) },
+  };
+}
+
+/** "3 min ago" style, coarse on purpose: `lastUsed` is only written once an hour. */
+function ago(iso: string | null): string {
+  if (!iso) return 'never';
+  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60_000);
+  if (minutes < 60) return 'within the hour';
+  if (minutes < 48 * 60) return `${Math.round(minutes / 60)} h ago`;
+  return `${Math.round(minutes / 1440)} days ago`;
 }
 
 function globs(value: unknown): string[] {
@@ -172,7 +224,10 @@ function serversView(hub: Hub): Fragment {
       ${error ? html`<tr class="error"><td colspan="5">${pkg?.updateError && !upstream.lastError ? 'Update failed: ' : ''}${error}</td></tr>` : ''}`;
   });
   return html`<section id="servers">
-      <h1>Servers</h1>
+      <div class="heading">
+        <h1>Servers</h1>
+        <form method="post" action="/reload"><button title="Re-read the server file and apply the changes">Reload configuration</button></form>
+      </div>
       ${rows.length
         ? html`<table>
             <thead><tr><th>Server</th><th>State</th><th>Version</th><th>Tools</th><th></th></tr></thead>
@@ -192,7 +247,7 @@ function versionCell(name: string, pkg: NonNullable<ReturnType<Hub['packageStatu
     ${!pkg.pinned && !pkg.updating && newer
       ? html`<form method="post" action="/servers/${name}/update"><input type="hidden" name="version" value="${latest}" /><button class="primary">Update to ${latest}</button></form>`
       : ''}
-    ${!pkg.pinned && !pkg.updating && pkg.previous
+    ${!pkg.pinned && !pkg.updating && pkg.previous && !(newer && pkg.previous === latest)
       ? html`<form method="post" action="/servers/${name}/update"><input type="hidden" name="version" value="${pkg.previous}" /><button>Roll back to ${pkg.previous}</button></form>`
       : ''}`;
 }
@@ -207,7 +262,7 @@ function keysView(hub: Hub, keys: Key[]): Fragment {
       <h1>Keys</h1>
       ${keys.length
         ? html`<table>
-            <thead><tr><th>Name</th><th>Kind</th><th>Servers</th><th>Tools</th><th>Created</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Kind</th><th>Servers</th><th>Tools</th><th>Last used</th><th></th></tr></thead>
             <tbody>
               ${keys.map(
                 (k) => html`<tr class="${k.enabled ? '' : 'disabled'}">
@@ -215,8 +270,9 @@ function keysView(hub: Hub, keys: Key[]): Fragment {
                   <td>${k.kind}${k.enabled ? '' : html` <span class="tag">disabled</span>`}</td>
                   <td>${k.scope.servers.includes('*') ? 'all' : k.scope.servers.join(', ')}</td>
                   <td class="mono">${filter(k)}</td>
-                  <td>${k.created.slice(0, 10)}</td>
+                  <td title="Created ${k.created.slice(0, 10)}">${ago(k.lastUsed)}</td>
                   <td class="actions">
+                    <a class="button" href="/keys/${k.id}/edit">Edit</a>
                     <form method="post" action="/keys/${k.id}/${k.enabled ? 'disable' : 'enable'}"><button>${k.enabled ? 'Disable' : 'Enable'}</button></form>
                     <form method="post" action="/keys/${k.id}/delete" data-confirm="Delete key ${k.name}? Clients using it lose access."><button class="danger">Delete</button></form>
                   </td>
@@ -228,21 +284,30 @@ function keysView(hub: Hub, keys: Key[]): Fragment {
     </section>
     <section>
       <h2>New key</h2>
-      <form method="post" action="/keys" class="card">
-        <label>Name <input name="name" required maxlength="64" placeholder="laptop-claude-code" /></label>
-        <label>Kind
-          <select name="kind"><option value="client">client: uses /mcp</option><option value="admin">admin: management endpoint</option></select>
-        </label>
-        <fieldset>
-          <legend>Servers</legend>
-          <label class="check"><input type="checkbox" name="servers" value="*" checked /> All, including future ones</label>
-          ${servers.map((s) => html`<label class="check"><input type="checkbox" name="servers" value="${s}" /> ${s}</label>`)}
-        </fieldset>
-        <label>Allow tools <input name="allow" placeholder="mail-*, calendar-list_*" /><span class="muted">Globs on exposed names, empty for all.</span></label>
-        <label>Deny tools <input name="deny" placeholder="*-delete_*" /></label>
-        <button class="primary">Create key</button>
-      </form>
+      ${keyForm(hub)}
     </section>`;
+}
+
+function keyForm(hub: Hub, key?: Key): Fragment {
+  const scope = key?.scope ?? { servers: ['*'], tools: {} };
+  const all = scope.servers.includes('*');
+  const servers = [...new Set([...hub.upstreams.keys(), ...scope.servers.filter((s) => s !== '*')])];
+  return html`<form method="post" action="${key ? `/keys/${key.id}` : '/keys'}" class="card">
+    <label>Name <input name="name" required maxlength="64" placeholder="laptop-claude-code" value="${key?.name ?? ''}" /></label>
+    ${key
+      ? html`<p class="muted">Kind: ${key.kind}. The token does not change; create a new key to rotate it.</p>`
+      : html`<label>Kind
+          <select name="kind"><option value="client">client: uses /mcp</option><option value="admin">admin: management endpoint</option></select>
+        </label>`}
+    <fieldset>
+      <legend>Servers</legend>
+      <label class="check"><input type="checkbox" name="servers" value="*" ${all ? 'checked' : ''} /> All, including future ones</label>
+      ${servers.map((s) => html`<label class="check"><input type="checkbox" name="servers" value="${s}" ${!all && scope.servers.includes(s) ? 'checked' : ''} /> ${s}${hub.upstreams.has(s) ? '' : html` <span class="muted">(not in the configuration)</span>`}</label>`)}
+    </fieldset>
+    <label>Allow tools <input name="allow" placeholder="mail-*, calendar-list_*" value="${scope.tools.allow?.join(', ') ?? ''}" /><span class="muted">Globs on exposed names, empty for all.</span></label>
+    <label>Deny tools <input name="deny" placeholder="*-delete_*" value="${scope.tools.deny?.join(', ') ?? ''}" /></label>
+    <div class="buttons"><button class="primary">${key ? 'Save' : 'Create key'}</button>${key ? html`<a class="button" href="/keys">Cancel</a>` : ''}</div>
+  </form>`;
 }
 
 function created(key: Key, token: string, base: string): Fragment {
@@ -293,7 +358,7 @@ if (document.getElementById('servers')) setInterval(async () => {
   if (document.hidden) return;
   const current = document.getElementById('servers');
   const open = [...current.querySelectorAll('details[open]')].map((d) => d.dataset.id);
-  const res = await fetch(location.href).catch(() => null);
+  const res = await fetch('/').catch(() => null);
   if (!res || !res.ok || res.redirected) return;
   const next = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById('servers');
   if (!next) return;
@@ -341,6 +406,12 @@ button.primary, .button.primary { background: var(--accent); border-color: var(-
 button.danger { color: var(--bad); }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; }
 .notice { border-color: var(--accent); margin-bottom: 24px; }
+.notice.failed { border-color: var(--bad); }
+.notice p { margin: 0; }
+.notice pre { margin: 10px 0 0; }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.buttons { display: flex; gap: 8px; }
+.actions a.button { margin: 4px 4px 0 0; }
 form.card { display: grid; gap: 14px; max-width: 560px; }
 form.card label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; }
 form.card label.check { display: flex; gap: 8px; font-weight: 400; align-items: center; }

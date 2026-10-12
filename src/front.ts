@@ -2,7 +2,7 @@ import { Server, createMcpHandler, type CallToolResult, type Tool } from '@model
 import { Hono } from 'hono';
 import { adminServer } from './admin.ts';
 import type { ServerConfig } from './config.ts';
-import { allowed, findKey, keySees, loadKeys, type Key } from './keys.ts';
+import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
 import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
 
@@ -20,29 +20,62 @@ export type PackageStatus = {
   updateError?: string;
 };
 
+export type ReloadResult = { added: string[]; removed: string[]; changed: string[] };
+
 export class Hub {
   readonly upstreams = new Map<string, Upstream>();
   private routes = new Map<string, Route>();
   private warned = new Set<string>();
-  readonly configs: Record<string, ServerConfig>;
+  configs: Record<string, ServerConfig>;
   private readonly packages?: Packages;
+  private readonly load?: () => Record<string, ServerConfig>;
   readonly handler = createMcpHandler(({ authInfo }) => this.mcpServer(authInfo?.extra?.key as Key));
   readonly adminHandler = createMcpHandler(({ authInfo }) => {
     const key = authInfo?.extra?.key as Key;
     return adminServer(this, key, (tool, ok, ms) => audit(key, `admin:${tool}`, ok, ms));
   });
 
-  constructor(configs: Record<string, ServerConfig>, packages?: Packages) {
+  /** `load` re-reads the server file for `reload()`. */
+  constructor(configs: Record<string, ServerConfig>, packages?: Packages, load?: () => Record<string, ServerConfig>) {
     this.configs = configs;
     this.packages = packages;
-    for (const [name, config] of Object.entries(configs)) {
-      this.upstreams.set(name, new Upstream(name, config, () => this.rebuild(), packages));
-    }
+    this.load = load;
+    for (const [name, config] of Object.entries(configs)) this.upstreams.set(name, this.newUpstream(name, config));
   }
 
   start(): void {
-    this.packages?.watch(Object.values(this.configs).flatMap((c) => (c.enabled && c.package ? [c.package] : [])));
+    this.watchPackages();
     for (const upstream of this.upstreams.values()) upstream.start();
+  }
+
+  /**
+   * Re-reads the server file and applies the difference: new servers start, removed ones stop, changed ones restart
+   * with their new settings. Untouched servers keep running. A file that does not parse changes nothing.
+   */
+  async reload(): Promise<ReloadResult> {
+    if (!this.load) throw new Error('no configuration file to reload');
+    const next = this.load();
+    const removed = Object.keys(this.configs).filter((name) => !next[name]);
+    const added = Object.keys(next).filter((name) => !this.configs[name]);
+    const changed = Object.keys(next).filter((name) => this.configs[name] && JSON.stringify(this.configs[name]) !== JSON.stringify(next[name]));
+    const stopping = [...removed, ...changed].map((name) => this.upstreams.get(name)!);
+    for (const name of removed) this.upstreams.delete(name);
+    this.configs = next;
+    for (const name of [...changed, ...added]) this.upstreams.set(name, this.newUpstream(name, next[name]!));
+    await Promise.all(stopping.map((u) => u.stop()));
+    for (const name of [...changed, ...added]) this.upstreams.get(name)!.start();
+    this.packages?.unwatch();
+    this.watchPackages();
+    this.rebuild();
+    return { added, removed, changed };
+  }
+
+  private newUpstream(name: string, config: ServerConfig): Upstream {
+    return new Upstream(name, config, () => this.rebuild(), this.packages);
+  }
+
+  private watchPackages(): void {
+    this.packages?.watch(Object.values(this.configs).flatMap((c) => (c.enabled && c.package ? [c.package] : [])));
   }
 
   /** Installed and latest version of every package server, for the UI. */
@@ -143,6 +176,18 @@ function audit(key: Key, tool: string, ok: boolean, ms: number): void {
   console.log(JSON.stringify({ event: 'tool_call', time: new Date().toISOString(), key: key.name, tool, ok, ms }));
 }
 
+const TOUCH_EVERY_MS = 3_600_000;
+
+/** Records `lastUsed`, at most once an hour per key so a busy client does not rewrite the file on every call. */
+function touch(keysPath: string, key: Key): void {
+  if (key.lastUsed && Date.now() - Date.parse(key.lastUsed) < TOUCH_EVERY_MS) return;
+  const keys = loadKeys(keysPath);
+  const stored = keys.find((k) => k.id === key.id);
+  if (!stored) return;
+  stored.lastUsed = new Date().toISOString();
+  saveKeys(keysPath, keys);
+}
+
 export function app(hub: Hub, keysPath: string, webUi?: Hono<any>): Hono {
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
@@ -154,6 +199,7 @@ export function app(hub: Hub, keysPath: string, webUi?: Hono<any>): Hono {
       const token = c.req.header('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
       const key = findKey(loadKeys(keysPath), token);
       if (!key || key.kind !== kind) return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });
+      touch(keysPath, key);
       return handler.fetch(c.req.raw, { authInfo: { token: token!, clientId: key.id, scopes: [], extra: { key } } });
     });
   }

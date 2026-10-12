@@ -24,7 +24,11 @@ Without the web UI, generate one from the container and add the printed entry to
 docker exec mcpyard node src/main.ts keygen laptop-claude-code
 ```
 
-Disabling or deleting a key takes effect on the next request: the file is read for every call.
+**Edit** renames a key or changes its scope; its token stays the same. To rotate a token, create a
+new key and delete the old one. Disabling, editing or deleting a key takes effect on the next request:
+the file is read for every call.
+
+The **Last used** column shows when each key last authenticated, recorded at most once an hour.
 
 ## Scopes
 
@@ -61,5 +65,6 @@ Every tool call is written to standard output as one JSON line:
 {"event":"tool_call","time":"2026-10-12T09:14:03.120Z","key":"laptop-claude-code","tool":"time-get_current_time","ok":true,"ms":42}
 ```
 
-Key creation, disabling and deletion from the web UI are logged the same way, with the signed-in user.
+Key changes and configuration reloads from the web UI are logged the same way, with the signed-in
+user.
 Ship the container logs wherever you keep logs.

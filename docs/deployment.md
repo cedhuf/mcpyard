@@ -85,6 +85,11 @@ Keep the `Host` header: the web UI checks that forms come from the hub's own ori
 prefixed with the server name on standard error; tool calls and key changes are JSON lines on standard
 output.
 
+## Applying configuration changes
+
+Edit `mcpyard.yaml`, then reload it from the web UI or with `docker kill -s HUP mcpyard`. Only the
+servers you touched restart. See [Reloading](configuration.html#reloading).
+
 ## Upgrading
 
 Pull the new image and recreate the container. Releases follow semantic versioning; notes are on the

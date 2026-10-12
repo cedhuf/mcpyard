@@ -18,7 +18,8 @@ if (process.argv[2] === 'keygen') {
 }
 
 const packages = new Packages({ dataDir, checkHours: Number(env.MCPYARD_VERSION_CHECK_HOURS ?? 6) });
-const hub = new Hub(loadConfig(env.MCPYARD_CONFIG ?? '/config/mcpyard.yaml'), packages);
+const configPath = env.MCPYARD_CONFIG ?? '/config/mcpyard.yaml';
+const hub = new Hub(loadConfig(configPath), packages, () => loadConfig(configPath));
 hub.start();
 
 function uiAuth(): UiAuth | undefined {
@@ -41,6 +42,13 @@ const auth = uiAuth();
 const webUi = auth && ui(hub, { keysPath, auth, publicUrl: env.MCPYARD_PUBLIC_URL });
 const port = Number(env.MCPYARD_PORT ?? 3000);
 const server = serve({ fetch: app(hub, keysPath, webUi).fetch, port }, () => console.error(`mcpyard listening on :${port}`));
+
+process.on('SIGHUP', () => {
+  hub.reload().then(
+    (r) => console.error(`configuration reloaded: added [${r.added}], removed [${r.removed}], changed [${r.changed}]`),
+    (e: Error) => console.error(`configuration not reloaded: ${e.message}`),
+  );
+});
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, async () => {

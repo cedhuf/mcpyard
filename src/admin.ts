@@ -7,7 +7,8 @@ const SETTLE_MS = 30_000;
 
 /**
  * The management endpoint for admin keys. `scope.servers` limits which servers a key manages and `scope.tools`
- * filters these tool names, so `{ deny: ["restart_server"] }` makes a read-only key.
+ * filters these tool names, so `{ deny: ["restart_server", "reload_config"] }` makes a read-only key. Only keys that
+ * manage every server may reload the configuration, since a reload can touch any of them.
  */
 export function adminServer(hub: Hub, key: Key, audit: (tool: string, ok: boolean, ms: number) => void): McpServer {
   const server = new McpServer({ name: 'mcpyard-admin', version: '0.0.0' });
@@ -73,6 +74,17 @@ export function adminServer(hub: Hub, key: Key, audit: (tool: string, ok: boolea
         }
         return status(name, false);
       }),
+    );
+  }
+
+  if (exposed('reload_config') && key.scope.servers.includes('*')) {
+    server.registerTool(
+      'reload_config',
+      {
+        description: 'Re-read the server file: start new servers, stop removed ones, restart changed ones. Lists what changed.',
+        annotations: { readOnlyHint: false },
+      },
+      call('reload_config', () => hub.reload()),
     );
   }
 

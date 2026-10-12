@@ -95,4 +95,15 @@ warns at startup about any tool that would cross that line. Keep server names sh
 | `OIDC_ALLOWED_GROUPS` | | Comma-separated groups allowed to sign in. |
 | `MCPYARD_UI_AUTH` | `oidc` | `none` turns web UI sign-in off. |
 
-The file is read at startup: restart the container after editing it.
+## Reloading
+
+After editing the file, apply it without a restart: click **Reload configuration** in the web UI, call
+`reload_config` on the [admin endpoint](admin.html), or send `SIGHUP`:
+
+```bash
+docker kill -s HUP mcpyard
+```
+
+New servers start, removed ones stop, and servers whose settings changed restart with them; the others
+keep running untouched. A file that does not parse changes nothing and the error is reported.
+Environment variables are read once at startup, so a new `${VAR}` still needs a container restart.

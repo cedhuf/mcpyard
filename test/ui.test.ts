@@ -60,6 +60,29 @@ test('keys are created with a scope, shown once, disabled and deleted', async ()
   assert.deepEqual(JSON.parse(readFileSync(keysPath, 'utf8')), []);
 });
 
+test('a key can be renamed and rescoped without changing its token', async () => {
+  const { keysPath, post, request } = setup({ kind: 'none' });
+  const token = (await (await post('/keys', { name: 'agent', servers: ['alpha'] })).text()).match(/yard_[0-9a-f]{8}_[A-Za-z0-9_-]+/)![0];
+  const [key] = JSON.parse(readFileSync(keysPath, 'utf8')) as Key[];
+  const form = await (await request(`/keys/${key!.id}/edit`)).text();
+  assert.match(form, /value="agent"/);
+  assert.match(form, /value="alpha" checked/);
+  assert.equal((await post(`/keys/${key!.id}`, { name: 'agent-2', servers: ['beta'], allow: 'beta-*' })).status, 303);
+  const [updated] = JSON.parse(readFileSync(keysPath, 'utf8')) as Key[];
+  assert.equal(updated!.name, 'agent-2');
+  assert.deepEqual(updated!.scope, { servers: ['beta'], tools: { allow: ['beta-*'] } });
+  assert.equal(updated!.hash, key!.hash);
+  assert.ok(token);
+});
+
+test('reload without a configuration file reports the error and changes nothing', async () => {
+  const { post } = setup({ kind: 'none' });
+  const res = await post('/reload', {});
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /Configuration not reloaded[\s\S]*no configuration file to reload/);
+  assert.equal(hub.upstreams.size, 2);
+});
+
 test('posts without a same-origin Origin header are refused', async () => {
   const { post } = setup({ kind: 'none' });
   assert.equal((await post('/keys', { name: 'x' }, {})).status, 403);
