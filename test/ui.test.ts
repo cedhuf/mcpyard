@@ -97,9 +97,8 @@ let idpServer: ReturnType<typeof serve>;
 
 before(async () => {
   const provider = new Hono();
-  provider.get('/.well-known/openid-configuration', (c) =>
-    c.json({ issuer: idp.url, authorization_endpoint: `${idp.url}/authorize`, token_endpoint: `${idp.url}/token`, jwks_uri: `${idp.url}/jwks` }),
-  );
+  provider.get('/*', async (c, next) => (c.req.path.endsWith('/.well-known/openid-configuration') ? c.json(discovery()) : next()));
+  const discovery = () => ({ issuer: idp.url, authorization_endpoint: `${idp.url}/authorize`, token_endpoint: `${idp.url}/token`, jwks_uri: `${idp.url}/jwks` });
   provider.get('/jwks', (c) => c.json({ keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'k1', use: 'sig', alg: 'ES256' }] }));
   provider.post('/token', async (c) => {
     const form = await c.req.parseBody();
@@ -159,6 +158,11 @@ test('OIDC login with PKCE opens a session', async () => {
   const page = await request('/keys', { headers: { cookie: session } });
   assert.equal(page.status, 200);
   assert.match(await page.text(), /<span>admin<\/span>/);
+});
+
+test('a provider announcing another issuer is refused', async () => {
+  const oidc = new Oidc({ issuer: `${idp.url}/other`, clientId: 'mcpyard', publicUrl: PUBLIC });
+  await assert.rejects(oidc.begin('/'), /announces issuer/);
 });
 
 test('a bad signature or a missing group never opens a session', async () => {

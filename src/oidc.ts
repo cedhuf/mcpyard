@@ -158,7 +158,11 @@ export class Oidc {
       const url = `${this.config.issuer}/.well-known/openid-configuration`;
       const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
       if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-      return (await res.json()) as Discovery;
+      const discovery = (await res.json()) as Discovery;
+      if (discovery.issuer.replace(/\/$/, '') !== this.config.issuer) {
+        throw new Error(`${url} announces issuer ${discovery.issuer}, expected ${this.config.issuer}`);
+      }
+      return discovery;
     })();
     this.discovery.catch(() => (this.discovery = undefined));
     return this.discovery;

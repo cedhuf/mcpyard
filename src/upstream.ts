@@ -126,6 +126,8 @@ export class Upstream {
     const version = spec.version ?? recorded?.version ?? (await this.packages.latest(spec));
     this.launch = await this.packages.prepare(this.name, spec, version, this.config.allowScripts);
     this.version = version;
+    // A pinned server never rolls back, so versions pinned earlier are dead weight.
+    if (spec.version) this.packages.prune(this.name, [version]);
     if (!spec.version && !recorded) this.packages.record(this.name, version);
   }
 

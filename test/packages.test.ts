@@ -101,6 +101,16 @@ test('pinned package installs its version and refuses updates', async () => {
   await hub.stop();
 });
 
+test('changing a pinned version removes the version pinned before', async () => {
+  const first = setup('servers:\n  pkg: { package: { npm: fake-pkg, version: 1.0.0 } }', { version: '9.9.9' });
+  await until(first.hub, 'pkg', ['ready']);
+  await first.hub.stop();
+  const second = setup('servers:\n  pkg: { package: { npm: fake-pkg, version: 1.1.0 } }', { version: '9.9.9' }, first.dataDir);
+  await until(second.hub, 'pkg', ['ready']);
+  assert.deepEqual(readdirSync(join(first.dataDir, 'packages', 'pkg')), ['1.1.0']);
+  await second.hub.stop();
+});
+
 test('a package with several bins and no package.bin fails without blocking others', async () => {
   const { hub } = setup(
     `servers:\n  multi: { package: { npm: fake-pkg, version: 1.0.0-multi } }\n  pkg: { package: { npm: fake-pkg, version: 1.0.0 } }`,

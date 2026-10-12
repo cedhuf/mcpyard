@@ -54,6 +54,7 @@ Install scripts run with the same scrubbed environment as servers, plus proxy an
 Each server has exactly one source of truth for its version.
 
 **Pinned**: `version` is set in the file. That version runs, and only an edit to the file changes it.
+Once a newly pinned version is installed, the directories of versions pinned before are deleted.
 
 **Hub-owned**: `version` is omitted. The first start installs the registry's latest version and
 records it in `$MCPYARD_DATA_DIR/versions.json`. Later starts reuse the recorded version, so a restart
