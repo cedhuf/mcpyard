@@ -31,8 +31,8 @@ MCP Yard aims at the small intersection none of them covers:
   No local password.
 - **Configured by environment and one file.** Runtime settings in env vars, servers in a single
   YAML file you can version.
-- **Manageable over MCP.** A separately keyed admin endpoint lets an agent read status and
-  versions, restart or update a server, and reload the configuration.
+- **Manageable over MCP.** Keys you allow get the hub's own `yard-*` tools: read status and
+  versions, restart or update a server, reload the configuration.
 - **One small Docker image**, built and published by GitHub Actions.
 
 ## Non-goals

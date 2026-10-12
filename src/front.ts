@@ -1,8 +1,8 @@
 import { Server, createMcpHandler, type CallToolResult, type Tool } from '@modelcontextprotocol/server';
 import { Hono } from 'hono';
-import { adminServer } from './admin.ts';
 import type { ServerConfig } from './config.ts';
-import { allowed, findKey, keySees, loadKeys, reaches, saveKeys, type Key } from './keys.ts';
+import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
+import { YARD, YARD_TOOLS } from './yard.ts';
 import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
 import { VERSION } from './release.ts';
@@ -31,10 +31,8 @@ export class Hub {
   private readonly packages?: Packages;
   private readonly load?: () => Record<string, ServerConfig>;
   readonly handler = createMcpHandler(({ authInfo }) => this.mcpServer(authInfo?.extra?.key as Key));
-  readonly adminHandler = createMcpHandler(({ authInfo }) => {
-    const key = authInfo?.extra?.key as Key;
-    return adminServer(this, key, (tool, ok, ms) => audit(key, `admin:${tool}`, ok, ms));
-  });
+  /** Whether the hub's own `yard-*` tools are offered at all; keys must still list `yard`. */
+  yardEnabled: () => boolean = () => true;
 
   /** `load` re-reads the server file for `reload()`. */
   constructor(configs: Record<string, ServerConfig>, packages?: Packages, load?: () => Record<string, ServerConfig>) {
@@ -73,6 +71,11 @@ export class Hub {
 
   private newUpstream(name: string, config: ServerConfig): Upstream {
     return new Upstream(name, config, () => this.rebuild(), this.packages);
+  }
+
+  /** Tells connected clients to list their tools again, after something outside the upstreams changed them. */
+  notifyToolsChanged(): void {
+    this.handler.notify.toolsChanged();
   }
 
   /** Applies a new check period without a restart. */
@@ -120,7 +123,7 @@ export class Hub {
   async stop(): Promise<void> {
     this.packages?.unwatch();
     await Promise.all([...this.upstreams.values()].map((u) => u.stop()));
-    await Promise.all([this.handler.close(), this.adminHandler.close()]);
+    await this.handler.close();
   }
 
   /** Exposed name to (server, tool). Routing goes through this table and never splits a name. */
@@ -154,14 +157,30 @@ export class Hub {
   private mcpServer(key: Key): Server {
     const server = new Server({ name: 'mcpyard', version: VERSION }, { capabilities: { tools: { listChanged: true } } });
 
+    const yardTools = () => (this.yardEnabled() ? YARD_TOOLS.filter((t) => keySees(key, YARD, `${YARD}-${t.tool.name}`)) : []);
+
     server.setRequestHandler('tools/list', () => ({
-      tools: [...this.routes]
-        .filter(([exposed, route]) => keySees(key, route.server, exposed))
-        .map(([exposed, route]) => ({ ...route.tool, name: exposed })),
+      tools: [
+        ...[...this.routes].filter(([exposed, route]) => keySees(key, route.server, exposed)).map(([exposed, route]) => ({ ...route.tool, name: exposed })),
+        ...yardTools().map((t) => ({ ...t.tool, name: `${YARD}-${t.tool.name}` })),
+      ],
     }));
 
     server.setRequestHandler('tools/call', async (request) => {
       const exposed = request.params.name;
+      const yard = yardTools().find((t) => `${YARD}-${t.tool.name}` === exposed);
+      if (yard) {
+        const started = Date.now();
+        let result: CallToolResult;
+        try {
+          const args = yard.schema.parse(request.params.arguments ?? {}) as Record<string, string>;
+          result = { content: [{ type: 'text', text: JSON.stringify(await yard.run(this, key, args), null, 2) }] };
+        } catch (e) {
+          result = { isError: true, content: [{ type: 'text', text: (e as Error).message }] };
+        }
+        audit(key, exposed, !result.isError, Date.now() - started);
+        return result;
+      }
       const route = this.routes.get(exposed);
       if (!route || !keySees(key, route.server, exposed)) throw new Error(`unknown tool ${exposed}`);
       const started = Date.now();
@@ -195,22 +214,16 @@ function touch(keysPath: string, key: Key): void {
   saveKeys(keysPath, keys);
 }
 
-export function app(hub: Hub, keysPath: string, webUi?: Hono<any>, adminEnabled: () => boolean = () => true): Hono {
+export function app(hub: Hub, keysPath: string, webUi?: Hono<any>): Hono {
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
-  for (const [path, kind, handler] of [
-    ['/mcp', 'client', hub.handler],
-    ['/admin/mcp', 'admin', hub.adminHandler],
-  ] as const) {
-    app.all(path, async (c) => {
-      if (kind === 'admin' && !adminEnabled()) return c.text('Not found', 404);
-      const token = c.req.header('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
-      const key = findKey(loadKeys(keysPath), token);
-      if (!key || !reaches(key, kind)) return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });
-      touch(keysPath, key);
-      return handler.fetch(c.req.raw, { authInfo: { token: token!, clientId: key.id, scopes: [], extra: { key } } });
-    });
-  }
+  app.all('/mcp', async (c) => {
+    const token = c.req.header('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
+    const key = findKey(loadKeys(keysPath), token);
+    if (!key) return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });
+    touch(keysPath, key);
+    return hub.handler.fetch(c.req.raw, { authInfo: { token: token!, clientId: key.id, scopes: [], extra: { key } } });
+  });
   if (webUi) app.route('/', webUi);
   return app;
 }

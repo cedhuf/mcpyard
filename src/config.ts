@@ -32,7 +32,8 @@ const server = z
 
 const file = z
   .object({ servers: z.record(z.string().regex(/^[A-Za-z0-9_-]+$/, 'server names are [A-Za-z0-9_-]+'), server) })
-  .strict();
+  .strict()
+  .refine((f) => !('yard' in f.servers), { message: "the server name yard is reserved for the hub's own tools", path: ['servers', 'yard'] });
 
 export type ServerConfig = z.infer<typeof server>;
 export type ToolFilter = z.infer<typeof filter>;

@@ -1,3 +1,4 @@
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -22,44 +23,55 @@ function setup(env: NodeJS.ProcessEnv = {}) {
   const settings = new Settings(dir, fullEnv);
   const hub = new Hub(configFile.load(), undefined, () => configFile.load());
   const keysPath = join(dir, 'keys.json');
-  const admin = newKey('ops', 'admin');
+  const admin = newKey('ops', true);
   writeFileSync(keysPath, JSON.stringify([admin.key]));
-  const server = app(hub, keysPath, ui(hub, { keysPath, auth: { kind: 'none' }, publicUrl: PUBLIC, settings, configFile }), () => settings.value('adminEndpoint'));
+  hub.yardEnabled = () => settings.value('adminTools');
+  const server = app(hub, keysPath, ui(hub, { keysPath, auth: { kind: 'none' }, publicUrl: PUBLIC, settings, configFile }));
   const request = (path: string, init: RequestInit = {}) => server.request(`${PUBLIC}${path}`, init);
   const post = (path: string, form: Record<string, string | string[]>) => {
     const body = new URLSearchParams();
     for (const [k, v] of Object.entries(form)) for (const one of [v].flat()) body.append(k, one);
     return request(path, { method: 'POST', body, headers: { origin: PUBLIC } });
   };
-  return { dir, configPath, settings, hub, request, post, admin };
+  return { dir, configPath, settings, hub, request, post, admin, server };
 }
 
 test('settings come from the environment, then the file, then defaults', () => {
   const { dir, settings } = setup({ MCPYARD_VERSION_CHECK_HOURS: '12' });
   assert.deepEqual(settings.get('versionCheckHours'), { value: 12, source: 'env', env: 'MCPYARD_VERSION_CHECK_HOURS' });
   assert.throws(() => settings.set('versionCheckHours', '3'), /set by MCPYARD_VERSION_CHECK_HOURS/);
-  assert.equal(settings.get('adminEndpoint').source, 'default');
-  settings.set('adminEndpoint', 'false');
-  assert.deepEqual(new Settings(dir, {}).get('adminEndpoint'), { value: false, source: 'file', env: 'MCPYARD_ADMIN_ENDPOINT' });
+  assert.equal(settings.get('adminTools').source, 'default');
+  settings.set('adminTools', 'false');
+  assert.deepEqual(new Settings(dir, {}).get('adminTools'), { value: false, source: 'file', env: 'MCPYARD_ADMIN_TOOLS' });
   assert.throws(() => new Settings(dir, {}).set('versionCheckHours', '0'), /1 to 168/);
-  assert.throws(() => new Settings(dir, { MCPYARD_ADMIN_ENDPOINT: 'maybe' }), /true or false/);
+  assert.throws(() => new Settings(dir, { MCPYARD_ADMIN_TOOLS: 'maybe' }), /true or false/);
 });
 
-test('the settings page locks environment values and turns the admin endpoint off', async () => {
-  const { request, post, admin } = setup({ MCPYARD_VERSION_CHECK_HOURS: '12' });
+test('the settings page locks environment values and turns hub administration off', async () => {
+  const { request, post, admin, server } = setup({ MCPYARD_VERSION_CHECK_HOURS: '12' });
   const page = await (await request('/settings')).text();
   assert.match(page, /<strong>12 h<\/strong>\s*<span class="badge[^"]*locked"/);
   assert.ok(!page.includes('name="versionCheckHours"'), 'a locked setting has no input');
   assert.match(page, /About MCP Yard/);
   assert.match(page, /name="updateCheck"/);
 
-  const mcp = (token: string) =>
-    request('/admin/mcp', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' }, body: '{}' });
-  assert.notEqual((await mcp(admin.token)).status, 404);
-  assert.equal((await post('/settings', { adminEndpoint: 'false' })).status, 200);
-  assert.equal((await mcp(admin.token)).status, 404);
-  await post('/settings', { adminEndpoint: ['false', 'true'] });
-  assert.notEqual((await mcp(admin.token)).status, 404);
+  const yardTools = async () => {
+    const client = new Client({ name: 'test', version: '0' });
+    await client.connect(
+      new StreamableHTTPClientTransport(new URL(`${PUBLIC}/mcp`), {
+        requestInit: { headers: { Authorization: `Bearer ${admin.token}` } },
+        fetch: async (url, init) => server.fetch(new Request(url, init)),
+      }),
+    );
+    const names = (await client.listTools()).tools.map((t) => t.name).filter((n) => n.startsWith('yard-'));
+    await client.close();
+    return names.length;
+  };
+  assert.equal(await yardTools(), 5);
+  assert.equal((await post('/settings', { adminTools: 'false' })).status, 200);
+  assert.equal(await yardTools(), 0);
+  await post('/settings', { adminTools: ['false', 'true'] });
+  assert.equal(await yardTools(), 5);
 });
 
 test('servers are added, edited and removed through the file, keeping comments and references', async () => {

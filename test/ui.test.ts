@@ -67,11 +67,11 @@ test('a key can be renamed and rescoped without changing its token', async () =>
   const form = await (await request(`/keys/${key!.id}/edit`)).text();
   assert.match(form, /value="agent"/);
   assert.match(form, /value="alpha" checked/);
-  assert.equal((await post(`/keys/${key!.id}`, { name: 'agent-2', kind: 'both', servers: ['beta'], allow: 'beta-*' })).status, 303);
+  assert.equal((await post(`/keys/${key!.id}`, { name: 'agent-2', admin: ['false', 'true'], servers: ['beta'], allow: 'beta-*' })).status, 303);
   const [updated] = JSON.parse(readFileSync(keysPath, 'utf8')) as Key[];
   assert.equal(updated!.name, 'agent-2');
-  assert.equal(updated!.kind, 'both');
-  assert.deepEqual(updated!.scope, { servers: ['beta'], tools: { allow: ['beta-*'] } });
+
+  assert.deepEqual(updated!.scope, { servers: ['beta', 'yard'], tools: { allow: ['beta-*'] } });
   assert.equal(updated!.hash, key!.hash);
   assert.ok(token);
 });

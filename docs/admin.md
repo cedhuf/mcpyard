@@ -1,36 +1,42 @@
 ---
-title: Admin endpoint
+title: Hub administration
 ---
 
-# Admin endpoint
+# Hub administration
 
-`/admin/mcp` is a second MCP endpoint, separate from `/mcp`, for agents that watch and nurse the hub.
-Only `admin` and `both` keys reach it; an `admin` key reaches nothing else.
+MCP Yard has tools of its own, to watch and nurse the hub from an agent. They are served in `/mcp`
+like any server's tools, as the `yard` server, but only to keys that are explicitly allowed to
+administer the hub.
 
-It is on by default and does nothing until an admin key exists. Turn it off on the web UI's
-**Settings** page, which also shows its URL, or with `MCPYARD_ADMIN_ENDPOINT=false`; it then answers
-`404`.
+## Allowing a key
 
-## Connect
+Open the key in the web UI and switch on **Hub administration**. The key then sees the `yard-*` tools
+next to its servers' tools, on the same connection. Behind the switch, the key's servers simply include
+`yard`; the `*` of "all servers" never does, so no key administers the hub by accident.
 
-Create a key of kind **admin** (or **both**) in the web UI, then:
+| The key should... | Servers | Hub administration |
+| --- | --- | --- |
+| use tools only | its servers, or all | off |
+| use tools and manage the hub | its servers, or all | on |
+| only watch and manage the hub | none | on |
 
-```bash
-claude mcp add --transport http mcpyard-admin https://mcpyard.example.lan/admin/mcp \
-  --header "Authorization: Bearer yard_..."
-```
+A key manages the servers it reaches. A key that reaches no server is a pure supervision key: it sees
+no server tools and manages every server.
+
+> An assistant that reads mail or web pages could be talked into calling tools it has. The yard tools
+> can restart servers and install package versions, so allow administration only where it is needed.
 
 ## Tools
 
 | Tool | Does |
 | --- | --- |
-| `list_servers` | State, last error, tool count and package versions of every server. |
-| `get_server` | One server in detail, with each tool and whether the configuration exposes it. |
-| `restart_server` | Restarts a server, waits up to 30 seconds for it to settle, returns its status. |
-| `update_server` | Updates a hub-owned package to a version, or the latest; pass the previous version to roll back. |
-| `reload_config` | Re-reads the server file and applies it; returns the added, removed and restarted servers. |
+| `yard-list_servers` | State, last error, tool count and package versions of every managed server. |
+| `yard-get_server` | One server in detail, with each tool and whether the configuration exposes it. |
+| `yard-restart_server` | Restarts a server, waits up to 30 seconds for it to settle, returns its status. |
+| `yard-update_server` | Updates a hub-owned package to a version, or the latest; pass the previous version to roll back. |
+| `yard-reload_config` | Re-reads the server file and applies it; returns the added, removed and restarted servers. |
 
-A `list_servers` entry looks like this:
+A `yard-list_servers` entry looks like this:
 
 ```json
 {
@@ -48,20 +54,24 @@ ready, retrying) and `stopped`.
 
 ## Updates from an agent
 
-`update_server` runs the same flow as the **Update** button: the new version installs into its own
-directory, starts next to the running one, and takes over only once it answers. The call returns when
-the switch is done, which can take a few minutes for a first install. If anything fails, the running
-version keeps serving and the tool returns the error. Pinned servers refuse updates: change their
-version in the file and reload instead.
+`yard-update_server` runs the same flow as the **Update** button: the new version installs into its
+own directory, starts next to the running one, and takes over only once it answers. The call returns
+when the switch is done, which can take a few minutes for a first install. If anything fails, the
+running version keeps serving and the tool returns the error. Pinned servers refuse updates: change
+their version in the file and reload instead.
 
-## Scoping an admin key
+## Narrowing an admin key
 
-The same scope rules apply as for client keys:
+The key's tool filter applies to the yard tools like to any other:
 
-- `scope.servers` limits the servers the key sees and restarts.
-- `scope.tools` filters the tool names. `{ "allow": ["list_servers", "get_server"] }` gives a
-  read-only key, handy for monitoring.
-- `reload_config` is offered only to keys that manage every server, since a reload can touch any of
+- `{ "allow": ["yard-list_*", "yard-get_*"] }` with no servers gives a read-only monitoring key.
+- `{ "deny": ["yard-update_server"] }` keeps everything but package updates.
+- `yard-reload_config` works only for keys that manage every server, since a reload can touch any of
   them.
 
-Calls appear in the audit log with the tool prefixed by `admin:`.
+## Turning it off
+
+**Settings → Hub administration**, or `MCPYARD_ADMIN_TOOLS=false`, removes the yard tools from every
+key at once. Connected clients are told their tool list changed.
+
+Calls appear in the audit log like any tool call, with their `yard-` name.

@@ -42,7 +42,7 @@ file and restarts only that server.
 
 The **Settings** page gathers what is not a server or a key:
 
-- **Admin endpoint**: on or off, the URL to give agents, and how many admin keys exist.
+- **Hub administration**: the `yard-*` tools on or off for every key, and how many keys may use them.
 - **Updates**: how often registries are checked.
 - **Appearance**: follow the system's light or dark mode, or force one, and pick the light and dark
   [daisyUI themes](https://daisyui.com/docs/themes/) (`winter` and `dim` by default).
@@ -122,7 +122,7 @@ set the valid redirect URI. The secret is on the **Credentials** tab. To use
 
 ## Without sign-in
 
-Without the OIDC variables the UI is off: only `/mcp`, `/admin/mcp` and `/healthz` answer.
+Without the OIDC variables the UI is off: only `/mcp` and `/healthz` answer.
 
 `MCPYARD_UI_AUTH=none` serves the UI to anyone who reaches the port. Use it for a local trial, on a
 network you trust, or behind a proxy that already authenticates. The hub prints a warning at startup

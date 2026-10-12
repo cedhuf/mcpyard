@@ -3,15 +3,11 @@ import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { matchesGlob } from 'node:path';
 import type { ToolFilter } from './config.ts';
 
-export const KINDS = ['client', 'admin', 'both'] as const;
-export type Kind = (typeof KINDS)[number];
-
 export type Key = {
   id: string;
   name: string;
   hash: string;
   prefix: string;
-  kind: Kind;
   scope: { servers: string[]; tools: ToolFilter };
   created: string;
   lastUsed: string | null;
@@ -21,7 +17,7 @@ export type Key = {
 const sha256 = (s: string) => createHash('sha256').update(s).digest();
 
 /** Tokens look like `yard_<id>_<secret>`; the id selects the key, the hash of the whole token proves it. */
-export function newKey(name: string, kind: Key['kind'] = 'client'): { token: string; key: Key } {
+export function newKey(name: string, admin = false): { token: string; key: Key } {
   const id = randomBytes(4).toString('hex');
   const token = `yard_${id}_${randomBytes(32).toString('base64url')}`;
   const key: Key = {
@@ -29,8 +25,7 @@ export function newKey(name: string, kind: Key['kind'] = 'client'): { token: str
     name,
     hash: `sha256:${sha256(token).toString('hex')}`,
     prefix: `yard_${id}`,
-    kind,
-    scope: { servers: ['*'], tools: {} },
+    scope: { servers: admin ? ['*', 'yard'] : ['*'], tools: {} },
     created: new Date().toISOString(),
     lastUsed: null,
     enabled: true,
@@ -38,9 +33,27 @@ export function newKey(name: string, kind: Key['kind'] = 'client'): { token: str
   return { token, key };
 }
 
-/** `both` opens the client endpoint and the admin endpoint with one token. */
-export function reaches(key: Key, endpoint: 'client' | 'admin'): boolean {
-  return key.kind === endpoint || key.kind === 'both';
+/** Hub administration is the `yard` server, which `*` never includes: a key must list it. */
+export function isAdmin(key: Key): boolean {
+  return key.scope.servers.includes('yard');
+}
+
+/**
+ * Keys written before administration moved into /mcp had a `kind`. `both` keys simply gain `yard`. `admin` keys saw
+ * no server tools and their filter named bare admin tools: they keep managing the same servers, with only yard tools.
+ */
+function migrate(key: Key & { kind?: string }): Key {
+  const { kind, ...rest } = key;
+  if (kind === 'both') return { ...rest, scope: { ...rest.scope, servers: [...new Set([...rest.scope.servers, 'yard'])] } };
+  if (kind !== 'admin') return rest;
+  const prefix = (patterns?: string[]) => patterns?.map((p) => `yard-${p}`);
+  const everything = rest.scope.servers.includes('*');
+  const allow = prefix(rest.scope.tools.allow) ?? (everything ? undefined : ['yard-*']);
+  const deny = prefix(rest.scope.tools.deny);
+  return {
+    ...rest,
+    scope: { servers: everything ? ['yard'] : [...rest.scope.servers, 'yard'], tools: { ...(allow ? { allow } : {}), ...(deny ? { deny } : {}) } },
+  };
 }
 
 export function findKey(keys: Key[], token: string | undefined): Key | undefined {
@@ -55,7 +68,7 @@ export function findKey(keys: Key[], token: string | undefined): Key | undefined
 // ponytail: re-read on every request, cache by mtime if the file grows or traffic does.
 export function loadKeys(path: string): Key[] {
   try {
-    return JSON.parse(readFileSync(path, 'utf8')) as Key[];
+    return (JSON.parse(readFileSync(path, 'utf8')) as Key[]).map(migrate);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw e;
@@ -72,7 +85,9 @@ export function allowed(name: string, filter: ToolFilter): boolean {
   return !filter.deny?.some((p) => matchesGlob(name, p));
 }
 
-export function keySees(key: Key, server: string, exposedName: string): boolean {
+/** Whether the key reaches `server`, and, given an exposed tool name, whether its tool filter lets that tool through. */
+export function keySees(key: Key, server: string, exposedName?: string): boolean {
   const servers = key.scope.servers;
-  return (servers.includes('*') || servers.includes(server)) && allowed(exposedName, key.scope.tools);
+  const reaches = servers.includes(server) || (server !== 'yard' && servers.includes('*'));
+  return reaches && (exposedName === undefined || allowed(exposedName, key.scope.tools));
 }

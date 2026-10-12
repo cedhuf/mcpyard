@@ -282,6 +282,10 @@ body { background: var(--color-base-200); min-height: 100vh; }
 .panel-flush { padding: 4px 6px; }
 .avatar-face { position: relative; overflow: hidden; }
 .avatar-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.admin-block { border: 1px solid color-mix(in oklab, var(--color-warning) 55%, transparent); background: color-mix(in oklab, var(--color-warning) 9%, transparent); border-radius: var(--radius-box); padding: 14px 18px; display: grid; gap: 8px; }
+.admin-head { display: flex; align-items: center; gap: 8px; color: color-mix(in oklab, var(--color-warning) 45%, var(--color-base-content)); }
+.admin-block p { margin: 0; font-size: 0.85rem; }
+.admin-panel { border-color: color-mix(in oklab, var(--color-warning) 55%, transparent); }
 .hint { font-size: 0.75rem; opacity: 0.7; margin-top: 2px; }
 .inline-form { display: inline-flex; }
 .checks { display: flex; flex-wrap: wrap; gap: 6px 22px; }

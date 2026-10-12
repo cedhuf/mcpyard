@@ -8,16 +8,17 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { parseConfig } from '../src/config.ts';
 import { app, Hub } from '../src/front.ts';
-import { newKey } from '../src/keys.ts';
+import { loadKeys, newKey } from '../src/keys.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'mcpyard-'));
 const full = newKey('full');
 const narrow = newKey('narrow');
 narrow.key.scope.tools = { deny: ['*-delete_*'] };
-const admin = newKey('admin', 'admin');
-const both = newKey('both', 'both');
-const readOnly = newKey('read-only', 'admin');
-readOnly.key.scope = { servers: ['other'], tools: { allow: ['list_servers', 'get_server'] } };
+const admin = newKey('admin');
+admin.key.scope = { servers: ['yard'], tools: {} };
+const both = newKey('both', true);
+const readOnly = newKey('read-only');
+readOnly.key.scope = { servers: ['other', 'yard'], tools: { allow: ['yard-list_*', 'yard-get_*'] } };
 writeFileSync(join(dir, 'keys.json'), JSON.stringify([full.key, narrow.key, admin.key, readOnly.key, both.key]));
 
 process.env.SECRET_FROM_HUB = 'leaked';
@@ -87,8 +88,8 @@ test('key scope hides and refuses tools', async () => {
   await client.close();
 });
 
-test('bad, missing and admin keys get 401 on /mcp', async () => {
-  for (const auth of [`Bearer ${full.token}x`, '', `Bearer ${admin.token}`]) {
+test('bad and missing keys get 401 on /mcp', async () => {
+  for (const auth of [`Bearer ${full.token}x`, '']) {
     const res = await fetch(url, { method: 'POST', headers: { Authorization: auth, 'content-type': 'application/json' }, body: '{}' });
     assert.equal(res.status, 401);
   }
@@ -96,41 +97,69 @@ test('bad, missing and admin keys get 401 on /mcp', async () => {
 
 const json = (result: Awaited<ReturnType<Client['callTool']>>) => JSON.parse((result.content as { text: string }[])[0]!.text);
 
-test('admin endpoint reports and restarts servers', async () => {
-  const client = await connect(admin.token, '/admin/mcp');
-  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), ['get_server', 'list_servers', 'reload_config', 'restart_server', 'update_server']);
-  const [server] = json(await client.callTool({ name: 'list_servers' }));
+test('a key without administration never sees the yard tools', async () => {
+  const client = await connect(full.token);
+  assert.ok(!(await client.listTools()).tools.some((t) => t.name.startsWith('yard-')));
+  await assert.rejects(client.callTool({ name: 'yard-restart_server', arguments: { name: 'fix-ture' } }), /unknown tool/);
+  await client.close();
+});
+
+test('an administration-only key manages every server without seeing their tools', async () => {
+  const client = await connect(admin.token);
+  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), [
+    'yard-get_server',
+    'yard-list_servers',
+    'yard-reload_config',
+    'yard-restart_server',
+    'yard-update_server',
+  ]);
+  const [server] = json(await client.callTool({ name: 'yard-list_servers' }));
   assert.equal(server.name, 'fix-ture');
   assert.equal(server.state, 'ready');
   assert.equal(server.tools, 4);
-  const detail = json(await client.callTool({ name: 'get_server', arguments: { name: 'fix-ture' } }));
+  const detail = json(await client.callTool({ name: 'yard-get_server', arguments: { name: 'fix-ture' } }));
   assert.deepEqual(detail.tools.find((t: { name: string }) => t.name === 'fix-ture-echo'), { name: 'fix-ture-echo', exposed: true });
-  const restarted = json(await client.callTool({ name: 'restart_server', arguments: { name: 'fix-ture' } }));
+  const restarted = json(await client.callTool({ name: 'yard-restart_server', arguments: { name: 'fix-ture' } }));
   assert.equal(restarted.state, 'ready');
   await client.close();
 });
 
-test('admin key scope limits servers and tools', async () => {
-  const client = await connect(readOnly.token, '/admin/mcp');
-  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), ['get_server', 'list_servers']);
-  assert.deepEqual(json(await client.callTool({ name: 'list_servers' })), []);
-  const result = await client.callTool({ name: 'get_server', arguments: { name: 'fix-ture' } });
-  assert.equal(result.isError, true);
+test('the scope limits which servers and yard tools an admin key has', async () => {
+  const client = await connect(readOnly.token);
+  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), ['yard-get_server', 'yard-list_servers']);
+  assert.deepEqual(json(await client.callTool({ name: 'yard-list_servers' })), []);
+  assert.equal((await client.callTool({ name: 'yard-get_server', arguments: { name: 'fix-ture' } })).isError, true);
   await client.close();
 });
 
-test('a both key reaches the tools and the admin endpoint', async () => {
-  const tools = await connect(both.token);
-  assert.ok((await tools.listTools()).tools.some((t) => t.name === 'fix-ture-echo'));
-  await tools.close();
-  const adminClient = await connect(both.token, '/admin/mcp');
-  assert.ok((await adminClient.listTools()).tools.some((t) => t.name === 'list_servers'));
-  await adminClient.close();
+test('a key with servers and administration has both on one connection', async () => {
+  const client = await connect(both.token);
+  const names = (await client.listTools()).tools.map((t) => t.name);
+  assert.ok(names.includes('fix-ture-echo') && names.includes('yard-list_servers'));
+  await client.close();
 });
 
-test('client keys get 401 on /admin/mcp', async () => {
-  const res = await fetch(new URL('/admin/mcp', url), { method: 'POST', headers: { Authorization: `Bearer ${full.token}`, 'content-type': 'application/json' }, body: '{}' });
-  assert.equal(res.status, 401);
+test('keys from before administration moved into /mcp are converted', () => {
+  const legacy = join(dir, 'legacy.json');
+  const base = { id: 'abcd0123', hash: 'sha256:00', prefix: 'yard_abcd0123', created: '2026-01-01', lastUsed: null, enabled: true };
+  writeFileSync(
+    legacy,
+    JSON.stringify([
+      { ...base, name: 'ops', kind: 'admin', scope: { servers: ['*'], tools: { deny: ['restart_server'] } } },
+      { ...base, name: 'scoped-ops', kind: 'admin', scope: { servers: ['mail'], tools: {} } },
+      { ...base, name: 'assistant', kind: 'both', scope: { servers: ['*'], tools: {} } },
+      { ...base, name: 'laptop', kind: 'client', scope: { servers: ['*'], tools: {} } },
+    ]),
+  );
+  assert.deepEqual(
+    loadKeys(legacy).map((k) => [k.name, k.scope, 'kind' in k]),
+    [
+      ['ops', { servers: ['yard'], tools: { deny: ['yard-restart_server'] } }, false],
+      ['scoped-ops', { servers: ['mail', 'yard'], tools: { allow: ['yard-*'] } }, false],
+      ['assistant', { servers: ['*', 'yard'], tools: {} }, false],
+      ['laptop', { servers: ['*'], tools: {} }, false],
+    ],
+  );
 });
 
 test('config needs exactly one of package, url or command', () => {
@@ -138,4 +167,5 @@ test('config needs exactly one of package, url or command', () => {
   assert.throws(() => parseConfig('servers:\n  "a b": { command: x }'), /Invalid key.*"a b"/s);
   assert.throws(() => parseConfig('servers:\n  a: { command: "${NOPE_NOT_SET}" }', {}), /NOPE_NOT_SET/);
   assert.throws(() => parseConfig('servers:\n  a: { command: x, env: { T: ${T} } }', { T: 't' }), /quote references/);
+  assert.throws(() => parseConfig('servers:\n  yard: { command: x }'), /reserved/);
 });

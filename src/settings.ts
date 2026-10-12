@@ -7,7 +7,7 @@ export const THEME_MODES = ['system', 'light', 'dark'] as const;
 
 /** Settings the UI may change at runtime. An environment variable, when set, wins and locks the setting. */
 const DEFINITIONS = {
-  adminEndpoint: { env: 'MCPYARD_ADMIN_ENDPOINT', type: 'boolean', default: true },
+  adminTools: { env: 'MCPYARD_ADMIN_TOOLS', type: 'boolean', default: true },
   versionCheckHours: { env: 'MCPYARD_VERSION_CHECK_HOURS', type: 'number', default: 6, min: 1, max: 24 * 7 },
   updateCheck: { env: 'MCPYARD_UPDATE_CHECK', type: 'boolean', default: true },
   theme: { env: 'MCPYARD_THEME', type: 'choice', options: THEME_MODES, default: 'system' },
@@ -17,7 +17,7 @@ const DEFINITIONS = {
 
 export type SettingKey = keyof typeof DEFINITIONS;
 type Values = {
-  adminEndpoint: boolean;
+  adminTools: boolean;
   versionCheckHours: number;
   updateCheck: boolean;
   theme: (typeof THEME_MODES)[number];

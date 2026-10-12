@@ -21,7 +21,7 @@ stored, in `$MCPYARD_DATA_DIR/keys.json`.
 Without the web UI, generate one from the container and add the printed entry to `keys.json`:
 
 ```bash
-docker exec mcpyard node src/main.ts keygen laptop-claude-code   # add admin or both as a third argument
+docker exec mcpyard node src/main.ts keygen laptop-claude-code   # add admin as a third argument for hub administration
 ```
 
 **Edit** renames a key or changes its scope; its token stays the same. To rotate a token, create a
@@ -48,17 +48,12 @@ cannot see.
 
 Server-level `tools` filters in the [server file](configuration.html) apply first, to every key.
 
-## Client and admin keys
+## Hub administration
 
-| Kind | Reaches | Used by |
-| --- | --- | --- |
-| `client` | `/mcp`, the merged tools | assistants and agents doing work |
-| `admin` | `/admin/mcp`, the management tools | agents that watch the hub, see [Admin endpoint](admin.html) |
-| `both` | both endpoints with one token | an assistant you trust to use the tools and nurse the hub |
-
-A `client` key gets `401` on the admin endpoint and an `admin` key on `/mcp`. The scope applies on
-both endpoints: a `both` key limited to some servers sees and manages only those. The kind can be
-changed later without changing the token.
+Switch on **Hub administration** on a key to give it MCP Yard's own `yard-*` tools as well, on the same
+`/mcp` connection: listing, restarting and updating servers, reloading the server file. It sits apart
+from the servers in the form on purpose, and no key gets it unless you switch it on. See
+[Hub administration](admin.html).
 
 ## Audit log
 

@@ -2,7 +2,8 @@ import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import type { ConfigFile, RawServer } from './config.ts';
 import type { Hub } from './front.ts';
-import { loadKeys, reaches } from './keys.ts';
+import { isAdmin, loadKeys } from './keys.ts';
+import { YARD_TOOLS } from './yard.ts';
 import { THEME_MODES, THEMES, type SettingKey, type Settings } from './settings.ts';
 import { release } from './release.ts';
 import { alert, badge, checkbox, field, formGrid, kv, linkButton, pageHead, panel, postButton, table } from './ui-kit.ts';
@@ -20,8 +21,7 @@ export type ConfigOptions = {
 };
 
 const NAME = /^[A-Za-z0-9_-]+$/;
-const FORM_FIELDS: SettingKey[] = ['adminEndpoint', 'versionCheckHours', 'updateCheck', 'theme', 'lightTheme', 'darkTheme'];
-const ADMIN_TOOLS = ['list_servers', 'get_server', 'restart_server', 'update_server', 'reload_config'];
+const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'updateCheck', 'theme', 'lightTheme', 'darkTheme'];
 
 export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: ConfigOptions): void {
   const { settings, configFile } = options;
@@ -92,9 +92,9 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
 
 function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragment {
   const { settings, environment = [] } = options;
-  const admin = settings?.get('adminEndpoint');
+  const admin = settings?.get('adminTools');
   const hours = settings?.get('versionCheckHours');
-  const adminKeys = loadKeys(options.keysPath).filter((k) => reaches(k, 'admin') && k.enabled).length;
+  const adminKeys = loadKeys(options.keysPath).filter((k) => isAdmin(k) && k.enabled).length;
   const updates = settings?.get('updateCheck');
   const mode = settings?.get('theme');
   const light = settings?.get('lightTheme');
@@ -116,12 +116,15 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
             'Enabled',
             admin?.source === 'env'
               ? lockedValue(admin.value ? 'yes' : 'no', admin.env)
-              : html`<input type="hidden" name="adminEndpoint" value="false" /><input type="checkbox" class="toggle toggle-primary" name="adminEndpoint" value="true" aria-label="Admin endpoint enabled" ${admin?.value ? 'checked' : ''} />`,
+              : html`<input type="hidden" name="adminTools" value="false" /><input type="checkbox" class="toggle toggle-warning" name="adminTools" value="true" aria-label="Hub administration enabled" ${admin?.value ? 'checked' : ''} />`,
           )}
-          ${kv('URL', html`<code class="mono break-all">${options.base(c)}/admin/mcp</code>`)}
-          ${kv('Admin keys', html`${adminKeys} active · <a class="link link-primary" href="/keys">create one</a> with kind <em>admin</em> or <em>both</em>`)}
-          ${kv('Tools', html`<span class="row-wrap justify-end">${ADMIN_TOOLS.map((t) => badge(t, { mono: true }))}</span>`)}`,
-          { title: 'Admin endpoint', description: 'A second MCP endpoint for agents that watch and manage the hub. Only admin and both keys reach it; client keys never do.' },
+          ${kv('Keys allowed', html`${adminKeys} · <a class="link link-primary" href="/keys">allow it on a key</a>`)}
+          ${kv('Tools', html`<span class="row-wrap justify-end">${YARD_TOOLS.map((t) => badge(`yard-${t.tool.name}`, { mono: true }))}</span>`)}`,
+          {
+            title: html`<span class="row-wrap">${icon('wrench')}Hub administration</span>`,
+            description: html`MCP Yard's own tools, served in <span class="mono">/mcp</span> to the keys allowed to administer the hub. Turn them off here for every key at once.`,
+            className: 'admin-panel',
+          },
         )}
         ${panel(
           kv(

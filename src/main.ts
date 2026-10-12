@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server';
 import { join } from 'node:path';
 import { ConfigFile } from './config.ts';
 import { app, Hub } from './front.ts';
-import { KINDS, newKey } from './keys.ts';
+import { newKey } from './keys.ts';
 import { Oidc, Signer } from './oidc.ts';
 import { Packages } from './packages.ts';
 import { release } from './release.ts';
@@ -13,10 +13,9 @@ import { setAppearance } from './ui-layout.ts';
 const env = process.env;
 const dataDir = env.MCPYARD_DATA_DIR ?? '/data';
 
-// For hubs without the web UI: `node src/main.ts keygen <name> [client|admin|both]` prints a token and its keys.json entry.
+// For hubs without the web UI: `node src/main.ts keygen <name> [admin]` prints a token and its keys.json entry.
 if (process.argv[2] === 'keygen') {
-  const kind = KINDS.find((k) => k === process.argv[4]) ?? 'client';
-  const { token, key } = newKey(process.argv[3] ?? 'unnamed', kind);
+  const { token, key } = newKey(process.argv[3] ?? 'unnamed', process.argv[4] === 'admin');
   console.log(`token (shown once): ${token}\n\nkeys.json entry:\n${JSON.stringify(key, null, 2)}`);
   process.exit(0);
 }
@@ -29,7 +28,9 @@ const releaseChecks = () => release.start(settings.value('updateCheck') ? settin
 const appearance = () => setAppearance({ mode: settings.value('theme'), light: settings.value('lightTheme'), dark: settings.value('darkTheme') });
 releaseChecks();
 appearance();
+hub.yardEnabled = () => settings.value('adminTools');
 settings.onChange(() => {
+  hub.notifyToolsChanged();
   releaseChecks();
   appearance();
   if (packages.checkHours === settings.value('versionCheckHours')) return;
@@ -69,7 +70,7 @@ const environment: EnvRow[] = [
 const keysPath = join(dataDir, 'keys.json');
 const auth = uiAuth();
 const webUi = auth && ui(hub, { keysPath, auth, publicUrl: env.MCPYARD_PUBLIC_URL, settings, configFile, environment });
-const server = serve({ fetch: app(hub, keysPath, webUi, () => settings.value('adminEndpoint')).fetch, port }, () => console.error(`mcpyard listening on :${port}`));
+const server = serve({ fetch: app(hub, keysPath, webUi).fetch, port }, () => console.error(`mcpyard listening on :${port}`));
 
 process.on('SIGHUP', () => {
   hub.reload().then(

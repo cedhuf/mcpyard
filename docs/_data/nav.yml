@@ -10,4 +10,4 @@
 - title: Operate
   pages:
     - { title: Web UI and sign-in, url: /web-ui.html }
-    - { title: Admin endpoint, url: /admin.html }
+    - { title: Hub administration, url: /admin.html }

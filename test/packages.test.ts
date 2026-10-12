@@ -129,21 +129,22 @@ test('invalid versions never become paths', async () => {
   await hub.stop();
 });
 
-test('admin update_server updates and rolls back over MCP', async () => {
+test('yard-update_server updates and rolls back over MCP', async () => {
   const { hub, dataDir } = setup(unpinned, { version: '1.0.0' });
   await until(hub, 'pkg', ['ready']);
-  const admin = newKey('ops', 'admin');
+  const admin = newKey('ops');
+  admin.key.scope = { servers: ['yard'], tools: {} };
   writeFileSync(join(dataDir, 'keys.json'), JSON.stringify([admin.key]));
   const server = app(hub, join(dataDir, 'keys.json'));
   const client = new Client({ name: 'test', version: '0' });
   await client.connect(
-    new StreamableHTTPClientTransport(new URL('http://hub.test/admin/mcp'), {
+    new StreamableHTTPClientTransport(new URL('http://hub.test/mcp'), {
       requestInit: { headers: { Authorization: `Bearer ${admin.token}` } },
       fetch: async (url, init) => server.fetch(new Request(url, init)),
     }),
   );
   const update = async (args: Record<string, string>) => {
-    const result = await client.callTool({ name: 'update_server', arguments: { name: 'pkg', ...args } });
+    const result = await client.callTool({ name: 'yard-update_server', arguments: { name: 'pkg', ...args } });
     return { isError: result.isError, text: (result.content as { text: string }[])[0]!.text };
   };
 
