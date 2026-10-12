@@ -2,6 +2,7 @@ import { Server, createMcpHandler, type CallToolResult, type Tool } from '@model
 import { Hono } from 'hono';
 import type { ServerConfig } from './config.ts';
 import { allowed, findKey, keySees, loadKeys, type Key } from './keys.ts';
+import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
 
 const CLIENT_PREFIX = 'mcp__mcpyard__';
@@ -9,25 +10,53 @@ const MAX_TOOL_NAME = 64;
 
 type Route = { server: string; tool: Tool };
 
+export type PackageStatus = { pinned: boolean; installed?: string; latest?: LatestStatus; updateError?: string };
+
 export class Hub {
   readonly upstreams = new Map<string, Upstream>();
   private routes = new Map<string, Route>();
   private warned = new Set<string>();
   private readonly configs: Record<string, ServerConfig>;
+  private readonly packages?: Packages;
   readonly handler = createMcpHandler(({ authInfo }) => this.mcpServer(authInfo?.extra?.key as Key));
 
-  constructor(configs: Record<string, ServerConfig>) {
+  constructor(configs: Record<string, ServerConfig>, packages?: Packages) {
     this.configs = configs;
+    this.packages = packages;
     for (const [name, config] of Object.entries(configs)) {
-      this.upstreams.set(name, new Upstream(name, config, () => this.rebuild()));
+      this.upstreams.set(name, new Upstream(name, config, () => this.rebuild(), packages));
     }
   }
 
   start(): void {
+    this.packages?.watch(Object.values(this.configs).flatMap((c) => (c.enabled && c.package ? [c.package] : [])));
     for (const upstream of this.upstreams.values()) upstream.start();
   }
 
+  /** Installed and latest version of every package server, for the UI. */
+  packageStatus(): Record<string, PackageStatus> {
+    const status: Record<string, PackageStatus> = {};
+    for (const [name, config] of Object.entries(this.configs)) {
+      if (!config.package) continue;
+      const upstream = this.upstreams.get(name)!;
+      status[name] = {
+        pinned: !!config.package.version,
+        installed: upstream.version,
+        latest: this.packages?.latestStatus(config.package),
+        updateError: upstream.updateError,
+      };
+    }
+    return status;
+  }
+
+  async update(server: string, version?: string): Promise<void> {
+    const upstream = this.upstreams.get(server);
+    if (!upstream) throw new Error(`unknown server ${server}`);
+    return upstream.update(version);
+  }
+
   async stop(): Promise<void> {
+    this.packages?.unwatch();
     await Promise.all([...this.upstreams.values()].map((u) => u.stop()));
     await this.handler.close();
   }

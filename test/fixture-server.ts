@@ -9,5 +9,6 @@ serveStdio(() => {
   }));
   server.registerTool('delete_all', {}, () => ({ content: [{ type: 'text', text: 'deleted' }] }));
   server.registerTool('env', {}, () => ({ content: [{ type: 'text', text: process.env.SECRET_FROM_HUB ?? 'unset' }] }));
+  server.registerTool('version', {}, () => ({ content: [{ type: 'text', text: process.env.FIXTURE_VERSION ?? 'none' }] }));
   return server;
 });

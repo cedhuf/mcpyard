@@ -55,7 +55,7 @@ async function connect(token: string): Promise<Client> {
 test('merges tools under <server>-<tool> and routes calls', async () => {
   const client = await connect(full.token);
   const names = (await client.listTools()).tools.map((t) => t.name).sort();
-  assert.deepEqual(names, ['fix-ture-delete_all', 'fix-ture-echo', 'fix-ture-env']);
+  assert.deepEqual(names, ['fix-ture-delete_all', 'fix-ture-echo', 'fix-ture-env', 'fix-ture-version']);
   const result = await client.callTool({ name: 'fix-ture-echo', arguments: { text: 'hi' } });
   assert.deepEqual(result.content, [{ type: 'text', text: 'hi' }]);
   await client.close();

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { loadConfig } from './config.ts';
 import { app, Hub } from './front.ts';
 import { newKey } from './keys.ts';
+import { Packages } from './packages.ts';
 
 const env = process.env;
 const dataDir = env.MCPYARD_DATA_DIR ?? '/data';
@@ -14,7 +15,8 @@ if (process.argv[2] === 'keygen') {
   process.exit(0);
 }
 
-const hub = new Hub(loadConfig(env.MCPYARD_CONFIG ?? '/config/mcpyard.yaml'));
+const packages = new Packages({ dataDir, checkHours: Number(env.MCPYARD_VERSION_CHECK_HOURS ?? 6) });
+const hub = new Hub(loadConfig(env.MCPYARD_CONFIG ?? '/config/mcpyard.yaml'), packages);
 hub.start();
 
 const port = Number(env.MCPYARD_PORT ?? 3000);
