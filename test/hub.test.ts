@@ -15,7 +15,9 @@ const full = newKey('full');
 const narrow = newKey('narrow');
 narrow.key.scope.tools = { deny: ['*-delete_*'] };
 const admin = newKey('admin', 'admin');
-writeFileSync(join(dir, 'keys.json'), JSON.stringify([full.key, narrow.key, admin.key]));
+const readOnly = newKey('read-only', 'admin');
+readOnly.key.scope = { servers: ['other'], tools: { deny: ['restart_server'] } };
+writeFileSync(join(dir, 'keys.json'), JSON.stringify([full.key, narrow.key, admin.key, readOnly.key]));
 
 process.env.SECRET_FROM_HUB = 'leaked';
 const hub = new Hub(
@@ -46,9 +48,9 @@ after(async () => {
   await hub.stop();
 });
 
-async function connect(token: string): Promise<Client> {
+async function connect(token: string, path = '/mcp'): Promise<Client> {
   const client = new Client({ name: 'test', version: '0' });
-  await client.connect(new StreamableHTTPClientTransport(url, { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
+  await client.connect(new StreamableHTTPClientTransport(new URL(path, url), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
   return client;
 }
 
@@ -81,6 +83,36 @@ test('bad, missing and admin keys get 401 on /mcp', async () => {
     const res = await fetch(url, { method: 'POST', headers: { Authorization: auth, 'content-type': 'application/json' }, body: '{}' });
     assert.equal(res.status, 401);
   }
+});
+
+const json = (result: Awaited<ReturnType<Client['callTool']>>) => JSON.parse((result.content as { text: string }[])[0]!.text);
+
+test('admin endpoint reports and restarts servers', async () => {
+  const client = await connect(admin.token, '/admin/mcp');
+  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), ['get_server', 'list_servers', 'restart_server']);
+  const [server] = json(await client.callTool({ name: 'list_servers' }));
+  assert.equal(server.name, 'fix-ture');
+  assert.equal(server.state, 'ready');
+  assert.equal(server.tools, 4);
+  const detail = json(await client.callTool({ name: 'get_server', arguments: { name: 'fix-ture' } }));
+  assert.deepEqual(detail.tools.find((t: { name: string }) => t.name === 'fix-ture-echo'), { name: 'fix-ture-echo', exposed: true });
+  const restarted = json(await client.callTool({ name: 'restart_server', arguments: { name: 'fix-ture' } }));
+  assert.equal(restarted.state, 'ready');
+  await client.close();
+});
+
+test('admin key scope limits servers and tools', async () => {
+  const client = await connect(readOnly.token, '/admin/mcp');
+  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), ['get_server', 'list_servers']);
+  assert.deepEqual(json(await client.callTool({ name: 'list_servers' })), []);
+  const result = await client.callTool({ name: 'get_server', arguments: { name: 'fix-ture' } });
+  assert.equal(result.isError, true);
+  await client.close();
+});
+
+test('client keys get 401 on /admin/mcp', async () => {
+  const res = await fetch(new URL('/admin/mcp', url), { method: 'POST', headers: { Authorization: `Bearer ${full.token}`, 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(res.status, 401);
 });
 
 test('config needs exactly one of package, url or command', () => {

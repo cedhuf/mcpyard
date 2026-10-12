@@ -107,3 +107,18 @@ Narrow a key with its `scope`:
 ```
 
 `servers` lists server names (`*` for all); `tools` filters the exposed `<server>-<tool>` names.
+
+## Admin endpoint
+
+`/admin/mcp` is a separate MCP endpoint that only admin keys reach, and admin keys reach nothing
+else. It lets an agent watch and nurse the hub:
+
+| Tool | Does |
+| --- | --- |
+| `list_servers` | State, last error, tool count and package versions of every server. |
+| `get_server` | One server with its tool names and whether the configuration exposes them. |
+| `restart_server` | Restarts a server, waits up to 30 seconds for it to settle, returns its status. |
+
+An admin key's `scope.servers` limits the servers it sees and manages, and `scope.tools` filters
+these three tool names: `{ "deny": ["restart_server"] }` makes a read-only key. Calls are logged
+like client calls, with the tool name prefixed by `admin:`.

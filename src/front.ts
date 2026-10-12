@@ -1,5 +1,6 @@
 import { Server, createMcpHandler, type CallToolResult, type Tool } from '@modelcontextprotocol/server';
 import { Hono } from 'hono';
+import { adminServer } from './admin.ts';
 import type { ServerConfig } from './config.ts';
 import { allowed, findKey, keySees, loadKeys, type Key } from './keys.ts';
 import type { LatestStatus, Packages } from './packages.ts';
@@ -26,6 +27,10 @@ export class Hub {
   readonly configs: Record<string, ServerConfig>;
   private readonly packages?: Packages;
   readonly handler = createMcpHandler(({ authInfo }) => this.mcpServer(authInfo?.extra?.key as Key));
+  readonly adminHandler = createMcpHandler(({ authInfo }) => {
+    const key = authInfo?.extra?.key as Key;
+    return adminServer(this, key, (tool, ok, ms) => audit(key, `admin:${tool}`, ok, ms));
+  });
 
   constructor(configs: Record<string, ServerConfig>, packages?: Packages) {
     this.configs = configs;
@@ -75,7 +80,7 @@ export class Hub {
   async stop(): Promise<void> {
     this.packages?.unwatch();
     await Promise.all([...this.upstreams.values()].map((u) => u.stop()));
-    await this.handler.close();
+    await Promise.all([this.handler.close(), this.adminHandler.close()]);
   }
 
   /** Exposed name to (server, tool). Routing goes through this table and never splits a name. */
@@ -141,12 +146,17 @@ function audit(key: Key, tool: string, ok: boolean, ms: number): void {
 export function app(hub: Hub, keysPath: string, webUi?: Hono<any>): Hono {
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
-  app.all('/mcp', async (c) => {
-    const token = c.req.header('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
-    const key = findKey(loadKeys(keysPath), token);
-    if (!key || key.kind !== 'client') return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });
-    return hub.handler.fetch(c.req.raw, { authInfo: { token: token!, clientId: key.id, scopes: [], extra: { key } } });
-  });
+  for (const [path, kind, handler] of [
+    ['/mcp', 'client', hub.handler],
+    ['/admin/mcp', 'admin', hub.adminHandler],
+  ] as const) {
+    app.all(path, async (c) => {
+      const token = c.req.header('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
+      const key = findKey(loadKeys(keysPath), token);
+      if (!key || key.kind !== kind) return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });
+      return handler.fetch(c.req.raw, { authInfo: { token: token!, clientId: key.id, scopes: [], extra: { key } } });
+    });
+  }
   if (webUi) app.route('/', webUi);
   return app;
 }

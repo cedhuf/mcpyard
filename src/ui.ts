@@ -250,10 +250,8 @@ function created(key: Key, token: string, base: string): Fragment {
     <h2>Key ${key.name} created</h2>
     <p>Copy the token now: it is shown once and only its hash is stored.</p>
     <pre class="mono">${token}</pre>
-    ${key.kind === 'client'
-      ? html`<p>Claude Code:</p>
-          <pre class="mono">claude mcp add --transport http mcpyard ${base}/mcp --header "Authorization: Bearer ${token}"</pre>`
-      : ''}
+    <p>Claude Code:</p>
+    <pre class="mono">claude mcp add --transport http ${key.kind === 'admin' ? 'mcpyard-admin' : 'mcpyard'} ${base}${key.kind === 'admin' ? '/admin/mcp' : '/mcp'} --header "Authorization: Bearer ${token}"</pre>
   </section>`;
 }
 
