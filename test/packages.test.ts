@@ -1,10 +1,12 @@
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { parseConfig } from '../src/config.ts';
-import { Hub } from '../src/front.ts';
+import { app, Hub } from '../src/front.ts';
+import { newKey } from '../src/keys.ts';
 import { Packages, type Installer } from '../src/packages.ts';
 import type { State } from '../src/upstream.ts';
 
@@ -114,5 +116,38 @@ test('invalid versions never become paths', async () => {
   const { hub } = setup(unpinned, { version: '../../escape' });
   await until(hub, 'pkg', ['failed']);
   assert.match(hub.upstreams.get('pkg')!.lastError!, /invalid version/);
+  await hub.stop();
+});
+
+test('admin update_server updates and rolls back over MCP', async () => {
+  const { hub, dataDir } = setup(unpinned, { version: '1.0.0' });
+  await until(hub, 'pkg', ['ready']);
+  const admin = newKey('ops', 'admin');
+  writeFileSync(join(dataDir, 'keys.json'), JSON.stringify([admin.key]));
+  const server = app(hub, join(dataDir, 'keys.json'));
+  const client = new Client({ name: 'test', version: '0' });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL('http://hub.test/admin/mcp'), {
+      requestInit: { headers: { Authorization: `Bearer ${admin.token}` } },
+      fetch: async (url, init) => server.fetch(new Request(url, init)),
+    }),
+  );
+  const update = async (args: Record<string, string>) => {
+    const result = await client.callTool({ name: 'update_server', arguments: { name: 'pkg', ...args } });
+    return { isError: result.isError, text: (result.content as { text: string }[])[0]!.text };
+  };
+
+  const updated = JSON.parse((await update({ version: '2.0.0' })).text);
+  assert.equal(updated.package.installed, '2.0.0');
+  assert.equal(updated.package.previous, '1.0.0');
+  assert.equal(await servedVersion(hub, 'pkg'), '2.0.0');
+
+  const failed = await update({ version: '3.0.0-broken' });
+  assert.equal(failed.isError, true);
+  assert.equal(await servedVersion(hub, 'pkg'), '2.0.0', 'a failed update leaves the running version');
+
+  JSON.parse((await update({ version: '1.0.0' })).text);
+  assert.equal(await servedVersion(hub, 'pkg'), '1.0.0');
+  await client.close();
   await hub.stop();
 });

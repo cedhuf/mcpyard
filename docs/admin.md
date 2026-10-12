@@ -23,6 +23,7 @@ claude mcp add --transport http mcpyard-admin https://mcpyard.example.lan/admin/
 | `list_servers` | State, last error, tool count and package versions of every server. |
 | `get_server` | One server in detail, with each tool and whether the configuration exposes it. |
 | `restart_server` | Restarts a server, waits up to 30 seconds for it to settle, returns its status. |
+| `update_server` | Updates a hub-owned package to a version, or the latest; pass the previous version to roll back. |
 | `reload_config` | Re-reads the server file and applies it; returns the added, removed and restarted servers. |
 
 A `list_servers` entry looks like this:
@@ -41,12 +42,20 @@ A `list_servers` entry looks like this:
 States are `installing`, `starting`, `ready`, `degraded` (was ready, reconnecting), `failed` (never got
 ready, retrying) and `stopped`.
 
+## Updates from an agent
+
+`update_server` runs the same flow as the **Update** button: the new version installs into its own
+directory, starts next to the running one, and takes over only once it answers. The call returns when
+the switch is done, which can take a few minutes for a first install. If anything fails, the running
+version keeps serving and the tool returns the error. Pinned servers refuse updates: change their
+version in the file and reload instead.
+
 ## Scoping an admin key
 
 The same scope rules apply as for client keys:
 
 - `scope.servers` limits the servers the key sees and restarts.
-- `scope.tools` filters the tool names. `{ "deny": ["restart_server", "reload_config"] }` gives a
+- `scope.tools` filters the tool names. `{ "allow": ["list_servers", "get_server"] }` gives a
   read-only key, handy for monitoring.
 - `reload_config` is offered only to keys that manage every server, since a reload can touch any of
   them.

@@ -7,7 +7,7 @@ const SETTLE_MS = 30_000;
 
 /**
  * The management endpoint for admin keys. `scope.servers` limits which servers a key manages and `scope.tools`
- * filters these tool names, so `{ deny: ["restart_server", "reload_config"] }` makes a read-only key. Only keys that
+ * filters these tool names, so `{ allow: ["list_servers", "get_server"] }` makes a read-only key. Only keys that
  * manage every server may reload the configuration, since a reload can touch any of them.
  */
 export function adminServer(hub: Hub, key: Key, audit: (tool: string, ok: boolean, ms: number) => void): McpServer {
@@ -72,6 +72,25 @@ export function adminServer(hub: Hub, key: Key, audit: (tool: string, ok: boolea
         while (['installing', 'starting'].includes(hub.upstreams.get(name)!.state) && Date.now() < deadline) {
           await new Promise((r) => setTimeout(r, 200));
         }
+        return status(name, false);
+      }),
+    );
+  }
+
+  if (exposed('update_server')) {
+    server.registerTool(
+      'update_server',
+      {
+        description:
+          'Update a package server whose version the hub owns (not pinned) to `version`, or to the latest known version. ' +
+          'The new version starts next to the running one and takes over only once it answers; on failure the old one keeps ' +
+          'serving and the error is returned. Pass the previous version to roll back. Installing can take a few minutes.',
+        inputSchema: z.object({ name: z.string().describe('Server name'), version: z.string().optional().describe('Version to install; omit for the latest') }),
+        annotations: { readOnlyHint: false },
+      },
+      call('update_server', async ({ name, version }: { name: string; version?: string }) => {
+        if (!manages(name)) throw new Error(`unknown server ${name}`);
+        await hub.update(name, version);
         return status(name, false);
       }),
     );

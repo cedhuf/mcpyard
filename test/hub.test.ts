@@ -16,7 +16,7 @@ const narrow = newKey('narrow');
 narrow.key.scope.tools = { deny: ['*-delete_*'] };
 const admin = newKey('admin', 'admin');
 const readOnly = newKey('read-only', 'admin');
-readOnly.key.scope = { servers: ['other'], tools: { deny: ['restart_server'] } };
+readOnly.key.scope = { servers: ['other'], tools: { allow: ['list_servers', 'get_server'] } };
 writeFileSync(join(dir, 'keys.json'), JSON.stringify([full.key, narrow.key, admin.key, readOnly.key]));
 
 process.env.SECRET_FROM_HUB = 'leaked';
@@ -97,7 +97,7 @@ const json = (result: Awaited<ReturnType<Client['callTool']>>) => JSON.parse((re
 
 test('admin endpoint reports and restarts servers', async () => {
   const client = await connect(admin.token, '/admin/mcp');
-  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), ['get_server', 'list_servers', 'reload_config', 'restart_server']);
+  assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), ['get_server', 'list_servers', 'reload_config', 'restart_server', 'update_server']);
   const [server] = json(await client.callTool({ name: 'list_servers' }));
   assert.equal(server.name, 'fix-ture');
   assert.equal(server.state, 'ready');
