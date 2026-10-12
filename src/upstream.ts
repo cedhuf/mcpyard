@@ -16,11 +16,11 @@ export class Upstream {
   /** Installed package version, once known. */
   version?: string;
   updateError?: string;
+  updating = false;
   private client?: Client;
   private launch?: Launch;
   private stopped = true;
   private wasReady = false;
-  private updating = false;
   private backoff = MIN_BACKOFF;
   private retry?: NodeJS.Timeout;
   private readonly name: string;
@@ -38,7 +38,13 @@ export class Upstream {
   start(): void {
     if (!this.config.enabled) return;
     this.stopped = false;
+    this.backoff = MIN_BACKOFF;
     void this.run();
+  }
+
+  async restart(): Promise<void> {
+    await this.stop();
+    this.start();
   }
 
   async stop(): Promise<void> {
@@ -65,6 +71,8 @@ export class Upstream {
     if (!this.packages) throw new Error('no package manager configured');
     if (this.updating) throw new Error(`server ${this.name} is already updating`);
     this.updating = true;
+    this.updateError = undefined;
+    this.onChange();
     try {
       const target = version ?? (await this.packages.latest(spec));
       if (target === this.version) return;
@@ -90,6 +98,7 @@ export class Upstream {
       throw e;
     } finally {
       this.updating = false;
+      this.onChange();
     }
   }
 

@@ -16,6 +16,7 @@ each client reach what its key allows.
   Pin a version in the file to freeze it, or let the hub own it and update on demand, with the old
   version kept running if the new one fails to start.
 - **Keys with scopes.** One bearer key per client, each limited to a set of servers and tools.
+- **A web UI behind your identity provider.** Server states, one-click updates and rollbacks, keys.
 - **Upstreams never see the hub's secrets.** They get a minimal environment plus what the file
   declares for them.
 

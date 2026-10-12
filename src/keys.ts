@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { matchesGlob } from 'node:path';
 import type { ToolFilter } from './config.ts';
 
@@ -52,6 +52,11 @@ export function loadKeys(path: string): Key[] {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw e;
   }
+}
+
+export function saveKeys(path: string, keys: Key[]): void {
+  writeFileSync(`${path}.tmp`, `${JSON.stringify(keys, null, 2)}\n`, { mode: 0o600 });
+  renameSync(`${path}.tmp`, path);
 }
 
 export function allowed(name: string, filter: ToolFilter): boolean {

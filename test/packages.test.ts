@@ -64,7 +64,9 @@ test('unpinned package installs the registry latest and records it', async () =>
   assert.deepEqual(again.hub.packageStatus().pkg, {
     pinned: false,
     installed: '1.0.0',
+    previous: undefined,
     latest: { version: '2.0.0', checkedAt: again.hub.packageStatus().pkg!.latest!.checkedAt },
+    updating: false,
     updateError: undefined,
   });
   assert.deepEqual(installs, ['1.0.0']);
@@ -77,6 +79,7 @@ test('update switches to the new version, keeps one for rollback, survives a bro
   await hub.update('pkg', '1.1.0');
   await hub.update('pkg', '1.2.0');
   assert.equal(await servedVersion(hub, 'pkg'), '1.2.0');
+  assert.equal(hub.packageStatus().pkg!.previous, '1.1.0');
   assert.deepEqual(JSON.parse(readFileSync(join(dataDir, 'versions.json'), 'utf8')), { pkg: { version: '1.2.0', previous: '1.1.0' } });
   assert.deepEqual(readdirSync(join(dataDir, 'packages', 'pkg')).sort(), ['1.1.0', '1.2.0']);
 

@@ -10,6 +10,27 @@ Runtime settings come from environment variables, servers from one YAML file.
 | `MCPYARD_DATA_DIR` | `/data` | Keys, installed packages, recorded versions. |
 | `MCPYARD_PORT` | `3000` | HTTP port. |
 | `MCPYARD_VERSION_CHECK_HOURS` | `6` | How often registries are asked for the latest version. |
+| `MCPYARD_PUBLIC_URL` | | Base URL browsers use, e.g. `https://mcpyard.example.lan`. Required with OIDC. |
+| `OIDC_ISSUER` | | Issuer URL of your identity provider. |
+| `OIDC_CLIENT_ID` | | Client id registered for mcpyard. |
+| `OIDC_CLIENT_SECRET` | | Client secret; omit for a public client (PKCE is always used). |
+| `OIDC_ALLOWED_GROUPS` | | Comma-separated groups; when set, the `groups` claim must contain one. |
+| `MCPYARD_UI_AUTH` | `oidc` | `none` turns web UI authentication off. |
+
+## Web UI
+
+The UI is served at the root of the hub. It shows every server with its state, tools and versions,
+restarts servers, updates or rolls back hub-owned packages, and creates, disables and deletes keys.
+
+Sign-in uses OpenID Connect with the authorization code flow and PKCE. Register a client in your
+identity provider (PocketID, Authelia, Keycloak...) with the redirect URI
+`<MCPYARD_PUBLIC_URL>/auth/callback`, and restrict who may use it there or with
+`OIDC_ALLOWED_GROUPS`. Sessions last 12 hours in a signed cookie; the signing key is generated in
+`$MCPYARD_DATA_DIR/session.key`, delete it to sign everyone out.
+
+Without the OIDC variables the UI is off and only `/mcp` and `/healthz` answer.
+`MCPYARD_UI_AUTH=none` serves the UI to anyone who reaches the port: use it only on a trusted
+network or behind a proxy that authenticates.
 
 ## Server file
 
@@ -70,7 +91,7 @@ rollback.
 ## Keys
 
 Clients send `Authorization: Bearer <token>`. Keys live in `$MCPYARD_DATA_DIR/keys.json`; only a
-hash of each token is stored. Until the web UI exists, create one with:
+hash of each token is stored. Create them in the web UI, or from a shell:
 
 ```bash
 node src/main.ts keygen <name>

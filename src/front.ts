@@ -10,13 +10,20 @@ const MAX_TOOL_NAME = 64;
 
 type Route = { server: string; tool: Tool };
 
-export type PackageStatus = { pinned: boolean; installed?: string; latest?: LatestStatus; updateError?: string };
+export type PackageStatus = {
+  pinned: boolean;
+  installed?: string;
+  previous?: string;
+  latest?: LatestStatus;
+  updating: boolean;
+  updateError?: string;
+};
 
 export class Hub {
   readonly upstreams = new Map<string, Upstream>();
   private routes = new Map<string, Route>();
   private warned = new Set<string>();
-  private readonly configs: Record<string, ServerConfig>;
+  readonly configs: Record<string, ServerConfig>;
   private readonly packages?: Packages;
   readonly handler = createMcpHandler(({ authInfo }) => this.mcpServer(authInfo?.extra?.key as Key));
 
@@ -42,7 +49,9 @@ export class Hub {
       status[name] = {
         pinned: !!config.package.version,
         installed: upstream.version,
+        previous: config.package.version ? undefined : this.packages?.recorded(name)?.previous,
         latest: this.packages?.latestStatus(config.package),
+        updating: upstream.updating,
         updateError: upstream.updateError,
       };
     }
@@ -50,9 +59,17 @@ export class Hub {
   }
 
   async update(server: string, version?: string): Promise<void> {
+    return this.upstream(server).update(version);
+  }
+
+  async restart(server: string): Promise<void> {
+    return this.upstream(server).restart();
+  }
+
+  private upstream(server: string): Upstream {
     const upstream = this.upstreams.get(server);
     if (!upstream) throw new Error(`unknown server ${server}`);
-    return upstream.update(version);
+    return upstream;
   }
 
   async stop(): Promise<void> {
@@ -121,7 +138,7 @@ function audit(key: Key, tool: string, ok: boolean, ms: number): void {
   console.log(JSON.stringify({ event: 'tool_call', time: new Date().toISOString(), key: key.name, tool, ok, ms }));
 }
 
-export function app(hub: Hub, keysPath: string): Hono {
+export function app(hub: Hub, keysPath: string, webUi?: Hono<any>): Hono {
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
   app.all('/mcp', async (c) => {
@@ -130,5 +147,6 @@ export function app(hub: Hub, keysPath: string): Hono {
     if (!key || key.kind !== 'client') return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });
     return hub.handler.fetch(c.req.raw, { authInfo: { token: token!, clientId: key.id, scopes: [], extra: { key } } });
   });
+  if (webUi) app.route('/', webUi);
   return app;
 }
