@@ -3,9 +3,9 @@ layout: default
 layout_class: home
 ---
 <section class="hero">
-  <img src="{{ '/assets/logo.svg' | relative_url }}" alt="" width="64" height="64">
+  <img class="hero-logo" src="{{ '/assets/logo.webp' | relative_url }}" alt="MCP Yard: a glass greenhouse behind a locked gate, with a golden key" width="220" height="220">
   <h1>One MCP endpoint.<br><span>Every server behind it.</span></h1>
-  <p class="lead">mcpyard is a small, self-hosted MCP hub. It installs and runs your MCP servers, merges their
+  <p class="lead">MCP Yard is a small, self-hosted MCP hub. It installs and runs your MCP servers, merges their
     tools behind a single <code>/mcp</code> endpoint, and gives each client its own key with exactly the
     access it needs.</p>
   <p class="cta">
@@ -30,7 +30,7 @@ docker run -d -p 3000:3000 -v ./mcpyard.yaml:/config/mcpyard.yaml \
   <div class="arrow" aria-hidden="true"></div>
   <div class="col hub">
     <div class="node main">
-      <strong>mcpyard</strong>
+      <strong>MCP Yard</strong>
       <small>/mcp · one merged tool list</small>
       <small>keys and scopes · audit log</small>
       <small>versions · updates · rollback</small>
@@ -77,7 +77,7 @@ docker run -d -p 3000:3000 -v ./mcpyard.yaml:/config/mcpyard.yaml \
   <p>Server states, tools, installed and latest versions, one-click updates and rollbacks, and the keys of every client.</p>
   <picture>
     <source srcset="{{ '/assets/servers-dark.png' | relative_url }}" media="(prefers-color-scheme: dark)">
-    <img src="{{ '/assets/servers-light.png' | relative_url }}" alt="The servers page of the mcpyard web UI" width="1100" loading="lazy">
+    <img src="{{ '/assets/servers-light.png' | relative_url }}" alt="The servers page of the MCP Yard web UI" width="1100" loading="lazy">
   </picture>
 </section>
 
@@ -107,7 +107,7 @@ servers:
 <section class="why">
   <h2>Why another hub?</h2>
   <p>Heavier hubs carry a marketplace, smart routing and a database. Light proxies expose one route per
-    server, so every client has to declare every server. mcpyard sits in between: one merged endpoint,
+    server, so every client has to declare every server. MCP Yard sits in between: one merged endpoint,
     known versions, scoped keys and an OIDC web UI, and nothing more.</p>
   <p class="cta"><a class="button primary" href="{{ '/getting-started.html' | relative_url }}">Set it up in five minutes</a></p>
 </section>

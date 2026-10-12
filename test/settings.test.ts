@@ -50,7 +50,7 @@ test('the settings page locks environment values and turns the admin endpoint of
   const page = await (await request('/settings')).text();
   assert.match(page, /<strong>12 h<\/strong>\s*<span class="badge[^"]*locked"/);
   assert.ok(!page.includes('name="versionCheckHours"'), 'a locked setting has no input');
-  assert.match(page, /About mcpyard/);
+  assert.match(page, /About MCP Yard/);
   assert.match(page, /name="updateCheck"/);
 
   const mcp = (token: string) =>

@@ -6,6 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY src ./src
+COPY static ./static
 
 # Package caches and uv-managed Python live under /data so the image stays small and installs survive upgrades.
 ENV NODE_ENV=production \

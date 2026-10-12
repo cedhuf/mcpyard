@@ -52,7 +52,7 @@ the unprivileged `node` user.
 
 ## Reverse proxy
 
-Terminate TLS in front of mcpyard. MCP responses can be long-lived streams, so turn response
+Terminate TLS in front of MCP Yard. MCP responses can be long-lived streams, so turn response
 buffering off and allow long reads.
 
 ### Caddy

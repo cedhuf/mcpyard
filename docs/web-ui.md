@@ -46,7 +46,7 @@ The **Settings** page gathers what is not a server or a key:
 - **Updates**: how often registries are checked.
 - **Appearance**: follow the system's light or dark mode, or force one, and pick the light and dark
   [daisyUI themes](https://daisyui.com/docs/themes/) (`winter` and `dim` by default).
-- **About mcpyard**: the running version and the latest release on GitHub. The sidebar also shows
+- **About MCP Yard**: the running version and the latest release on GitHub. The sidebar also shows
   the version, with a link to the release notes when a newer one exists. The hub never updates
   itself; turn the check off here or with `MCPYARD_UPDATE_CHECK=false`.
 - **Environment**: every startup variable with its value, behind a padlock. Secrets are masked.
@@ -103,7 +103,7 @@ identity_providers:
   oidc:
     clients:
       - client_id: mcpyard
-        client_name: mcpyard
+        client_name: MCP Yard
         client_secret: "$pbkdf2-sha512$..."   # authelia crypto hash generate pbkdf2
         authorization_policy: two_factor
         redirect_uris: [https://mcpyard.example.lan/auth/callback]

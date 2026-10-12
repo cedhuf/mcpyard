@@ -157,7 +157,7 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
               ? lockedValue(updates.value ? 'yes' : 'no', updates.env)
               : html`<input type="hidden" name="updateCheck" value="false" /><input type="checkbox" class="toggle toggle-primary" name="updateCheck" value="true" aria-label="Check GitHub for new releases" ${updates?.value ? 'checked' : ''} />`,
           )}`,
-          { title: 'About mcpyard', description: html`Releases and their notes are on <a class="link link-primary" href="https://github.com/cedhuf/mcpyard/releases" target="_blank" rel="noreferrer">GitHub</a>. The hub tells you; it never updates itself.` },
+          { title: 'About MCP Yard', description: html`Releases and their notes are on <a class="link link-primary" href="https://github.com/cedhuf/mcpyard/releases" target="_blank" rel="noreferrer">GitHub</a>. The hub tells you; it never updates itself.` },
         )}
       </div>
       ${editable ? html`<div class="mt-4"><button class="btn btn-primary">Save settings</button></div>` : ''}

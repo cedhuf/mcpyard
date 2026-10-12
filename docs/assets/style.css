@@ -66,7 +66,8 @@ pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 
 
 /* Home */
 .home section { max-width: 1080px; margin: 0 auto; padding: 56px 24px; }
-.hero { text-align: center; padding-top: 72px !important; }
+.hero { text-align: center; padding-top: 40px !important; }
+.hero-logo { display: block; margin: 0 auto -12px; width: 220px; height: auto; }
 .hero h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.08; letter-spacing: -0.03em; margin: 18px 0 18px; }
 .hero h1 span { color: var(--accent); }
 .lead { font-size: 19px; color: var(--muted); max-width: 680px; margin: 0 auto; }

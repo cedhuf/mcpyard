@@ -1,4 +1,4 @@
-title: mcpyard
+title: MCP Yard
 description: A small, self-hosted MCP hub. One endpoint, every MCP server behind it, one key per client.
 repository: cedhuf/mcpyard
 markdown: kramdown

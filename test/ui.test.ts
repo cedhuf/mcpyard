@@ -142,6 +142,15 @@ async function login(request: ReturnType<typeof setup>['request']): Promise<Resp
   return request(`/auth/callback?code=${code}&state=${authorize.searchParams.get('state')}`, { headers: { cookie } });
 }
 
+test('the logo files are public and cached', async () => {
+  const { request } = oidcSetup();
+  for (const path of ['/favicon.ico', '/apple-touch-icon.png', '/icon-96.png']) {
+    const res = await request(path);
+    assert.equal(res.status, 200, path);
+    assert.match(res.headers.get('cache-control')!, /max-age/);
+  }
+});
+
 test('without a session the UI redirects to login and refuses posts', async () => {
   const { request, post } = oidcSetup();
   const res = await request('/keys');

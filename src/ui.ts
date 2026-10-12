@@ -2,6 +2,8 @@ import { Hono, type Context, type Next } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { html } from 'hono/html';
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { ConfigFile, ServerConfig } from './config.ts';
 import type { Hub, PackageStatus } from './front.ts';
 import { allowed } from './keys.ts';
@@ -18,6 +20,15 @@ export type { EnvRow };
 export type UiAuth = { kind: 'none' } | { kind: 'oidc'; oidc: Oidc; signer: Signer };
 
 export type UiOptions = { keysPath: string; auth: UiAuth; publicUrl?: string; settings?: Settings; configFile?: ConfigFile; environment?: EnvRow[] };
+
+/** The logo files, public like the stylesheet: browsers fetch them before any sign-in. */
+const STATIC_FILES = [
+  ['/favicon.ico', 'image/x-icon'],
+  ['/favicon-16x16.png', 'image/png'],
+  ['/favicon-32x32.png', 'image/png'],
+  ['/apple-touch-icon.png', 'image/png'],
+  ['/icon-96.png', 'image/png'],
+] as const;
 
 const SESSION = 'mcpyard_session';
 const LOGIN = 'mcpyard_login';
@@ -63,6 +74,15 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     const sheet = stylesheet();
     return c.body(new Uint8Array(gzip ? sheet.gzip : sheet.body));
   });
+
+  for (const [path, type] of STATIC_FILES) {
+    const body = readFileSync(fileURLToPath(new URL(`../static${path}`, import.meta.url)));
+    app.get(path, (c) => {
+      c.header('Content-Type', type);
+      c.header('Cache-Control', 'public, max-age=604800');
+      return c.body(new Uint8Array(body));
+    });
+  }
 
   if (auth.kind === 'oidc') {
     app.get('/auth/login', async (c) => {

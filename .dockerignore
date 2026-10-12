@@ -4,3 +4,5 @@ _local
 docs
 node_modules
 test
+static/logo.png
+static/icon.png

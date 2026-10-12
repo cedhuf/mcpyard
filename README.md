@@ -1,10 +1,12 @@
-# mcpyard
+<p align="center"><img src="docs/assets/logo.webp" alt="MCP Yard logo: a glass greenhouse behind a locked gate, with a golden key" width="200"></p>
+
+# MCP Yard
 
 A small, self-hosted MCP hub. One endpoint, every MCP server behind it, one key per client.
 
 The name comes from a switchyard, where trains are sorted onto the right track and only cleared
 ones get through. That is the whole job here. Clients (Claude Code, llooma, any MCP-capable agent)
-connect to a single `/mcp` endpoint; mcpyard starts and keeps the upstream MCP servers running,
+connect to a single `/mcp` endpoint; MCP Yard starts and keeps the upstream MCP servers running,
 merges their tools, and only lets each client reach what its key allows.
 
 > Status: early, everything below works; expect rough edges before 1.0.
@@ -17,7 +19,7 @@ Lighter proxies (TBXark/mcp-proxy, sparfenyuk/mcp-proxy) expose one route per se
 one merged endpoint, so every client has to declare every server. 1MCP merges and can be driven
 over MCP, but has no OIDC web UI and is still 0.x.
 
-mcpyard aims at the small intersection none of them covers:
+MCP Yard aims at the small intersection none of them covers:
 
 - **One merged endpoint.** `/mcp` serves the tools of every server the key may see.
 - **Known versions, one-click updates.** Each server runs a package version installed by the hub,
@@ -63,7 +65,7 @@ Open http://localhost:3000, create a key, then point your client at `/mcp`:
 claude mcp add --transport http mcpyard http://localhost:3000/mcp --header "Authorization: Bearer yard_..."
 ```
 
-![The servers page of the mcpyard web UI](docs/assets/servers-light.png)
+![The servers page of the MCP Yard web UI](docs/assets/servers-light.png)
 
 ## Docker Compose or Podman
 

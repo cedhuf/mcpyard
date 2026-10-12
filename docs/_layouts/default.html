@@ -6,12 +6,14 @@
   {% assign page_title = page.title | default: site.title %}
   <title>{% if page.url == "/" %}{{ site.title }}: {{ site.description }}{% else %}{{ page_title }} · {{ site.title }}{% endif %}</title>
   <meta name="description" content="{{ page.description | default: site.description }}">
-  <link rel="icon" href="{{ '/assets/logo.svg' | relative_url }}" type="image/svg+xml">
+  <link rel="icon" href="{{ '/assets/favicon.ico' | relative_url }}" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ '/assets/favicon-32x32.png' | relative_url }}">
+  <link rel="apple-touch-icon" href="{{ '/assets/apple-touch-icon.png' | relative_url }}">
   <link rel="stylesheet" href="{{ '/assets/style.css' | relative_url }}">
 </head>
 <body class="{% if page.layout_class %}{{ page.layout_class }}{% else %}doc{% endif %}">
   <header class="top">
-    <a class="brand" href="{{ '/' | relative_url }}"><img src="{{ '/assets/logo.svg' | relative_url }}" alt="" width="26" height="26">mcpyard</a>
+    <a class="brand" href="{{ '/' | relative_url }}"><img src="{{ '/assets/apple-touch-icon.png' | relative_url }}" alt="" width="30" height="30">MCP Yard</a>
     <nav>
       <a href="{{ '/getting-started.html' | relative_url }}">Docs</a>
       <a href="https://github.com/{{ site.repository }}/releases">Releases</a>

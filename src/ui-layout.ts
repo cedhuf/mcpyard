@@ -79,9 +79,7 @@ export function icon(name: string, size: 'xs' | 'sm' | 'md' = 'md'): Fragment {
   return html`<svg class="icon icon-${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${raw(ICONS[name] ?? '')}</svg>`;
 }
 
-export const LOGO = raw(
-  '<svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke-linecap="round" stroke-width="2.6" aria-hidden="true"><path d="M3 7c9 0 11 9 17 9" stroke="#7c9cff"/><path d="M3 16h17" stroke="#4f7bff"/><path d="M3 25c9 0 11-9 17-9" stroke="#7c9cff"/><path d="M20 16h9" stroke="#2f5bd3" stroke-width="3.4"/><circle cx="20" cy="16" r="2.6" fill="#2f5bd3" stroke="none"/></svg>',
-);
+export const LOGO = raw('<img src="/icon-96.png" width="34" height="34" alt="" class="logo" />');
 
 export function locked(env: string): Fragment {
   return html`<span class="badge badge-ghost gap-1 locked" title="Set by ${env} in the environment; change it there and restart">${icon('lock', 'xs')}<span class="mono">${env}</span></span>`;
@@ -112,14 +110,18 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>${title} · mcpyard</title>
+        <title>${title} · MCP Yard</title>
         <link rel="stylesheet" href="/assets/ui.css?v=${stylesheet().version}" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>`;
   if (options.bare) {
     return html`${head}
       <body class="bare">
         <main class="bare-main">
-          <div class="brand mb-6">${LOGO}<span>mcpyard</span></div>
+          <div class="brand mb-6">${LOGO}<span>MCP Yard</span></div>
           ${body}
         </main>
       </body>
@@ -132,14 +134,14 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
         <div class="drawer-content">
           <header class="mobilebar">
             <label for="nav" class="btn btn-ghost btn-square" aria-label="Open the menu">${icon('menu')}</label>
-            <a class="brand" href="/">${LOGO}<span>mcpyard</span></a>
+            <a class="brand" href="/">${LOGO}<span>MCP Yard</span></a>
           </header>
           <main class="page">${body}</main>
         </div>
         <div class="drawer-side z-40">
           <label for="nav" class="drawer-overlay" aria-label="Close the menu"></label>
           <aside class="sidebar">
-            <a class="brand" href="/">${LOGO}<span>mcpyard</span></a>
+            <a class="brand" href="/">${LOGO}<span>MCP Yard</span></a>
             <ul class="menu w-full gap-1">
               ${NAV.map(([href, label, name]) => html`<li><a href="${href}" class="${active(href) ? 'menu-active' : ''}">${icon(name)}${label}</a></li>`)}
             </ul>
@@ -164,10 +166,10 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
 
 function versionLine(): Fragment {
   const { current, latest, newer } = release.status();
-  const label = current === 'dev' ? 'mcpyard dev' : `mcpyard v${current}`;
+  const label = current === 'dev' ? 'MCP Yard dev' : `MCP Yard v${current}`;
   return newer && latest
     ? html`<a class="version-line newer" href="${latest.url}" target="_blank" rel="noreferrer" title="v${latest.version} is available: release notes">${icon('up', 'xs')}<span>${label}</span></a>`
-    : html`<a class="version-line" href="/settings" title="About mcpyard"><span>${label}</span></a>`;
+    : html`<a class="version-line" href="/settings" title="About MCP Yard"><span>${label}</span></a>`;
 }
 
 const SCRIPT = `
@@ -219,6 +221,7 @@ function CSS(): string {
 [hidden] { display: none !important; }
 .badge.badge-soft { color: color-mix(in oklab, var(--badge-color, var(--color-base-content)) 40%, var(--color-base-content)); }
 body { background: var(--color-base-200); min-height: 100vh; }
+.logo { flex: none; object-fit: contain; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; color: var(--color-base-content); text-decoration: none; }
 .sidebar { width: 252px; height: 100dvh; padding: 22px 14px; display: flex; flex-direction: column; gap: 18px; background: var(--color-base-200); border-right: 1px solid var(--color-base-300); }
 .sidebar .brand { padding: 4px 12px; }

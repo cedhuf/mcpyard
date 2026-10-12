@@ -102,7 +102,7 @@ warns at startup about any tool that would cross that line. Keep server names sh
 | `MCPYARD_VERSION_CHECK_HOURS` | `6` | How often registries are asked for new versions. |
 | `MCPYARD_PUBLIC_URL` | | Base URL browsers use. Required with OIDC. |
 | `OIDC_ISSUER` | | Issuer URL of your identity provider. |
-| `OIDC_CLIENT_ID` | | Client id registered for mcpyard. |
+| `OIDC_CLIENT_ID` | | Client id registered for MCP Yard. |
 | `OIDC_CLIENT_SECRET` | | Client secret; omit for a public client. |
 | `OIDC_ALLOWED_GROUPS` | | Comma-separated groups allowed to sign in. |
 | `MCPYARD_UI_AUTH` | `oidc` | `none` turns web UI sign-in off. |
@@ -110,7 +110,7 @@ warns at startup about any tool that would cross that line. Keep server names sh
 | `MCPYARD_THEME` | `system` | `system`, `light` or `dark`. Also on the Settings page. |
 | `MCPYARD_THEME_LIGHT` | `winter` | Any [daisyUI theme](https://daisyui.com/docs/themes/) for light mode. |
 | `MCPYARD_THEME_DARK` | `dim` | Any daisyUI theme for dark mode. |
-| `MCPYARD_UPDATE_CHECK` | `true` | `false` stops asking GitHub whether a newer mcpyard exists. Also on the Settings page. |
+| `MCPYARD_UPDATE_CHECK` | `true` | `false` stops asking GitHub whether a newer MCP Yard exists. Also on the Settings page. |
 
 `MCPYARD_ADMIN_ENDPOINT`, `MCPYARD_UPDATE_CHECK`, `MCPYARD_VERSION_CHECK_HOURS` and the three theme variables can instead be set on the web UI's
 **Settings** page, saved in `$MCPYARD_DATA_DIR/settings.json`. When the variable is set, it wins and
