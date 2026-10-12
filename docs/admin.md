@@ -7,6 +7,10 @@ title: Admin endpoint
 `/admin/mcp` is a second MCP endpoint, separate from `/mcp`, for agents that watch and nurse the hub.
 Only admin keys reach it, and admin keys reach nothing else.
 
+It is on by default and does nothing until an admin key exists. Turn it off on the web UI's
+**Settings** page, which also shows its URL, or with `MCPYARD_ADMIN_ENDPOINT=false`; it then answers
+`404`.
+
 ## Connect
 
 Create a key of kind **admin** in the web UI, then:

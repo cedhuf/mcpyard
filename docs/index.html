@@ -14,7 +14,7 @@ layout_class: home
   </p>
   <div class="snippet">
 {% highlight bash %}
-docker run -d -p 3000:3000 -v ./mcpyard.yaml:/config/mcpyard.yaml:ro \
+docker run -d -p 3000:3000 -v ./mcpyard.yaml:/config/mcpyard.yaml \
   -v mcpyard-data:/data ghcr.io/cedhuf/mcpyard:latest
 {% endhighlight %}
   </div>

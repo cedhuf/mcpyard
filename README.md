@@ -53,7 +53,7 @@ servers:
 
 ```bash
 docker run -d --name mcpyard -p 127.0.0.1:3000:3000 -e MCPYARD_UI_AUTH=none \
-  -v ./mcpyard.yaml:/config/mcpyard.yaml:ro -v mcpyard-data:/data \
+  -v ./mcpyard.yaml:/config/mcpyard.yaml -v mcpyard-data:/data \
   ghcr.io/cedhuf/mcpyard:latest
 ```
 
@@ -78,7 +78,7 @@ services:
     ports: ["127.0.0.1:3000:3000"]   # put a TLS reverse proxy in front
     env_file: .env
     volumes:
-      - ./mcpyard.yaml:/config/mcpyard.yaml:ro
+      - ./mcpyard.yaml:/config/mcpyard.yaml   # add :ro to forbid editing servers from the UI
       - mcpyard-data:/data
 
 volumes:
@@ -100,9 +100,13 @@ OIDC_CLIENT_SECRET=change-me
 ```
 
 Start it with `docker compose up -d`, or `podman compose up -d` (`podman-compose` works too). On
-SELinux hosts such as Fedora or RHEL, label the bind mount: `./mcpyard.yaml:/config/mcpyard.yaml:ro,Z`.
+SELinux hosts such as Fedora or RHEL, label the bind mount: `./mcpyard.yaml:/config/mcpyard.yaml:Z`.
 
-After editing `mcpyard.yaml`, apply it without a restart from the web UI, or with
+The container runs as uid 1000: for the web UI to add and edit servers, the file must be writable by
+it (`chown 1000 mcpyard.yaml`). Settings that are not in the environment, such as turning the admin
+endpoint off, live on the UI's **Settings** page.
+
+After editing `mcpyard.yaml` by hand, apply it without a restart from the web UI, or with
 `docker kill -s HUP mcpyard` (`podman kill -s HUP ...`): only the servers you changed restart.
 
 Where to go next:

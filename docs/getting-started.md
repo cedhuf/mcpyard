@@ -28,12 +28,13 @@ For a first try on your own machine, run it without sign-in and only on localhos
 docker run -d --name mcpyard \
   -p 127.0.0.1:3000:3000 \
   -e MCPYARD_UI_AUTH=none \
-  -v ./mcpyard.yaml:/config/mcpyard.yaml:ro \
+  -v ./mcpyard.yaml:/config/mcpyard.yaml \
   -v mcpyard-data:/data \
   ghcr.io/cedhuf/mcpyard:latest
 ```
 
-The first start installs each package into the data volume; later starts reuse it. Follow along with
+The container runs as uid 1000; if you want to add servers from the web UI, make the file writable by
+it with `chown 1000 mcpyard.yaml`. The first start installs each package into the data volume; later starts reuse it. Follow along with
 `docker logs -f mcpyard`.
 
 > `MCPYARD_UI_AUTH=none` lets anyone who reaches the port manage the hub. For anything beyond a local

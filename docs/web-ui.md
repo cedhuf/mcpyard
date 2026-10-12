@@ -13,6 +13,33 @@ disables and deletes keys. It refreshes itself every few seconds.
   <img src="assets/servers-light.png" alt="The servers page of the web UI">
 </picture>
 
+## Servers from the UI
+
+**Add server** and **Edit** open a form for any kind of server: npm or PyPI package, command, or
+remote URL, with its arguments, environment, headers and tool filters. Saving rewrites the server
+file and restarts only that server.
+
+- Comments elsewhere in the file and `${VAR}` references are kept as written.
+- The whole file must still be valid, or nothing is written and the error is shown.
+- If the file is read-only (a `:ro` mount, or not writable by uid 1000), the forms are shown locked
+  and the file stays yours to edit by hand; **Reload configuration** applies it.
+
+## Settings
+
+The **Settings** page gathers what is not a server or a key:
+
+- **Admin endpoint**: on or off, the URL to give agents, and how many admin keys exist.
+- **Updates**: how often registries are checked.
+- **Environment**: every startup variable with its value, behind a padlock. Secrets are masked.
+
+A setting whose environment variable is set shows a padlock and cannot be changed from the page:
+the environment always wins.
+
+<picture>
+  <source srcset="assets/settings-dark.png" media="(prefers-color-scheme: dark)">
+  <img src="assets/settings-light.png" alt="The settings page, with the check period locked by the environment">
+</picture>
+
 ## Sign-in with OpenID Connect
 
 There is no local password. The UI signs you in through your identity provider with the

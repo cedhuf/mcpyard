@@ -43,6 +43,10 @@ servers:
 
 Server names use letters, digits, `_` and `-`. They prefix every tool the server exposes.
 
+You can also add, edit and remove servers from the web UI: it rewrites this file, keeping your
+comments and `${VAR}` references, and refuses any change that would not parse. See
+[Web UI](web-ui.html#servers-from-the-ui).
+
 ## Server kinds
 
 Each server has **exactly one** of these:
@@ -69,6 +73,14 @@ Packages are covered in [Packages and updates](packages.html).
 `${VAR}` is replaced from the hub's environment anywhere in the file, and a missing variable stops the
 hub at startup rather than starting a server with an empty token.
 
+Inside `{ }` or `[ ]`, quote the reference, or YAML reads the `{` of `${` as a new map:
+
+```yaml
+env: { TOKEN: "${TOKEN}" }   # quoted inside { }
+env:
+  TOKEN: ${TOKEN}            # block style needs no quotes
+```
+
 Spawned servers **never inherit the hub's environment**. They get a minimal set (`PATH`, `HOME` and
 the like) plus their own `env`, so a token meant for one server cannot leak to another.
 
@@ -94,6 +106,11 @@ warns at startup about any tool that would cross that line. Keep server names sh
 | `OIDC_CLIENT_SECRET` | | Client secret; omit for a public client. |
 | `OIDC_ALLOWED_GROUPS` | | Comma-separated groups allowed to sign in. |
 | `MCPYARD_UI_AUTH` | `oidc` | `none` turns web UI sign-in off. |
+| `MCPYARD_ADMIN_ENDPOINT` | `true` | `false` turns `/admin/mcp` off. Also on the Settings page. |
+
+`MCPYARD_ADMIN_ENDPOINT` and `MCPYARD_VERSION_CHECK_HOURS` can instead be set on the web UI's
+**Settings** page, saved in `$MCPYARD_DATA_DIR/settings.json`. When the variable is set, it wins and
+the page shows the setting locked. Everything else on this list is read once at startup.
 
 ## Reloading
 

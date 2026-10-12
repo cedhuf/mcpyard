@@ -18,7 +18,7 @@ services:
     ports: ["127.0.0.1:3000:3000"]
     env_file: .env
     volumes:
-      - ./mcpyard.yaml:/config/mcpyard.yaml:ro
+      - ./mcpyard.yaml:/config/mcpyard.yaml
       - mcpyard-data:/data
 
 volumes:
@@ -39,11 +39,12 @@ SEARCH_TOKEN=...
 
 | Path | Contents |
 | --- | --- |
-| `/config/mcpyard.yaml` | The server file, read-only is fine. |
+| `/config/mcpyard.yaml` | The server file. Writable by uid 1000 to edit servers from the UI; mount it `:ro` to forbid that. |
 | `/data/keys.json` | Hashed keys and their scopes. |
 | `/data/versions.json` | Hub-owned package versions. |
 | `/data/packages/` | Installed packages, one directory per version. |
 | `/data/python/`, `/data/cache/` | Python interpreters and package caches. |
+| `/data/settings.json` | Settings saved from the UI's Settings page. |
 | `/data/session.key` | Signs web UI sessions. |
 
 Keep `/data` on a volume: upgrading the image then reuses every installed package. The image runs as
