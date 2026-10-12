@@ -15,14 +15,26 @@ disables and deletes keys. It refreshes itself every few seconds.
 
 ## Cards or list
 
-The servers page has two layouts, switched with the buttons next to **Reload configuration** and
+The servers page has two layouts, switched with the buttons at the right of the toolbar and
 remembered in a cookie: **cards**, one per server, and a compact **list** where each row unfolds to
-show the server's tools, its error and its actions.
+show the server's source, its error and its tools. A server's tools stay folded behind
+**Show N tools**, in a box that scrolls when there are many.
+
+Tabs filter the servers by state (**All**, **Online**, **Failed**, **Disabled**) and the search box
+matches names and packages. Restart, update, roll back, edit and remove sit in each server's
+**⋯** menu.
 
 <picture>
   <source srcset="assets/servers-list-dark.png" media="(prefers-color-scheme: dark)">
   <img src="assets/servers-list-light.png" alt="The servers page in list layout, with one row unfolded">
 </picture>
+
+## Switching a server off
+
+The switch on each server stops it and hides its tools from every key, without touching the server
+file: the choice is kept in `state.json` in the data directory and survives restarts and reloads.
+It works when the server file is read-only. A server with `enabled: false` in the file shows a
+padlock instead of the switch.
 
 The UI is built with [daisyUI](https://daisyui.com) and follows your system's light or dark theme.
 It needs no build step and no external request: the hub serves its own stylesheet.

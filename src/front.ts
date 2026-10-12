@@ -6,6 +6,7 @@ import { YARD, YARD_TOOLS } from './yard.ts';
 import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
 import { VERSION } from './release.ts';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 
 const CLIENT_PREFIX = 'mcp__mcpyard__';
 const MAX_TOOL_NAME = 64;
@@ -70,7 +71,45 @@ export class Hub {
   }
 
   private newUpstream(name: string, config: ServerConfig): Upstream {
-    return new Upstream(name, config, () => this.rebuild(), this.packages);
+    const enabled = config.enabled && !this.disabled.has(name);
+    return new Upstream(name, { ...config, enabled }, () => this.rebuild(), this.packages);
+  }
+
+  /** Servers switched off from the UI: state kept in the data directory, on top of what the server file says. */
+  private disabled = new Set<string>();
+  private statePath?: string;
+
+  useState(path: string): void {
+    this.statePath = path;
+    try {
+      this.disabled = new Set((JSON.parse(readFileSync(path, 'utf8')) as { disabled?: string[] }).disabled ?? []);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    }
+    // Called before start(): replacing the upstreams of disabled servers is enough.
+    for (const name of this.upstreams.keys()) if (this.disabled.has(name)) this.upstreams.set(name, this.newUpstream(name, this.configs[name]!));
+  }
+
+  isDisabled(name: string): boolean {
+    return this.disabled.has(name);
+  }
+
+  /** Switches a server on or off without touching the server file, and restarts or stops it at once. */
+  async setDisabled(name: string, disabled: boolean): Promise<void> {
+    const config = this.configs[name];
+    if (!config) throw new Error(`unknown server ${name}`);
+    if (disabled === this.disabled.has(name)) return;
+    if (disabled) this.disabled.add(name);
+    else this.disabled.delete(name);
+    if (this.statePath) {
+      writeFileSync(`${this.statePath}.tmp`, `${JSON.stringify({ disabled: [...this.disabled].sort() }, null, 2)}\n`);
+      renameSync(`${this.statePath}.tmp`, this.statePath);
+    }
+    const old = this.upstreams.get(name)!;
+    this.upstreams.set(name, this.newUpstream(name, config));
+    await old.stop();
+    this.upstreams.get(name)!.start();
+    this.rebuild();
   }
 
   /** Tells connected clients to list their tools again, after something outside the upstreams changed them. */

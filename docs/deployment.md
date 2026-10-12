@@ -45,6 +45,7 @@ SEARCH_TOKEN=...
 | `/data/packages/` | Installed packages, one directory per version. |
 | `/data/python/`, `/data/cache/` | Python interpreters and package caches. |
 | `/data/settings.json` | Settings saved from the UI's Settings page. |
+| `/data/state.json` | Servers switched off from the UI. |
 | `/data/session.key` | Signs web UI sessions. |
 
 Keep `/data` on a volume: upgrading the image then reuses every installed package. The image runs as

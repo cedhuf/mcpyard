@@ -34,12 +34,36 @@ test('servers page lists every server with its state', async () => {
   const res = await request('/');
   assert.equal(res.status, 200);
   const body = await res.text();
-  assert.match(body, /<strong>alpha<\/strong>/);
+  assert.match(body, /<strong class="mono">alpha<\/strong>/);
   assert.match(body, /http:\/\/beta\.test\/mcp/);
   const csp = res.headers.get('content-security-policy')!;
   const nonce = csp.match(/script-src 'nonce-([^']+)'/)![1];
   assert.ok(body.includes(`<script nonce="${nonce}">`), 'the only script carries the nonce');
   assert.ok(!/ on[a-z]+="/.test(body), 'no inline event handlers');
+});
+
+test('a server is switched off from the UI, kept off across restarts, and filtered', async () => {
+  const { dir, post, request } = setup({ kind: 'none' });
+  const state = join(dir, 'state.json');
+  hub.useState(state);
+  const res = await post('/servers/alpha/disable', {}, { origin: PUBLIC, referer: `${PUBLIC}/?state=online` });
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get('location'), '/?state=online');
+  assert.ok(hub.isDisabled('alpha'));
+  assert.equal(hub.upstreams.get('alpha')!.state, 'stopped');
+  assert.deepEqual(JSON.parse(readFileSync(state, 'utf8')), { disabled: ['alpha'] });
+
+  const off = await (await request('/?state=disabled')).text();
+  assert.match(off, /action="\/servers\/alpha\/enable"/);
+  assert.ok(!off.includes('>beta<'), 'the filter hides the other servers');
+  assert.match(await (await request('/?q=bet')).text(), />beta</);
+
+  const again = new Hub(parseConfig('servers:\n  alpha: { command: /bin/true }'));
+  again.useState(state);
+  assert.ok(again.isDisabled('alpha'), 'the switch survives a restart');
+  assert.equal((await post('/servers/nope/disable', {})).status, 404);
+  await hub.setDisabled('alpha', false);
+  await hub.upstreams.get('alpha')!.stop();
 });
 
 test('keys are created with a scope, shown once, disabled and deleted', async () => {
