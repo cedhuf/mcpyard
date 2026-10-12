@@ -1,0 +1,113 @@
+---
+layout: default
+layout_class: home
+---
+<section class="hero">
+  <img src="{{ '/assets/logo.svg' | relative_url }}" alt="" width="64" height="64">
+  <h1>One MCP endpoint.<br><span>Every server behind it.</span></h1>
+  <p class="lead">mcpyard is a small, self-hosted MCP hub. It installs and runs your MCP servers, merges their
+    tools behind a single <code>/mcp</code> endpoint, and gives each client its own key with exactly the
+    access it needs.</p>
+  <p class="cta">
+    <a class="button primary" href="{{ '/getting-started.html' | relative_url }}">Get started</a>
+    <a class="button" href="https://github.com/{{ site.repository }}">View on GitHub</a>
+  </p>
+  <div class="snippet">
+{% highlight bash %}
+docker run -d -p 3000:3000 -v ./mcpyard.yaml:/config/mcpyard.yaml:ro \
+  -v mcpyard-data:/data ghcr.io/cedhuf/mcpyard:latest
+{% endhighlight %}
+  </div>
+</section>
+
+<section class="flow" aria-label="How requests flow">
+  <div class="col">
+    <p class="label">Clients</p>
+    <div class="node">Claude Code <small>key: laptop</small></div>
+    <div class="node">Home agent <small>key: agent</small></div>
+    <div class="node">Any MCP client <small>key: ci</small></div>
+  </div>
+  <div class="arrow" aria-hidden="true"></div>
+  <div class="col hub">
+    <div class="node main">
+      <strong>mcpyard</strong>
+      <small>/mcp · one merged tool list</small>
+      <small>keys and scopes · audit log</small>
+      <small>versions · updates · rollback</small>
+    </div>
+  </div>
+  <div class="arrow" aria-hidden="true"></div>
+  <div class="col">
+    <p class="label">Servers</p>
+    <div class="node">npm package <small>installed by the hub</small></div>
+    <div class="node">PyPI package <small>own virtualenv</small></div>
+    <div class="node">Remote URL <small>HTTP or SSE</small></div>
+  </div>
+</section>
+
+<section class="features">
+  <div class="card">
+    <h3>One merged endpoint</h3>
+    <p>Clients declare a single server. Tools come back as <code>&lt;server&gt;-&lt;tool&gt;</code>, filtered by what the key may see.</p>
+  </div>
+  <div class="card">
+    <h3>Known versions</h3>
+    <p>Packages are installed by the hub, never <code>npx -y</code>. Pin a version, or let the hub track it and update in one click.</p>
+  </div>
+  <div class="card">
+    <h3>Safe updates</h3>
+    <p>The new version starts next to the old one and takes over only once it answers. The previous one stays for rollback.</p>
+  </div>
+  <div class="card">
+    <h3>Keys with scopes</h3>
+    <p>One bearer key per client, limited to servers and tool globs. Tokens are shown once and stored hashed.</p>
+  </div>
+  <div class="card">
+    <h3>Behind your identity provider</h3>
+    <p>The web UI signs in with OpenID Connect: PocketID, Authelia, Keycloak. No local password to leak.</p>
+  </div>
+  <div class="card">
+    <h3>Small on purpose</h3>
+    <p>One YAML file, a few environment variables, one Docker image. No database, no marketplace, no build step.</p>
+  </div>
+</section>
+
+<section class="shot">
+  <h2>See everything at a glance</h2>
+  <p>Server states, tools, installed and latest versions, one-click updates and rollbacks, and the keys of every client.</p>
+  <picture>
+    <source srcset="{{ '/assets/servers-dark.png' | relative_url }}" media="(prefers-color-scheme: dark)">
+    <img src="{{ '/assets/servers-light.png' | relative_url }}" alt="The servers page of the mcpyard web UI" width="1100" loading="lazy">
+  </picture>
+</section>
+
+<section class="config">
+  <div>
+    <h2>Configured by one file</h2>
+    <p>Servers live in a YAML file you can version. Secrets come from the environment and never reach a
+      server that did not ask for them.</p>
+    <p><a href="{{ '/configuration.html' | relative_url }}">Read the server file reference →</a></p>
+  </div>
+{% highlight yaml %}
+servers:
+  time:
+    package: { pypi: mcp-server-time }
+  memory:
+    package:
+      npm: "@modelcontextprotocol/server-memory"
+      version: "2026.8.31"   # pinned
+  search:
+    url: https://search.example.lan/mcp
+    headers:
+      Authorization: Bearer ${SEARCH_TOKEN}
+    tools: { deny: ["*_delete"] }
+{% endhighlight %}
+</section>
+
+<section class="why">
+  <h2>Why another hub?</h2>
+  <p>Heavier hubs carry a marketplace, smart routing and a database. Light proxies expose one route per
+    server, so every client has to declare every server. mcpyard sits in between: one merged endpoint,
+    known versions, scoped keys and an OIDC web UI, and nothing more.</p>
+  <p class="cta"><a class="button primary" href="{{ '/getting-started.html' | relative_url }}">Set it up in five minutes</a></p>
+</section>

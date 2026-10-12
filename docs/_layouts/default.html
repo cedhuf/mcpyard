@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% assign page_title = page.title | default: site.title %}
+  <title>{% if page.url == "/" %}{{ site.title }}: {{ site.description }}{% else %}{{ page_title }} · {{ site.title }}{% endif %}</title>
+  <meta name="description" content="{{ page.description | default: site.description }}">
+  <link rel="icon" href="{{ '/assets/logo.svg' | relative_url }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ '/assets/style.css' | relative_url }}">
+</head>
+<body class="{% if page.layout_class %}{{ page.layout_class }}{% else %}doc{% endif %}">
+  <header class="top">
+    <a class="brand" href="{{ '/' | relative_url }}"><img src="{{ '/assets/logo.svg' | relative_url }}" alt="" width="26" height="26">mcpyard</a>
+    <nav>
+      <a href="{{ '/getting-started.html' | relative_url }}">Docs</a>
+      <a href="https://github.com/{{ site.repository }}/releases">Releases</a>
+      <a href="https://github.com/{{ site.repository }}" class="gh">GitHub</a>
+    </nav>
+  </header>
+  {% if page.layout_class == "home" %}
+    {{ content }}
+  {% else %}
+  <div class="shell">
+    <aside>
+      {% for group in site.data.nav %}
+      <p class="group">{{ group.title }}</p>
+      <ul>
+        {% for item in group.pages %}
+        <li><a href="{{ item.url | relative_url }}"{% if page.url == item.url %} class="active"{% endif %}>{{ item.title }}</a></li>
+        {% endfor %}
+      </ul>
+      {% endfor %}
+    </aside>
+    <main class="prose">
+      {{ content }}
+      <p class="edit"><a href="https://github.com/{{ site.repository }}/edit/main/docs/{{ page.path }}">Edit this page on GitHub</a></p>
+    </main>
+  </div>
+  {% endif %}
+  <footer>MIT licensed · <a href="https://github.com/{{ site.repository }}">github.com/{{ site.repository }}</a></footer>
+</body>
+</html>

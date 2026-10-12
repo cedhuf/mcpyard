@@ -7,8 +7,8 @@ ones get through. That is the whole job here. Clients (Claude Code, llooma, any 
 connect to a single `/mcp` endpoint; mcpyard starts and keeps the upstream MCP servers running,
 merges their tools, and only lets each client reach what its key allows.
 
-> Status: early. Everything below works; expect rough edges before 1.0.
-> Documentation: [cedhuf.github.io/mcpyard](https://cedhuf.github.io/mcpyard/).
+> Status: early, everything below works; expect rough edges before 1.0.
+> **Documentation: [cedhuf.github.io/mcpyard](https://cedhuf.github.io/mcpyard/)**
 
 ## Why
 
@@ -38,38 +38,37 @@ mcpyard aims at the small intersection none of them covers:
 No marketplace, no smart routing or semantic tool search, no multi-tenant user management, no
 database server. If a feature needs one of those, it belongs in MCPHub, not here.
 
-## Quick look
-
-Servers live in one file:
+## Quick start
 
 ```yaml
 # mcpyard.yaml
 servers:
-  mail:
-    package: { npm: "@infomaniak/mcp-server-mail" }
-    env:
-      MAIL_TOKEN: ${MAIL_TOKEN}
-  calendar:
-    package: { npm: "@infomaniak/mcp-server-calendar", version: "1.3.0" }   # pinned
-    env:
-      CALENDAR_TOKEN: ${CALENDAR_TOKEN}
-  home-assistant:
-    url: http://homeassistant.example.lan:8123/mcp_server/sse
+  time:
+    package: { pypi: mcp-server-time }
+  memory:
+    package: { npm: "@modelcontextprotocol/server-memory", version: "2026.8.31" }   # pinned
+  search:
+    url: https://search.example.lan/mcp
     headers:
-      Authorization: Bearer ${HA_TOKEN}
+      Authorization: Bearer ${SEARCH_TOKEN}
 ```
-
-Everything else is an environment variable:
 
 ```bash
-MCPYARD_CONFIG=/config/mcpyard.yaml
-MCPYARD_PUBLIC_URL=https://mcpyard.example.lan
-OIDC_ISSUER=https://id.example.lan
-OIDC_CLIENT_ID=mcpyard
-OIDC_CLIENT_SECRET=...
+docker run -d --name mcpyard -p 127.0.0.1:3000:3000 -e MCPYARD_UI_AUTH=none \
+  -v ./mcpyard.yaml:/config/mcpyard.yaml:ro -v mcpyard-data:/data \
+  ghcr.io/cedhuf/mcpyard:latest
 ```
 
-Clients connect to `https://mcpyard.example.lan/mcp` with `Authorization: Bearer <key>`.
+Open http://localhost:3000, create a key, then point your client at `/mcp`:
+
+```bash
+claude mcp add --transport http mcpyard http://localhost:3000/mcp --header "Authorization: Bearer yard_..."
+```
+
+![The servers page of the mcpyard web UI](docs/assets/servers-light.png)
+
+For sign-in with your identity provider, reverse proxies, packages and scopes, read the
+[documentation](https://cedhuf.github.io/mcpyard/).
 
 ## License
 

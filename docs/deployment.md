@@ -1,7 +1,13 @@
+---
+title: Deployment
+---
+
 # Deployment
 
-Images are published to `ghcr.io/cedhuf/mcpyard` for `linux/amd64` and `linux/arm64`, tagged with
-the release version and `latest`.
+mcpyard ships as one image, `ghcr.io/cedhuf/mcpyard`, for `linux/amd64` and `linux/arm64`. Tags are
+the release version (`0.2.0`) and `latest`.
+
+## Docker Compose
 
 ```yaml
 # compose.yaml
@@ -9,7 +15,7 @@ services:
   mcpyard:
     image: ghcr.io/cedhuf/mcpyard:latest
     restart: unless-stopped
-    ports: ["3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     env_file: .env
     volumes:
       - ./mcpyard.yaml:/config/mcpyard.yaml:ro
@@ -19,11 +25,67 @@ volumes:
   mcpyard-data:
 ```
 
-The image runs as the `node` user and ships Node and `uv`. Everything that changes lives in
-`/data`: keys, installed packages, package caches and the Python interpreters `uv` downloads on the
-first PyPI install. Keep it on a volume so upgrades do not reinstall every server.
+```bash
+# .env
+MCPYARD_PUBLIC_URL=https://mcpyard.example.lan
+OIDC_ISSUER=https://id.example.lan
+OIDC_CLIENT_ID=mcpyard
+OIDC_CLIENT_SECRET=...
+# secrets referenced from mcpyard.yaml
+SEARCH_TOKEN=...
+```
 
-`/healthz` answers `ok` once the HTTP server is up; the image's health check uses it.
+## What lives where
 
-Put mcpyard behind a reverse proxy that terminates TLS. Long-lived `/mcp` streams need response
-buffering off and generous read timeouts.
+| Path | Contents |
+| --- | --- |
+| `/config/mcpyard.yaml` | The server file, read-only is fine. |
+| `/data/keys.json` | Hashed keys and their scopes. |
+| `/data/versions.json` | Hub-owned package versions. |
+| `/data/packages/` | Installed packages, one directory per version. |
+| `/data/python/`, `/data/cache/` | Python interpreters and package caches. |
+| `/data/session.key` | Signs web UI sessions. |
+
+Keep `/data` on a volume: upgrading the image then reuses every installed package. The image runs as
+the unprivileged `node` user.
+
+## Reverse proxy
+
+Terminate TLS in front of mcpyard. MCP responses can be long-lived streams, so turn response
+buffering off and allow long reads.
+
+### Caddy
+
+```
+mcpyard.example.lan {
+  reverse_proxy mcpyard:3000 {
+    flush_interval -1
+  }
+}
+```
+
+### nginx
+
+```nginx
+location / {
+  proxy_pass http://mcpyard:3000;
+  proxy_http_version 1.1;
+  proxy_set_header Host $host;
+  proxy_set_header Connection "";
+  proxy_buffering off;
+  proxy_read_timeout 1h;
+}
+```
+
+Keep the `Host` header: the web UI checks that forms come from the hub's own origin.
+
+## Health and logs
+
+`/healthz` answers `ok` once the HTTP server is up; the image's health check uses it. Server output is
+prefixed with the server name on standard error; tool calls and key changes are JSON lines on standard
+output.
+
+## Upgrading
+
+Pull the new image and recreate the container. Releases follow semantic versioning; notes are on the
+[releases page](https://github.com/cedhuf/mcpyard/releases).

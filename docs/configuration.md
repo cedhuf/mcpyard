@@ -1,124 +1,98 @@
-# Configuration
+---
+title: Server file
+---
 
-Runtime settings come from environment variables, servers from one YAML file.
+# Server file
 
-## Environment
+Servers live in one YAML file; runtime settings come from environment variables.
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `MCPYARD_CONFIG` | `/config/mcpyard.yaml` | Server file. |
-| `MCPYARD_DATA_DIR` | `/data` | Keys, installed packages, recorded versions. |
-| `MCPYARD_PORT` | `3000` | HTTP port. |
-| `MCPYARD_VERSION_CHECK_HOURS` | `6` | How often registries are asked for the latest version. |
-| `MCPYARD_PUBLIC_URL` | | Base URL browsers use, e.g. `https://mcpyard.example.lan`. Required with OIDC. |
-| `OIDC_ISSUER` | | Issuer URL of your identity provider. |
-| `OIDC_CLIENT_ID` | | Client id registered for mcpyard. |
-| `OIDC_CLIENT_SECRET` | | Client secret; omit for a public client (PKCE is always used). |
-| `OIDC_ALLOWED_GROUPS` | | Comma-separated groups; when set, the `groups` claim must contain one. |
-| `MCPYARD_UI_AUTH` | `oidc` | `none` turns web UI authentication off. |
-
-## Web UI
-
-The UI is served at the root of the hub. It shows every server with its state, tools and versions,
-restarts servers, updates or rolls back hub-owned packages, and creates, disables and deletes keys.
-
-Sign-in uses OpenID Connect with the authorization code flow and PKCE. Register a client in your
-identity provider (PocketID, Authelia, Keycloak...) with the redirect URI
-`<MCPYARD_PUBLIC_URL>/auth/callback`, and restrict who may use it there or with
-`OIDC_ALLOWED_GROUPS`. Sessions last 12 hours in a signed cookie; the signing key is generated in
-`$MCPYARD_DATA_DIR/session.key`, delete it to sign everyone out.
-
-Without the OIDC variables the UI is off and only `/mcp` and `/healthz` answer.
-`MCPYARD_UI_AUTH=none` serves the UI to anyone who reaches the port: use it only on a trusted
-network or behind a proxy that authenticates.
-
-## Server file
+## A complete example
 
 ```yaml
 servers:
-  mail:
-    package: { npm: "@example/mcp-server-mail" }
-    env:
-      MAIL_TOKEN: ${MAIL_TOKEN}
   time:
-    package: { pypi: mcp-server-time, version: "2026.10.10" }
+    package: { pypi: mcp-server-time }
+
+  memory:
+    package:
+      npm: "@modelcontextprotocol/server-memory"
+      version: "2026.8.31"          # pinned: the hub never changes it
+
+  mail:
+    package: { npm: "@example/mcp-mail", bin: mcp-mail }
+    env:
+      MAIL_TOKEN: ${MAIL_TOKEN}     # from the hub's environment
+    tools:
+      deny: ["delete_*"]
+
   local:
     command: /usr/local/bin/my-server
     args: [--stdio]
-  remote:
-    url: https://mcp.example.com/mcp
+    cwd: /srv/my-server
+
+  search:
+    url: https://search.example.lan/mcp
     headers:
-      Authorization: Bearer ${REMOTE_TOKEN}
-    tools: { deny: ["delete_*"] }
+      Authorization: Bearer ${SEARCH_TOKEN}
+
+  legacy:
+    url: https://old.example.lan/sse
+    transport: sse
+    enabled: false
 ```
 
-Server names match `[A-Za-z0-9_-]+`. `${VAR}` is replaced from the hub's environment anywhere in the
-file; a missing variable stops the hub at startup.
+Server names use letters, digits, `_` and `-`. They prefix every tool the server exposes.
 
-Each server has exactly one of:
+## Server kinds
 
-- `package`: `{ npm: <name> }` or `{ pypi: <name> }`, plus optional `version` and `bin`.
-- `command`: an executable spawned over stdio, with optional `args` and `cwd`.
-- `url`: a remote server, with optional `headers` and `transport` (`streamable-http`, the default,
-  or `sse`).
+Each server has **exactly one** of these:
 
-Common fields:
+| Key | The hub... | Extra fields |
+| --- | --- | --- |
+| `package` | installs it from npm or PyPI and runs it over stdio | `npm` or `pypi`, `version`, `bin`, `allowScripts` |
+| `command` | spawns an executable over stdio | `args`, `cwd` |
+| `url` | connects to a remote server | `headers`, `transport` (`streamable-http` or `sse`) |
+
+Packages are covered in [Packages and updates](packages.html).
+
+## Common fields
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `env` | `{}` | Environment for the spawned process, on top of `PATH`, `HOME` and the like. |
-| `tools` | `{}` | `allow` and `deny` glob lists on the upstream tool names. |
+| `args` | `[]` | Arguments for a package bin or a command. |
+| `env` | `{}` | Environment of the spawned process, on top of `PATH`, `HOME` and the like. |
+| `tools` | `{}` | `allow` and `deny` globs on the server's own tool names. |
 | `enabled` | `true` | `false` keeps the entry without starting it. |
-| `allowScripts` | `false` | Let a package run install-time code (npm scripts, Python source builds). |
 
-## Packages
+## Secrets and environment
 
-Packages are installed into `$MCPYARD_DATA_DIR/packages/<server>/<version>/`, with
-`npm install --ignore-scripts` or `uv pip install --no-build` into a dedicated virtualenv. A package
-that needs install-time code fails with the installer's error until `allowScripts: true` is set.
+`${VAR}` is replaced from the hub's environment anywhere in the file, and a missing variable stops the
+hub at startup rather than starting a server with an empty token.
 
-The bin to run is `bin` when given, otherwise the package's only bin. A package with several bins
-needs `bin`.
+Spawned servers **never inherit the hub's environment**. They get a minimal set (`PATH`, `HOME` and
+the like) plus their own `env`, so a token meant for one server cannot leak to another.
 
-**Pinned** (`version` set): that version runs, the hub never changes it.
+## Tool names
 
-**Hub-owned** (`version` omitted): the first start installs the registry's latest version and
-records it in `$MCPYARD_DATA_DIR/versions.json`; later starts reuse it. The hub checks registries
-for newer versions but never updates on its own. An update installs the new version, starts it
-next to the running one, switches traffic once it answers, and keeps the previous version for
-rollback.
+Clients see `<server>-<tool>`: `time-get_current_time`, `mail-send_email`. Routing uses a lookup table,
+so names are never split on `-`. If two names collide, the first wins and the hub logs a warning.
 
-## Keys
+Claude Code prefixes tools with `mcp__<client name>__` and rejects names over 64 characters; the hub
+warns at startup about any tool that would cross that line. Keep server names short.
 
-Clients send `Authorization: Bearer <token>`. Keys live in `$MCPYARD_DATA_DIR/keys.json`; only a
-hash of each token is stored. Create them in the web UI, or from a shell:
+## Environment variables
 
-```bash
-node src/main.ts keygen <name>
-# or, with Docker:
-docker exec mcpyard node src/main.ts keygen <name>
-```
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MCPYARD_CONFIG` | `/config/mcpyard.yaml` | The server file. |
+| `MCPYARD_DATA_DIR` | `/data` | Keys, installed packages, recorded versions, session key. |
+| `MCPYARD_PORT` | `3000` | HTTP port. |
+| `MCPYARD_VERSION_CHECK_HOURS` | `6` | How often registries are asked for new versions. |
+| `MCPYARD_PUBLIC_URL` | | Base URL browsers use. Required with OIDC. |
+| `OIDC_ISSUER` | | Issuer URL of your identity provider. |
+| `OIDC_CLIENT_ID` | | Client id registered for mcpyard. |
+| `OIDC_CLIENT_SECRET` | | Client secret; omit for a public client. |
+| `OIDC_ALLOWED_GROUPS` | | Comma-separated groups allowed to sign in. |
+| `MCPYARD_UI_AUTH` | `oidc` | `none` turns web UI sign-in off. |
 
-It prints the token once and the entry to add to `keys.json`. The file is re-read on every request.
-Narrow a key with its `scope`:
-
-```json
-"scope": { "servers": ["mail", "time"], "tools": { "deny": ["*-delete_*"] } }
-```
-
-`servers` lists server names (`*` for all); `tools` filters the exposed `<server>-<tool>` names.
-
-## Admin endpoint
-
-`/admin/mcp` is a separate MCP endpoint that only admin keys reach, and admin keys reach nothing
-else. It lets an agent watch and nurse the hub:
-
-| Tool | Does |
-| --- | --- |
-| `list_servers` | State, last error, tool count and package versions of every server. |
-| `get_server` | One server with its tool names and whether the configuration exposes them. |
-| `restart_server` | Restarts a server, waits up to 30 seconds for it to settle, returns its status. |
-
-An admin key's `scope.servers` limits the servers it sees and manages, and `scope.tools` filters
-these three tool names: `{ "deny": ["restart_server"] }` makes a read-only key. Calls are logged
-like client calls, with the tool name prefixed by `admin:`.
+The file is read at startup: restart the container after editing it.

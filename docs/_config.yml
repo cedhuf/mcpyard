@@ -1,3 +1,11 @@
 title: mcpyard
 description: A small, self-hosted MCP hub. One endpoint, every MCP server behind it, one key per client.
-theme: jekyll-theme-primer
+repository: cedhuf/mcpyard
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+defaults:
+  - scope: { path: "" }
+    values: { layout: default }
+exclude: [README.md]

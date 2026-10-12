@@ -1,0 +1,13 @@
+- title: Start
+  pages:
+    - { title: Getting started, url: /getting-started.html }
+    - { title: Deployment, url: /deployment.html }
+- title: Configure
+  pages:
+    - { title: Server file, url: /configuration.html }
+    - { title: Packages and updates, url: /packages.html }
+    - { title: Keys and scopes, url: /keys.html }
+- title: Operate
+  pages:
+    - { title: Web UI and sign-in, url: /web-ui.html }
+    - { title: Admin endpoint, url: /admin.html }
