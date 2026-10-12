@@ -27,7 +27,6 @@ const STATIC_FILES = [
   ['/favicon-16x16.png', 'image/png'],
   ['/favicon-32x32.png', 'image/png'],
   ['/apple-touch-icon.png', 'image/png'],
-  ['/icon-96.png', 'image/png'],
 ] as const;
 
 const SESSION = 'mcpyard_session';

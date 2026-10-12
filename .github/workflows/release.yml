@@ -74,6 +74,8 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
+      # The logo files live once, in static/; the site gets copies at build time.
+      - run: cp static/favicon.ico static/favicon-32x32.png static/apple-touch-icon.png static/icon.png docs/assets/
       - uses: actions/configure-pages@v5
       - uses: actions/jekyll-build-pages@v1
         with:

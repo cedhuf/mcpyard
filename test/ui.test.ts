@@ -144,7 +144,7 @@ async function login(request: ReturnType<typeof setup>['request']): Promise<Resp
 
 test('the logo files are public and cached', async () => {
   const { request } = oidcSetup();
-  for (const path of ['/favicon.ico', '/apple-touch-icon.png', '/icon-96.png']) {
+  for (const path of ['/favicon.ico', '/favicon-32x32.png', '/apple-touch-icon.png']) {
     const res = await request(path);
     assert.equal(res.status, 200, path);
     assert.match(res.headers.get('cache-control')!, /max-age/);

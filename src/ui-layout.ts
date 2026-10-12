@@ -79,7 +79,7 @@ export function icon(name: string, size: 'xs' | 'sm' | 'md' = 'md'): Fragment {
   return html`<svg class="icon icon-${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${raw(ICONS[name] ?? '')}</svg>`;
 }
 
-export const LOGO = raw('<img src="/icon-96.png" width="34" height="34" alt="" class="logo" />');
+export const LOGO = raw('<img src="/apple-touch-icon.png" width="34" height="34" alt="" class="logo" />');
 
 export function locked(env: string): Fragment {
   return html`<span class="badge badge-ghost gap-1 locked" title="Set by ${env} in the environment; change it there and restart">${icon('lock', 'xs')}<span class="mono">${env}</span></span>`;

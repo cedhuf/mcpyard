@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/assets/logo.webp" alt="MCP Yard logo: a glass greenhouse behind a locked gate, with a golden key" width="200"></p>
+<p align="center"><img src="static/icon.png" alt="MCP Yard logo: a glass greenhouse behind a locked gate, with a golden key" width="200"></p>
 
 # MCP Yard
 
