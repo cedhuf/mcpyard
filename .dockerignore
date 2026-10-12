@@ -1,0 +1,6 @@
+.git
+.github
+_local
+docs
+node_modules
+test

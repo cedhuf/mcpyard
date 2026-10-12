@@ -7,7 +7,8 @@ ones get through. That is the whole job here. Clients (Claude Code, llooma, any 
 connect to a single `/mcp` endpoint; mcpyard starts and keeps the upstream MCP servers running,
 merges their tools, and only lets each client reach what its key allows.
 
-> Status: design stage. No code yet.
+> Status: early. The hub, keys and managed packages work; the web UI and OIDC are next.
+> Documentation: [cedhuf.github.io/mcpyard](https://cedhuf.github.io/mcpyard/).
 
 ## Why
 

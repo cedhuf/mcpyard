@@ -1,0 +1,3 @@
+title: mcpyard
+description: A small, self-hosted MCP hub. One endpoint, every MCP server behind it, one key per client.
+theme: jekyll-theme-primer
