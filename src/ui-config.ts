@@ -4,7 +4,8 @@ import type { ConfigFile, RawServer } from './config.ts';
 import type { Hub } from './front.ts';
 import { loadKeys } from './keys.ts';
 import type { SettingKey, Settings } from './settings.ts';
-import { LOCK, log, page, type Env, type Fragment } from './ui-layout.ts';
+import { alert, badge, checkbox, field, formGrid, kv, linkButton, pageHead, panel, postButton, table } from './ui-kit.ts';
+import { icon, locked, log, page, toast, type Env, type Fragment } from './ui-layout.ts';
 
 /** An environment variable shown on the settings page; these are read at startup and never editable. */
 export type EnvRow = { env: string; value?: string; secret?: boolean };
@@ -34,10 +35,10 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
     try {
       for (const [key, value] of changes) settings.set(key, value);
     } catch (e) {
-      return c.html(page(c, 'Settings', html`${notice((e as Error).message, true)}${settingsView(c, hub, options)}`), 400);
+      return c.html(page(c, 'Settings', html`${settingsView(c, hub, options)}${toast((e as Error).message, 'error')}`), 400);
     }
     log(c, 'settings_saved', Object.fromEntries(changes));
-    return c.html(page(c, 'Settings', html`${notice('Settings saved and applied.')}${settingsView(c, hub, options)}`));
+    return c.html(page(c, 'Settings', html`${settingsView(c, hub, options)}${toast('Settings saved and applied.')}`));
   });
 
   app.get('/servers/new', guard, (c) => c.html(page(c, 'New server', serverPage(undefined, {}, configFile))));
@@ -86,62 +87,51 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
   });
 }
 
-function notice(message: string, failed = false): Fragment {
-  return html`<section class="card notice ${failed ? 'failed' : ''}"><p>${message}</p></section>`;
-}
-
-function locked(env: string): Fragment {
-  return html`<span class="locked" title="Set by ${env} in the environment; change it there and restart">${LOCK} ${env}</span>`;
-}
-
 function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragment {
   const { settings, environment = [] } = options;
   const admin = settings?.get('adminEndpoint');
   const hours = settings?.get('versionCheckHours');
   const adminKeys = loadKeys(options.keysPath).filter((k) => k.kind === 'admin' && k.enabled).length;
-  return html`<section>
-      <h1>Settings</h1>
-      <form method="post" action="/settings" class="settings">
-        <div class="card">
-          <h2>Admin endpoint</h2>
-          <p class="muted">A second MCP endpoint for agents that watch and manage the hub. Only admin keys reach it; client keys never do.</p>
-          <div class="row">
-            <span>Enabled</span>
-            ${admin?.source === 'env'
-              ? html`<span><strong>${admin.value ? 'yes' : 'no'}</strong> ${locked(admin.env)}</span>`
-              : html`<label class="switch"><input type="hidden" name="adminEndpoint" value="false" /><input type="checkbox" name="adminEndpoint" value="true" ${admin?.value ? 'checked' : ''} /><span></span></label>`}
-          </div>
-          <div class="row"><span>URL</span><code>${options.base(c)}/admin/mcp</code></div>
-          <div class="row"><span>Admin keys</span><span>${adminKeys} active · <a href="/keys">create one</a> with kind <em>admin</em></span></div>
-          <div class="row"><span>Tools</span><span class="mono">${ADMIN_TOOLS.join(', ')}</span></div>
-        </div>
-        <div class="card">
-          <h2>Updates</h2>
-          <div class="row">
-            <span>Check registries every</span>
-            ${hours?.source === 'env'
-              ? html`<span><strong>${hours.value} h</strong> ${locked(hours.env)}</span>`
-              : html`<span><input type="number" name="versionCheckHours" min="1" max="168" value="${hours?.value ?? 6}" class="short" /> hours</span>`}
-          </div>
-          <p class="muted">The hub only checks; it never updates on its own.</p>
-        </div>
-        ${settings && (admin?.source !== 'env' || hours?.source !== 'env') ? html`<button class="primary">Save settings</button>` : ''}
-      </form>
-    </section>
-    <section>
-      <h2>Environment</h2>
-      <p class="muted">Read once at startup from the environment (your <code>.env</code>). Change them there and restart the container.</p>
-      <table>
-        <tbody>
-          ${environment.map(
-            (row) => html`<tr>
-              <td>${locked(row.env)}</td>
-              <td class="mono">${row.value === undefined || row.value === '' ? html`<span class="muted">not set</span>` : row.secret ? '••••••••' : row.value}</td>
-            </tr>`,
+  const editable = settings && (admin?.source !== 'env' || hours?.source !== 'env');
+  const lockedValue = (value: string, env: string) => html`<span class="row-wrap"><strong>${value}</strong>${locked(env)}</span>`;
+  return html`${pageHead('Settings', { subtitle: 'Applied at once, without a restart. A padlock means the environment sets it.' })}
+    <form method="post" action="/settings">
+      <div class="settings-grid">
+        ${panel(
+          html`${kv(
+            'Enabled',
+            admin?.source === 'env'
+              ? lockedValue(admin.value ? 'yes' : 'no', admin.env)
+              : html`<input type="hidden" name="adminEndpoint" value="false" /><input type="checkbox" class="toggle toggle-primary" name="adminEndpoint" value="true" aria-label="Admin endpoint enabled" ${admin?.value ? 'checked' : ''} />`,
           )}
-        </tbody>
-      </table>
-    </section>`;
+          ${kv('URL', html`<code class="mono break-all">${options.base(c)}/admin/mcp</code>`)}
+          ${kv('Admin keys', html`${adminKeys} active · <a class="link link-primary" href="/keys">create one</a> with kind <em>admin</em>`)}
+          ${kv('Tools', html`<span class="row-wrap justify-end">${ADMIN_TOOLS.map((t) => badge(t, { mono: true }))}</span>`)}`,
+          { title: 'Admin endpoint', description: 'A second MCP endpoint for agents that watch and manage the hub. Only admin keys reach it; client keys never do.' },
+        )}
+        ${panel(
+          kv(
+            'Check registries every',
+            hours?.source === 'env'
+              ? lockedValue(`${hours.value} h`, hours.env)
+              : html`<label class="input input-sm w-32"><input type="number" name="versionCheckHours" min="1" max="168" value="${hours?.value ?? 6}" /><span class="muted">hours</span></label>`,
+          ),
+          { title: 'Updates', description: 'The hub only checks registries for new versions; it never updates on its own.' },
+        )}
+      </div>
+      ${editable ? html`<div class="mt-4"><button class="btn btn-primary">Save settings</button></div>` : ''}
+    </form>
+    <h2 class="section-title">Environment</h2>
+    <p class="muted text-sm mb-4">Read once at startup from the environment (your <span class="mono">.env</span>). Change them there and restart the container.</p>
+    ${table(
+      [],
+      environment.map(
+        (row) => html`<tr>
+          <td class="w-px">${locked(row.env)}</td>
+          <td class="mono break-all">${row.value === undefined || row.value === '' ? html`<span class="muted">not set</span>` : row.secret ? '••••••••' : row.value}</td>
+        </tr>`,
+      ),
+    )}`;
 }
 
 const lines = (value: unknown) =>
@@ -200,55 +190,50 @@ function serverPage(name: string | undefined, raw: RawServer, file: ConfigFile |
     Object.entries((v ?? {}) as Record<string, unknown>)
       .map(([k, x]) => `${k}${sep}${String(x)}`)
       .join('\n');
-  return html`<section>
-    <h1>${name ? html`Edit server <span class="mono">${name}</span>` : 'New server'}</h1>
-    ${readOnly ? html`<section class="card notice failed"><p>${LOCK} Servers cannot be edited here: ${readOnly}. Mount the server file read-write to edit it from the UI, or edit it by hand and reload.</p></section>` : ''}
-    ${error ? html`<section class="card notice failed"><p>Not saved:</p><pre class="mono">${error}</pre></section>` : ''}
-    <form method="post" action="${name ? `/servers/${name}` : '/servers'}" class="card wide">
-      <fieldset class="plain" ${readOnly ? 'disabled' : ''}>
-        ${name ? '' : html`<label>Name <input name="name" required pattern="[A-Za-z0-9_\\-]+" value="${typedName ?? ''}" placeholder="mail" /><span class="muted">Prefixes every tool: <span class="mono">name-tool</span>. Keep it short.</span></label>`}
-        <label>Kind
-          <select name="kind">
-            <option value="npm" ${kind === 'npm' ? 'selected' : ''}>npm package, installed by the hub</option>
-            <option value="pypi" ${kind === 'pypi' ? 'selected' : ''}>PyPI package, installed by the hub</option>
-            <option value="command" ${kind === 'command' ? 'selected' : ''}>Command on the host</option>
-            <option value="url" ${kind === 'url' ? 'selected' : ''}>Remote URL</option>
-          </select>
-        </label>
-        <div class="grid" data-kinds="npm pypi">
-          <label>Package <input name="package" value="${pkg.npm ?? pkg.pypi ?? ''}" placeholder="@scope/mcp-server" /></label>
-          <label>Version <input name="version" value="${pkg.version ?? ''}" placeholder="empty: the hub owns it" /><span class="muted">Set to pin.</span></label>
-          <label>Bin <input name="bin" value="${pkg.bin ?? ''}" placeholder="only if the package has several" /></label>
-          <label class="check"><input type="checkbox" name="allowScripts" value="true" ${raw.allowScripts ? 'checked' : ''} /> Allow install scripts</label>
-        </div>
-        <div class="grid" data-kinds="command">
-          <label>Command <input name="command" value="${text(raw.command)}" placeholder="/usr/local/bin/my-server" /></label>
-          <label>Working directory <input name="cwd" value="${text(raw.cwd)}" /></label>
-        </div>
-        <div class="grid" data-kinds="url">
-          <label>URL <input name="url" value="${text(raw.url)}" placeholder="https://example.lan/mcp" /></label>
-          <label>Transport
-            <select name="transport"><option value="streamable-http">Streamable HTTP</option><option value="sse" ${raw.transport === 'sse' ? 'selected' : ''}>SSE (legacy)</option></select>
-          </label>
-          <label class="span">Headers <textarea name="headers" rows="2" placeholder="Authorization: Bearer \${TOKEN}">${record(raw.headers, ': ')}</textarea></label>
-        </div>
-        <div class="grid" data-kinds="npm pypi command">
-          <label>Arguments <textarea name="args" rows="2" placeholder="one per line">${((raw.args ?? []) as unknown[]).map(String).join('\n')}</textarea></label>
-          <label>Environment <textarea name="env" rows="2" placeholder="TOKEN=\${TOKEN}">${record(raw.env, '=')}</textarea><span class="muted">One <span class="mono">NAME=value</span> per line. <span class="mono">\${VAR}</span> reads the hub's environment.</span></label>
-        </div>
-        <div class="grid">
-          <label>Allow tools <input name="allow" value="${(tools.allow ?? []).join(', ')}" placeholder="empty: all" /><span class="muted">Globs on the server's own tool names.</span></label>
-          <label>Deny tools <input name="deny" value="${(tools.deny ?? []).join(', ')}" placeholder="delete_*" /></label>
-        </div>
-        <label class="check"><input type="checkbox" name="enabled" value="true" ${raw.enabled === false ? '' : 'checked'} /> Enabled</label>
-        <div class="buttons">
-          ${readOnly ? '' : html`<button class="primary">${name ? 'Save and restart' : 'Add server'}</button>`}
-          <a class="button" href="/">Cancel</a>
-        </div>
-      </fieldset>
+  const input = (fieldName: string, value: string, placeholder = '') => html`<input class="input" name="${fieldName}" value="${value}" placeholder="${placeholder}" />`;
+  const area = (fieldName: string, value: string, placeholder = '') => html`<textarea class="textarea" name="${fieldName}" rows="3" placeholder="${placeholder}">${value}</textarea>`;
+  const kinds = [
+    ['npm', 'npm package', 'package'],
+    ['pypi', 'PyPI package', 'package'],
+    ['command', 'Command', 'terminal'],
+    ['url', 'Remote URL', 'globe'],
+  ] as const;
+  return html`${pageHead(name ? html`Edit <span class="mono">${name}</span>` : 'New server', { subtitle: 'Saved into the server file; only this server restarts.' })}
+    ${readOnly ? alert(`Servers cannot be edited here: ${readOnly}. Mount the server file read-write to edit it from the UI, or edit it by hand and reload.`, 'warning') : ''}
+    ${error ? alert(html`<div class="font-medium">Not saved:</div><pre class="mono">${error}</pre>`, 'error') : ''}
+    <form method="post" action="${name ? `/servers/${name}` : '/servers'}">
+      ${panel(
+        html`<fieldset class="contents" ${readOnly ? 'disabled' : ''}>
+          ${formGrid(html`
+            ${field(
+              'Kind',
+              html`<div class="join flex-wrap">${kinds.map(([value, label, ic]) => html`<label class="btn btn-sm join-item seg gap-2"><input type="radio" class="hidden-radio" name="kind" value="${value}" ${kind === value ? 'checked' : ''} />${icon(ic, 'sm')}${label}</label>`)}</div>`,
+              { wide: true },
+            )}
+            ${name ? '' : field('Name', html`<input class="input" name="name" required pattern="[A-Za-z0-9_\\-]+" value="${typedName ?? ''}" placeholder="mail" />`, { hint: html`Prefixes every tool: <span class="mono">name-tool</span>. Keep it short.` })}
+            ${field('Package', input('package', pkg.npm ?? pkg.pypi ?? '', '@scope/mcp-server'), { kinds: 'npm pypi' })}
+            ${field('Version', input('version', pkg.version ?? '', 'empty: the hub owns it'), { kinds: 'npm pypi', hint: 'Set it to pin the version.' })}
+            ${field('Bin', input('bin', pkg.bin ?? '', 'only if the package has several'), { kinds: 'npm pypi' })}
+            ${field('Install', checkbox('allowScripts', 'true', 'Allow install scripts', !!raw.allowScripts), { kinds: 'npm pypi' })}
+            ${field('Command', input('command', text(raw.command), '/usr/local/bin/my-server'), { kinds: 'command' })}
+            ${field('Working directory', input('cwd', text(raw.cwd)), { kinds: 'command' })}
+            ${field('URL', input('url', text(raw.url), 'https://example.lan/mcp'), { kinds: 'url' })}
+            ${field('Transport', html`<select class="select" name="transport"><option value="streamable-http">Streamable HTTP</option><option value="sse" ${raw.transport === 'sse' ? 'selected' : ''}>SSE (legacy)</option></select>`, { kinds: 'url' })}
+            ${field('Headers', area('headers', record(raw.headers, ': '), 'Authorization: Bearer \${TOKEN}'), { kinds: 'url', wide: true })}
+            ${field('Arguments', area('args', ((raw.args ?? []) as unknown[]).map(String).join('\n'), 'one per line'), { kinds: 'npm pypi command' })}
+            ${field('Environment', area('env', record(raw.env, '='), 'TOKEN=\${TOKEN}'), { kinds: 'npm pypi command', hint: html`One <span class="mono">NAME=value</span> per line; <span class="mono">\${VAR}</span> reads the hub's environment.` })}
+            ${field('Allow tools', input('allow', (tools.allow ?? []).join(', '), 'empty: all'), { hint: "Globs on the server's own tool names." })}
+            ${field('Deny tools', input('deny', (tools.deny ?? []).join(', '), 'delete_*'))}
+            ${field('State', checkbox('enabled', 'true', 'Enabled', raw.enabled !== false, 'toggle'))}
+          `)}
+          <div class="row-wrap mt-4">
+            ${readOnly ? '' : html`<button class="btn btn-primary">${name ? 'Save and restart' : 'Add server'}</button>`}
+            ${linkButton('/', 'Cancel')}
+          </div>
+        </fieldset>`,
+      )}
     </form>
     ${name && !readOnly
-      ? html`<form method="post" action="/servers/${name}/delete" data-confirm="Remove ${name} from the server file? It stops now." class="danger-zone"><button class="danger">Remove server</button></form>`
-      : ''}
-  </section>`;
+      ? html`<div class="mt-4">${postButton(`/servers/${name}/delete`, 'Remove server', { size: 'sm', tone: 'danger', icon: 'trash', confirm: `Remove ${name} from the server file? It stops now.` })}</div>`
+      : ''}`;
 }

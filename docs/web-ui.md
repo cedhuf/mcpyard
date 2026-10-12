@@ -13,6 +13,20 @@ disables and deletes keys. It refreshes itself every few seconds.
   <img src="assets/servers-light.png" alt="The servers page of the web UI">
 </picture>
 
+## Cards or list
+
+The servers page has two layouts, switched with the buttons next to **Reload configuration** and
+remembered in a cookie: **cards**, one per server, and a compact **list** where each row unfolds to
+show the server's tools, its error and its actions.
+
+<picture>
+  <source srcset="assets/servers-list-dark.png" media="(prefers-color-scheme: dark)">
+  <img src="assets/servers-list-light.png" alt="The servers page in list layout, with one row unfolded">
+</picture>
+
+The UI is built with [daisyUI](https://daisyui.com) and follows your system's light or dark theme.
+It needs no build step and no external request: the hub serves its own stylesheet.
+
 ## Servers from the UI
 
 **Add server** and **Edit** open a form for any kind of server: npm or PyPI package, command, or

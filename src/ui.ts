@@ -1,15 +1,17 @@
 import { Hono, type Context, type Next } from 'hono';
-import { randomBytes } from 'node:crypto';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
-import { html, raw } from 'hono/html';
-import type { ServerConfig } from './config.ts';
-import type { Hub } from './front.ts';
-import { allowed, loadKeys, newKey, saveKeys, type Key } from './keys.ts';
+import { html } from 'hono/html';
+import { randomBytes } from 'node:crypto';
+import type { ConfigFile, ServerConfig } from './config.ts';
+import type { Hub, PackageStatus } from './front.ts';
+import { allowed } from './keys.ts';
 import type { Oidc, Signer, User } from './oidc.ts';
-import type { ConfigFile } from './config.ts';
 import type { Settings } from './settings.ts';
+import type { Upstream } from './upstream.ts';
 import { configRoutes, type EnvRow } from './ui-config.ts';
-import { log, page, type Env, type Fragment } from './ui-layout.ts';
+import { keyRoutes } from './ui-keys.ts';
+import { actions, alert, badge, empty, linkButton, pageHead, panel, postButton } from './ui-kit.ts';
+import { icon, log, page, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
 
 export type { EnvRow };
 
@@ -17,16 +19,19 @@ export type UiAuth = { kind: 'none' } | { kind: 'oidc'; oidc: Oidc; signer: Sign
 
 export type UiOptions = { keysPath: string; auth: UiAuth; publicUrl?: string; settings?: Settings; configFile?: ConfigFile; environment?: EnvRow[] };
 
-
 const SESSION = 'mcpyard_session';
 const LOGIN = 'mcpyard_login';
+const VIEW = 'mcpyard_view';
 const SESSION_HOURS = 12;
+
+type View = 'cards' | 'list';
 
 export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   const app = new Hono<Env>();
   const { auth, keysPath } = options;
   const secure = (c: Context) => new URL(options.publicUrl ?? c.req.url).protocol === 'https:';
   const base = (c: Context) => (options.publicUrl ?? new URL(c.req.url).origin).replace(/\/$/, '');
+  const editable = () => !!options.configFile && !options.configFile.readOnlyReason();
 
   const guard = async (c: Context<Env>, next: Next) => {
     if (c.req.method === 'POST') {
@@ -42,10 +47,19 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     }
     const nonce = randomBytes(16).toString('base64');
     c.set('nonce', nonce);
-    c.header('Content-Security-Policy', `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'`);
+    c.header('Content-Security-Policy', `default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'nonce-${nonce}'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'`);
     c.header('Referrer-Policy', 'same-origin');
     await next();
   };
+
+  app.get('/assets/ui.css', (c) => {
+    const gzip = /\bgzip\b/.test(c.req.header('accept-encoding') ?? '');
+    c.header('Content-Type', 'text/css; charset=utf-8');
+    c.header('Cache-Control', 'public, max-age=31536000, immutable');
+    c.header('Vary', 'Accept-Encoding');
+    if (gzip) c.header('Content-Encoding', 'gzip');
+    return c.body(new Uint8Array(gzip ? stylesheet.gzip : stylesheet.body));
+  });
 
   if (auth.kind === 'oidc') {
     app.get('/auth/login', async (c) => {
@@ -64,23 +78,30 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
         return c.redirect(pending!.returnTo);
       } catch (e) {
         console.error(`login failed: ${(e as Error).message}`);
-        return c.html(page(c, 'Sign-in failed', signedOut(`Sign-in failed: ${(e as Error).message}`)), 403);
+        return c.html(page(c, 'Sign-in failed', signedOut(`Sign-in failed: ${(e as Error).message}`, true), { bare: true }), 403);
       }
     });
 
     app.post('/auth/logout', guard, (c) => {
       deleteCookie(c, SESSION, { path: '/' });
-      return c.html(page(c, 'Signed out', signedOut('You are signed out.')));
+      return c.html(page(c, 'Signed out', signedOut('You are signed out.'), { bare: true }));
     });
   }
 
+  const view = (c: Context<Env>): View => {
+    const asked = c.req.query('view');
+    if (asked === 'cards' || asked === 'list') {
+      setCookie(c, VIEW, asked, { path: '/', httpOnly: true, sameSite: 'Lax', secure: secure(c), maxAge: 365 * 86400 });
+      return asked;
+    }
+    return getCookie(c, VIEW) === 'list' ? 'list' : 'cards';
+  };
+
   app.get('/', guard, (c) => {
     const saved = c.req.query('saved');
-    const editable = !!options.configFile && !options.configFile.readOnlyReason();
-    return c.html(page(c, 'Servers', html`${saved ? html`<section class="card notice"><p>Saved <strong>${saved}</strong>; it is restarting with its new settings.</p></section>` : ''}${serversView(hub, editable)}`));
+    const notice = saved ? toast(html`Saved <strong>${saved}</strong>; it is restarting with its new settings.`) : '';
+    return c.html(page(c, 'Servers', html`${serversView(hub, editable(), view(c))}${notice}`));
   });
-
-  configRoutes(app, hub, guard, { keysPath, settings: options.settings, configFile: options.configFile, environment: options.environment, base });
 
   app.post('/servers/:name/update', guard, async (c) => {
     const name = c.req.param('name') ?? '';
@@ -102,62 +123,23 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     let notice: Fragment;
     try {
       const { added, removed, changed } = await hub.reload();
-      const parts = [['added', added], ['removed', removed], ['restarted', changed]].filter(([, names]) => names.length).map(([verb, names]) => `${verb} ${(names as string[]).join(', ')}`);
-      notice = html`<section class="card notice"><p>Configuration reloaded: ${parts.length ? parts.join('; ') : 'no changes'}.</p></section>`;
+      const parts = [
+        ['added', added],
+        ['removed', removed],
+        ['restarted', changed],
+      ]
+        .filter(([, names]) => names!.length)
+        .map(([verb, names]) => `${verb} ${(names as string[]).join(', ')}`);
+      notice = toast(`Configuration reloaded: ${parts.length ? parts.join('; ') : 'no changes'}.`);
       log(c, 'config_reloaded');
     } catch (e) {
-      notice = html`<section class="card notice failed"><p>Configuration not reloaded, the running servers are unchanged:</p><pre class="mono">${(e as Error).message}</pre></section>`;
+      notice = alert(html`<div class="font-medium">Configuration not reloaded, the running servers are unchanged:</div><pre class="mono">${(e as Error).message}</pre>`, 'error');
     }
-    return c.html(page(c, 'Servers', html`${notice}${serversView(hub, !!options.configFile && !options.configFile.readOnlyReason())}`));
+    return c.html(page(c, 'Servers', html`${notice}${serversView(hub, editable(), view(c))}`));
   });
 
-  app.get('/keys', guard, (c) => c.html(page(c, 'Keys', keysView(hub, loadKeys(keysPath)))));
-
-  app.post('/keys', guard, async (c) => {
-    const form = await c.req.parseBody({ all: true });
-    const name = String(form.name ?? '').trim();
-    if (!name || name.length > 64) return c.text('Bad request: name is required, 64 characters at most', 400);
-    const { token, key } = newKey(name, form.kind === 'admin' ? 'admin' : 'client');
-    key.scope = scopeFrom(form);
-    const keys = loadKeys(keysPath);
-    saveKeys(keysPath, [...keys, key]);
-    log(c, 'key_created', { key: key.name });
-    return c.html(page(c, 'Keys', html`${created(key, token, base(c))}${keysView(hub, [...keys, key])}`));
-  });
-
-  app.get('/keys/:id/edit', guard, (c) => {
-    const key = loadKeys(keysPath).find((k) => k.id === c.req.param('id'));
-    if (!key) return c.text('Not found', 404);
-    return c.html(page(c, 'Edit key', html`<section><h1>Edit key ${key.name}</h1>${keyForm(hub, key)}</section>`));
-  });
-
-  app.post('/keys/:id', guard, async (c) => {
-    const form = await c.req.parseBody({ all: true });
-    const name = String(form.name ?? '').trim();
-    if (!name || name.length > 64) return c.text('Bad request: name is required, 64 characters at most', 400);
-    const keys = loadKeys(keysPath);
-    const key = keys.find((k) => k.id === c.req.param('id'));
-    if (!key) return c.text('Not found', 404);
-    key.name = name;
-    key.scope = scopeFrom(form);
-    saveKeys(keysPath, keys);
-    log(c, 'key_updated', { key: key.name });
-    return c.redirect('/keys', 303);
-  });
-
-  for (const action of ['enable', 'disable', 'delete'] as const) {
-    app.post(`/keys/:id/${action}`, guard, (c) => {
-      const id = c.req.param('id') ?? '';
-      const keys = loadKeys(keysPath);
-      const key = keys.find((k) => k.id === id);
-      if (!key) return c.text('Not found', 404);
-      if (action === 'delete') keys.splice(keys.indexOf(key), 1);
-      else key.enabled = action === 'enable';
-      saveKeys(keysPath, keys);
-      log(c, `key_${action}`, { key: key.name });
-      return c.redirect('/keys', 303);
-    });
-  }
+  configRoutes(app, hub, guard, { keysPath, settings: options.settings, configFile: options.configFile, environment: options.environment, base });
+  keyRoutes(app, hub, guard, { keysPath, base });
 
   return app;
 }
@@ -170,166 +152,152 @@ function sameOrigin(origin: string | undefined, base: string): boolean {
   }
 }
 
-function scopeFrom(form: Record<string, unknown>): Key['scope'] {
-  const servers = ([] as unknown[]).concat(form.servers ?? []).map(String);
-  const allow = globs(form.allow);
-  const deny = globs(form.deny);
-  return {
-    servers: servers.length === 0 || servers.includes('*') ? ['*'] : servers,
-    tools: { ...(allow.length ? { allow } : {}), ...(deny.length ? { deny } : {}) },
-  };
+function signedOut(message: string, failed = false): Fragment {
+  return panel(html`${alert(message, failed ? 'error' : 'info')}<a class="btn btn-primary w-full" href="/auth/login">Sign in</a>`);
 }
 
-/** "3 min ago" style, coarse on purpose: `lastUsed` is only written once an hour. */
-function ago(iso: string | null): string {
-  if (!iso) return 'never';
-  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60_000);
-  if (minutes < 60) return 'within the hour';
-  if (minutes < 48 * 60) return `${Math.round(minutes / 60)} h ago`;
-  return `${Math.round(minutes / 1440)} days ago`;
-}
+type Row = { name: string; config: ServerConfig; upstream: Upstream; pkg?: PackageStatus };
 
-function globs(value: unknown): string[] {
-  return String(value ?? '')
-    .split(/[\s,]+/)
-    .filter(Boolean);
-}
+const STATE_TONE: Record<string, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
+  ready: 'success',
+  degraded: 'warning',
+  failed: 'error',
+  installing: 'info',
+  starting: 'info',
+  updating: 'info',
+  stopped: 'neutral',
+  disabled: 'neutral',
+};
+const BUSY = ['installing', 'starting', 'updating', 'degraded'];
 
 function source(config: ServerConfig): string {
-  if (config.package) return config.package.npm ? `npm ${config.package.npm}` : `pypi ${config.package.pypi}`;
+  if (config.package) return config.package.npm ? `npm · ${config.package.npm}` : `pypi · ${config.package.pypi}`;
   if (config.url) return config.url;
   return [config.command, ...config.args].join(' ');
 }
 
-function serversView(hub: Hub, editable: boolean): Fragment {
-  const packages = hub.packageStatus();
-  const rows = [...hub.upstreams].map(([name, upstream]) => {
-    const config = hub.configs[name]!;
-    const pkg = packages[name];
-    const state = config.enabled ? upstream.state : 'disabled';
-    const error = upstream.lastError ?? pkg?.updateError;
-    const visible = upstream.tools.filter((t) => allowed(t.name, config.tools));
-    return html`<tr>
-        <td><strong>${name}</strong><div class="muted mono">${source(config)}</div></td>
-        <td><span class="badge ${state}">${pkg?.updating ? 'updating' : state}</span></td>
-        <td>${pkg ? versionCell(name, pkg) : html`<span class="muted">n/a</span>`}</td>
-        <td>
-          ${upstream.tools.length
-            ? html`<details data-id="${name}">
-                <summary>${visible.length} tool${visible.length === 1 ? '' : 's'}${visible.length < upstream.tools.length ? html` <span class="muted">(${upstream.tools.length - visible.length} hidden)</span>` : ''}</summary>
-                <ul class="tools">
-                  ${upstream.tools.map((t) => html`<li class="${allowed(t.name, config.tools) ? '' : 'hidden'}" title="${t.description ?? ''}"><span class="mono">${name}-${t.name}</span></li>`)}
-                </ul>
-              </details>`
-            : html`<span class="muted">none</span>`}
-        </td>
-        <td class="actions">
-          <a class="button" href="/servers/${name}/edit">${editable ? 'Edit' : 'View'}</a>
-          ${config.enabled ? html`<form method="post" action="/servers/${name}/restart"><button>Restart</button></form>` : ''}
-        </td>
-      </tr>
-      ${error ? html`<tr class="error"><td colspan="5">${pkg?.updateError && !upstream.lastError ? 'Update failed: ' : ''}${error}</td></tr>` : ''}`;
-  });
-  return html`<section id="servers">
-      <div class="heading">
-        <h1>Servers</h1>
-        <div class="buttons">
-          ${editable ? html`<a class="button primary" href="/servers/new">Add server</a>` : ''}
-          <form method="post" action="/reload"><button title="Re-read the server file and apply the changes">Reload configuration</button></form>
-        </div>
+function kindIcon(config: ServerConfig): Fragment {
+  return html`<div class="kind-icon" title="${config.package ? 'Package' : config.url ? 'Remote URL' : 'Command'}">${icon(config.package ? 'package' : config.url ? 'globe' : 'terminal')}</div>`;
+}
+
+function stateOf(row: Row): string {
+  return row.pkg?.updating ? 'updating' : row.config.enabled ? row.upstream.state : 'disabled';
+}
+
+function stateBadge(state: string, label: string = state): Fragment {
+  const tone = STATE_TONE[state] ?? 'neutral';
+  return badge(html`<span class="status status-${tone} ${BUSY.includes(state) ? 'pulse' : ''}"></span>${label}`, { tone, soft: true, className: 'gap-2' });
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
+}
+
+function newerVersion(pkg: PackageStatus | undefined): string | undefined {
+  const latest = pkg?.latest?.version;
+  return pkg && !pkg.pinned && latest && pkg.installed && latest !== pkg.installed ? latest : undefined;
+}
+
+function toolsSummary(row: Row): Fragment {
+  const { upstream, config } = row;
+  if (!upstream.tools.length) return html`<span class="muted">none yet</span>`;
+  const hidden = upstream.tools.filter((t) => !allowed(t.name, config.tools)).length;
+  return html`${plural(upstream.tools.length - hidden, 'tool')}${hidden ? html` <span class="muted">· ${hidden} hidden</span>` : ''}`;
+}
+
+function toolsList(row: Row): Fragment {
+  return html`<div class="tools-list">${row.upstream.tools.map((t) =>
+    badge(`${row.name}-${t.name}`, { mono: true, title: t.description, className: allowed(t.name, row.config.tools) ? '' : 'off' }),
+  )}</div>`;
+}
+
+function version(pkg: PackageStatus | undefined): Fragment {
+  if (!pkg) return html`<span class="muted">not a package</span>`;
+  return html`<span class="mono">${pkg.installed ?? '...'}</span>${pkg.pinned ? badge('pinned', { icon: 'pin', small: true, title: 'Pinned in the server file' }) : ''}`;
+}
+
+/** The update and rollback offers of a hub-owned package; nothing for pinned ones. */
+function versionActions(row: Row): Fragment {
+  const pkg = row.pkg;
+  if (!pkg || pkg.pinned || pkg.updating) return html``;
+  const newer = newerVersion(pkg);
+  return html`${newer
+    ? html`<div class="callout update">${icon('up', 'sm')}<span class="grow"><strong>${newer}</strong> available</span>
+        ${postButton(`/servers/${row.name}/update`, 'Update', { tone: 'soft', size: 'sm', fields: { version: newer } })}</div>`
+    : ''}
+  ${pkg.previous && pkg.previous !== newer ? postButton(`/servers/${row.name}/update`, `Roll back to ${pkg.previous}`, { size: 'xs', icon: 'undo', fields: { version: pkg.previous } }) : ''}`;
+}
+
+function errorOf(row: Row): Fragment {
+  const error = row.upstream.lastError ?? row.pkg?.updateError;
+  if (!error) return html``;
+  const prefix = row.pkg?.updateError && !row.upstream.lastError ? 'Update failed: ' : '';
+  return html`<div class="callout error">${icon('alert', 'sm')}<span class="grow">${prefix}${error}</span></div>`;
+}
+
+function rowActions(row: Row, editable: boolean): Fragment {
+  return actions(html`${linkButton(`/servers/${row.name}/edit`, editable ? 'Edit' : 'View', { size: 'sm', icon: 'pencil' })}
+    ${row.config.enabled ? postButton(`/servers/${row.name}/restart`, 'Restart', { size: 'sm', icon: 'rotate' }) : ''}`);
+}
+
+function card(row: Row, editable: boolean): Fragment {
+  return html`<article class="card card-border srv">
+    <div class="card-body">
+      <div class="srv-top">
+        ${kindIcon(row.config)}
+        <div class="srv-title"><h3><strong>${row.name}</strong></h3><p class="mono muted truncate" title="${source(row.config)}">${source(row.config)}</p></div>
+        ${stateBadge(stateOf(row))}
       </div>
-      ${rows.length
-        ? html`<table>
-            <thead><tr><th>Server</th><th>State</th><th>Version</th><th>Tools</th><th></th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`
-        : html`<p class="muted">No servers in the configuration file.</p>`}
-    </section>`;
+      <dl>
+        <div><dt>Version</dt><dd>${version(row.pkg)}</dd></div>
+        <div><dt>Tools</dt><dd>${row.upstream.tools.length ? html`<details data-id="card-${row.name}" class="tools"><summary class="cursor-pointer">${toolsSummary(row)}</summary>${toolsList(row)}</details>` : toolsSummary(row)}</dd></div>
+      </dl>
+      ${versionActions(row)}${errorOf(row)}
+      ${rowActions(row, editable)}
+    </div>
+  </article>`;
 }
 
-function versionCell(name: string, pkg: NonNullable<ReturnType<Hub['packageStatus']>[string]>): Fragment {
-  const latest = pkg.latest?.version;
-  const newer = latest && pkg.installed && latest !== pkg.installed;
-  return html`<span class="mono">${pkg.installed ?? '...'}</span>
-    ${pkg.pinned ? html`<span class="tag" title="Pinned in the configuration file">pinned</span>` : ''}
-    ${newer ? html`<div class="muted">latest ${latest}</div>` : ''}
-    ${pkg.latest?.error ? html`<div class="muted" title="${pkg.latest.error}">registry check failed</div>` : ''}
-    ${!pkg.pinned && !pkg.updating && newer
-      ? html`<form method="post" action="/servers/${name}/update"><input type="hidden" name="version" value="${latest}" /><button class="primary">Update to ${latest}</button></form>`
-      : ''}
-    ${!pkg.pinned && !pkg.updating && pkg.previous && !(newer && pkg.previous === latest)
-      ? html`<form method="post" action="/servers/${name}/update"><input type="hidden" name="version" value="${pkg.previous}" /><button>Roll back to ${pkg.previous}</button></form>`
-      : ''}`;
+function listRow(row: Row, editable: boolean): Fragment {
+  const newer = newerVersion(row.pkg);
+  return html`<details class="collapse collapse-arrow" data-id="row-${row.name}">
+    <summary class="collapse-title">
+      ${kindIcon(row.config)}
+      <span class="min-w-0"><strong>${row.name}</strong><span class="mono muted truncate block">${source(row.config)}</span></span>
+      <span>${stateBadge(stateOf(row))}</span>
+      <span class="row-wrap hide-sm">${version(row.pkg)}${newer ? badge(newer, { tone: 'primary', soft: true, small: true, icon: 'up' }) : ''}</span>
+      <span class="hide-sm">${toolsSummary(row)}</span>
+    </summary>
+    <div class="collapse-content">
+      ${errorOf(row)}
+      ${row.upstream.tools.length ? toolsList(row) : ''}
+      ${versionActions(row)}
+      ${rowActions(row, editable)}
+    </div>
+  </details>`;
 }
 
-function keysView(hub: Hub, keys: Key[]): Fragment {
-  const servers = [...hub.upstreams.keys()];
-  const filter = (k: Key) =>
-    [k.scope.tools.allow?.length ? `allow ${k.scope.tools.allow.join(', ')}` : '', k.scope.tools.deny?.length ? `deny ${k.scope.tools.deny.join(', ')}` : '']
-      .filter(Boolean)
-      .join('; ') || 'all tools';
-  return html`<section>
-      <h1>Keys</h1>
-      ${keys.length
-        ? html`<table>
-            <thead><tr><th>Name</th><th>Kind</th><th>Servers</th><th>Tools</th><th>Last used</th><th></th></tr></thead>
-            <tbody>
-              ${keys.map(
-                (k) => html`<tr class="${k.enabled ? '' : 'disabled'}">
-                  <td><strong>${k.name}</strong><div class="muted mono">${k.prefix}</div></td>
-                  <td>${k.kind}${k.enabled ? '' : html` <span class="tag">disabled</span>`}</td>
-                  <td>${k.scope.servers.includes('*') ? 'all' : k.scope.servers.join(', ')}</td>
-                  <td class="mono">${filter(k)}</td>
-                  <td title="Created ${k.created.slice(0, 10)}">${ago(k.lastUsed)}</td>
-                  <td class="actions">
-                    <a class="button" href="/keys/${k.id}/edit">Edit</a>
-                    <form method="post" action="/keys/${k.id}/${k.enabled ? 'disable' : 'enable'}"><button>${k.enabled ? 'Disable' : 'Enable'}</button></form>
-                    <form method="post" action="/keys/${k.id}/delete" data-confirm="Delete key ${k.name}? Clients using it lose access."><button class="danger">Delete</button></form>
-                  </td>
-                </tr>`,
-              )}
-            </tbody>
-          </table>`
-        : html`<p class="muted">No keys yet. Create one for each client.</p>`}
-    </section>
-    <section>
-      <h2>New key</h2>
-      ${keyForm(hub)}
-    </section>`;
-}
-
-function keyForm(hub: Hub, key?: Key): Fragment {
-  const scope = key?.scope ?? { servers: ['*'], tools: {} };
-  const all = scope.servers.includes('*');
-  const servers = [...new Set([...hub.upstreams.keys(), ...scope.servers.filter((s) => s !== '*')])];
-  return html`<form method="post" action="${key ? `/keys/${key.id}` : '/keys'}" class="card">
-    <label>Name <input name="name" required maxlength="64" placeholder="laptop-claude-code" value="${key?.name ?? ''}" /></label>
-    ${key
-      ? html`<p class="muted">Kind: ${key.kind}. The token does not change; create a new key to rotate it.</p>`
-      : html`<label>Kind
-          <select name="kind"><option value="client">client: uses /mcp</option><option value="admin">admin: management endpoint</option></select>
-        </label>`}
-    <fieldset>
-      <legend>Servers</legend>
-      <label class="check"><input type="checkbox" name="servers" value="*" ${all ? 'checked' : ''} /> All, including future ones</label>
-      ${servers.map((s) => html`<label class="check"><input type="checkbox" name="servers" value="${s}" ${!all && scope.servers.includes(s) ? 'checked' : ''} /> ${s}${hub.upstreams.has(s) ? '' : html` <span class="muted">(not in the configuration)</span>`}</label>`)}
-    </fieldset>
-    <label>Allow tools <input name="allow" placeholder="mail-*, calendar-list_*" value="${scope.tools.allow?.join(', ') ?? ''}" /><span class="muted">Globs on exposed names, empty for all.</span></label>
-    <label>Deny tools <input name="deny" placeholder="*-delete_*" value="${scope.tools.deny?.join(', ') ?? ''}" /></label>
-    <div class="buttons"><button class="primary">${key ? 'Save' : 'Create key'}</button>${key ? html`<a class="button" href="/keys">Cancel</a>` : ''}</div>
-  </form>`;
-}
-
-function created(key: Key, token: string, base: string): Fragment {
-  return html`<section class="card notice">
-    <h2>Key ${key.name} created</h2>
-    <p>Copy the token now: it is shown once and only its hash is stored.</p>
-    <pre class="mono">${token}</pre>
-    <p>Claude Code:</p>
-    <pre class="mono">claude mcp add --transport http ${key.kind === 'admin' ? 'mcpyard-admin' : 'mcpyard'} ${base}${key.kind === 'admin' ? '/admin/mcp' : '/mcp'} --header "Authorization: Bearer ${token}"</pre>
+function serversView(hub: Hub, editable: boolean, view: View): Fragment {
+  const packages = hub.packageStatus();
+  const rows: Row[] = [...hub.upstreams].map(([name, upstream]) => ({ name, upstream, config: hub.configs[name]!, pkg: packages[name] }));
+  const count = (state: string) => rows.filter((r) => stateOf(r) === state).length;
+  const updates = rows.filter((r) => newerVersion(r.pkg)).length;
+  const summary = ['ready', 'starting', 'installing', 'updating', 'degraded', 'failed', 'disabled'].filter((s) => count(s)).map((s) => stateBadge(s, `${count(s)} ${s}`));
+  const layout = html`<div class="join" role="group" aria-label="Layout">
+    <a class="btn btn-sm join-item ${view === 'cards' ? 'btn-active' : 'btn-ghost'}" href="/?view=cards" title="Cards" aria-label="Cards">${icon('grid', 'sm')}</a>
+    <a class="btn btn-sm join-item ${view === 'list' ? 'btn-active' : 'btn-ghost'}" href="/?view=list" title="List" aria-label="List">${icon('list', 'sm')}</a>
+  </div>`;
+  return html`<section id="servers">
+    ${pageHead('Servers', {
+      below: html`${summary}${updates ? badge(plural(updates, 'update'), { tone: 'primary', soft: true, icon: 'up' }) : ''}`,
+      actions: html`${layout}
+        ${postButton('/reload', 'Reload configuration', { size: 'sm', icon: 'refresh', title: 'Re-read the server file and apply the changes' })}
+        ${editable ? linkButton('/servers/new', 'Add server', { tone: 'primary', size: 'sm', icon: 'plus' }) : ''}`,
+    })}
+    ${!rows.length
+      ? empty(editable ? html`No servers yet. <a class="link link-primary" href="/servers/new">Add the first one</a>.` : 'No servers yet. Declare them in the server file and reload.')
+      : view === 'list'
+        ? html`<div class="list">${rows.map((r) => listRow(r, editable))}</div>`
+        : html`<div class="cards">${rows.map((r) => card(r, editable))}</div>`}
   </section>`;
-}
-
-function signedOut(message: string): Fragment {
-  return html`<section class="card"><p>${message}</p><a class="button primary" href="/auth/login">Sign in</a></section>`;
 }

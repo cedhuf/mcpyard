@@ -157,7 +157,7 @@ test('OIDC login with PKCE opens a session', async () => {
   const session = callback.headers.get('set-cookie')!.match(/mcpyard_session=[^;]+/)![0];
   const page = await request('/keys', { headers: { cookie: session } });
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /<span>admin<\/span>/);
+  assert.match(await page.text(), /font-medium">admin<\/div>/);
 });
 
 test('a provider announcing another issuer is refused', async () => {
