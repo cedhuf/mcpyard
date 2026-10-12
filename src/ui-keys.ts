@@ -1,7 +1,7 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import type { Hub } from './front.ts';
-import { loadKeys, newKey, saveKeys, type Key } from './keys.ts';
+import { KINDS, loadKeys, newKey, reaches, saveKeys, type Key, type Kind } from './keys.ts';
 import { actions, badge, checkbox, empty, field, formGrid, linkButton, pageHead, panel, postButton, table } from './ui-kit.ts';
 import { icon, log, page, toast, type Env, type Fragment } from './ui-layout.ts';
 
@@ -16,7 +16,7 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
     const form = await c.req.parseBody({ all: true });
     const name = String(form.name ?? '').trim();
     if (!name || name.length > 64) return c.text('Bad request: name is required, 64 characters at most', 400);
-    const { token, key } = newKey(name, form.kind === 'admin' ? 'admin' : 'client');
+    const { token, key } = newKey(name, kindFrom(form));
     key.scope = scopeFrom(form);
     const keys = loadKeys(keysPath);
     saveKeys(keysPath, [...keys, key]);
@@ -38,6 +38,7 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
     const key = keys.find((k) => k.id === c.req.param('id'));
     if (!key) return c.text('Not found', 404);
     key.name = name;
+    key.kind = kindFrom(form);
     key.scope = scopeFrom(form);
     saveKeys(keysPath, keys);
     log(c, 'key_updated', { key: key.name });
@@ -57,6 +58,13 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
       return c.redirect('/keys', 303);
     });
   }
+}
+
+const KIND_LABEL: Record<Kind, string> = { client: 'client: /mcp', admin: 'admin: admin endpoint', both: 'both' };
+const KIND_TONE: Record<Kind, 'info' | 'warning' | 'primary'> = { client: 'info', admin: 'warning', both: 'primary' };
+
+function kindFrom(form: Record<string, unknown>): Kind {
+  return KINDS.find((k) => k === [form.kind].flat().at(-1)) ?? 'client';
 }
 
 function globs(value: unknown): string[] {
@@ -92,7 +100,7 @@ function keysView(hub: Hub, keys: Key[]): Fragment {
   const rows = keys.map(
     (k) => html`<tr class="${k.enabled ? '' : 'opacity-60'}">
       <td><div class="font-medium">${k.name}</div><div class="mono muted">${k.prefix}</div></td>
-      <td><div class="row-wrap">${badge(k.kind, { tone: k.kind === 'admin' ? 'warning' : 'info', soft: true })}${k.enabled ? '' : badge('disabled')}</div></td>
+      <td><div class="row-wrap">${badge(k.kind, { tone: KIND_TONE[k.kind], soft: true })}${k.enabled ? '' : badge('disabled')}</div></td>
       <td><div class="row-wrap">${k.scope.servers.includes('*') ? badge('all') : k.scope.servers.map((s) => badge(s))}</div></td>
       <td class="mono">${filter(k)}</td>
       <td title="Created ${k.created.slice(0, 10)}">${ago(k.lastUsed)}</td>
@@ -102,7 +110,7 @@ function keysView(hub: Hub, keys: Key[]): Fragment {
     </tr>`,
   );
   return html`${pageHead('Keys', {
-      subtitle: html`One key per client. Client keys reach <span class="mono">/mcp</span>, admin keys the admin endpoint.`,
+      subtitle: html`One key per client. Client keys reach <span class="mono">/mcp</span>, admin keys the admin endpoint, <em>both</em> keys reach the two.`,
       actions: linkButton('/keys/new', 'New key', { tone: 'primary', size: 'sm', icon: 'plus', dialog: 'new-key' }),
     })}
     ${keys.length ? table(['Name', 'Kind', 'Servers', 'Tools', 'Last used', ''], rows, 'keys-table') : empty('No keys yet. Create one for each client.')}
@@ -119,15 +127,14 @@ function keyForm(hub: Hub, key?: Key): Fragment {
   const scope = key?.scope ?? { servers: ['*'], tools: {} };
   const all = scope.servers.includes('*');
   const servers = [...new Set([...hub.upstreams.keys(), ...scope.servers.filter((s) => s !== '*')])];
+  const current = key?.kind ?? 'client';
   const kind = html`<div class="join flex-wrap">
-    ${(['client', 'admin'] as const).map(
-      (k) => html`<label class="btn btn-sm join-item seg"><input type="radio" class="hidden-radio" name="kind" value="${k}" ${k === 'client' ? 'checked' : ''} />${k === 'client' ? 'client: uses /mcp' : 'admin: management endpoint'}</label>`,
-    )}
+    ${KINDS.map((k) => html`<label class="btn btn-sm join-item seg"><input type="radio" class="hidden-radio" name="kind" value="${k}" ${k === current ? 'checked' : ''} />${KIND_LABEL[k]}</label>`)}
   </div>`;
   return html`<form method="post" action="${key ? `/keys/${key.id}` : '/keys'}">
     ${formGrid(html`
       ${field('Name', html`<input class="input" name="name" required maxlength="64" placeholder="laptop-claude-code" value="${key?.name ?? ''}" />`)}
-      ${key ? field('Kind', html`<p class="py-2">${badge(key.kind, { tone: key.kind === 'admin' ? 'warning' : 'info', soft: true })}</p>`, { hint: 'The token does not change; create a new key to rotate it.' }) : field('Kind', kind)}
+      ${field('Kind', kind, { hint: key ? 'The token does not change; create a new key to rotate it.' : html`<em>both</em> gives one token for the tools and the admin endpoint.` })}
       ${field(
         'Servers',
         html`<div class="checks">${checkbox('servers', '*', 'All, including future ones', all)}
@@ -142,7 +149,11 @@ function keyForm(hub: Hub, key?: Key): Fragment {
 }
 
 function created(key: Key, token: string, base: string): Fragment {
-  const command = `claude mcp add --transport http ${key.kind === 'admin' ? 'mcpyard-admin' : 'mcpyard'} ${base}${key.kind === 'admin' ? '/admin/mcp' : '/mcp'} --header "Authorization: Bearer ${token}"`;
+  const command = (name: string, path: string) => `claude mcp add --transport http ${name} ${base}${path} --header "Authorization: Bearer ${token}"`;
+  const commands = [
+    ...(reaches(key, 'client') ? [['Claude Code', command('mcpyard', '/mcp')]] : []),
+    ...(reaches(key, 'admin') ? [['Claude Code, admin endpoint', command('mcpyard-admin', '/admin/mcp')]] : []),
+  ];
   const secret = (id: string, value: string) =>
     html`<div class="secret"><code id="${id}">${value}</code><button type="button" class="btn btn-sm gap-1" data-copy="${id}">${icon('copy', 'xs')}<span>Copy</span></button></div>`;
   return html`<dialog class="modal modal-open" open>
@@ -150,8 +161,7 @@ function created(key: Key, token: string, base: string): Fragment {
       <h3 class="text-lg font-bold">Key ${key.name} created</h3>
       <p class="muted mt-1 mb-4">Copy the token now: it is shown once and only its hash is stored.</p>
       ${secret('new-token', token)}
-      <p class="mt-4 mb-2 font-medium">Claude Code</p>
-      ${secret('new-command', command)}
+      ${commands.map(([label, text], i) => html`<p class="mt-4 mb-2 font-medium">${label}</p>${secret(`new-command-${i}`, text!)}`)}
       <div class="modal-action">${linkButton('/keys', 'Done', { tone: 'primary' })}</div>
     </div>
   </dialog>

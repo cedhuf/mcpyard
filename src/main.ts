@@ -2,18 +2,21 @@ import { serve } from '@hono/node-server';
 import { join } from 'node:path';
 import { ConfigFile } from './config.ts';
 import { app, Hub } from './front.ts';
-import { newKey } from './keys.ts';
+import { KINDS, newKey } from './keys.ts';
 import { Oidc, Signer } from './oidc.ts';
 import { Packages } from './packages.ts';
+import { release } from './release.ts';
 import { Settings } from './settings.ts';
 import { ui, type EnvRow, type UiAuth } from './ui.ts';
+import { setAppearance } from './ui-layout.ts';
 
 const env = process.env;
 const dataDir = env.MCPYARD_DATA_DIR ?? '/data';
 
-// For hubs without the web UI: `node src/main.ts keygen <name> [admin]` prints a token and its keys.json entry.
+// For hubs without the web UI: `node src/main.ts keygen <name> [client|admin|both]` prints a token and its keys.json entry.
 if (process.argv[2] === 'keygen') {
-  const { token, key } = newKey(process.argv[3] ?? 'unnamed', process.argv[4] === 'admin' ? 'admin' : 'client');
+  const kind = KINDS.find((k) => k === process.argv[4]) ?? 'client';
+  const { token, key } = newKey(process.argv[3] ?? 'unnamed', kind);
   console.log(`token (shown once): ${token}\n\nkeys.json entry:\n${JSON.stringify(key, null, 2)}`);
   process.exit(0);
 }
@@ -22,7 +25,13 @@ const settings = new Settings(dataDir);
 const packages = new Packages({ dataDir, checkHours: settings.value('versionCheckHours') });
 const configFile = new ConfigFile(env.MCPYARD_CONFIG ?? '/config/mcpyard.yaml');
 const hub = new Hub(configFile.load(), packages, () => configFile.load());
+const releaseChecks = () => release.start(settings.value('updateCheck') ? settings.value('versionCheckHours') : 0);
+const appearance = () => setAppearance({ mode: settings.value('theme'), light: settings.value('lightTheme'), dark: settings.value('darkTheme') });
+releaseChecks();
+appearance();
 settings.onChange(() => {
+  releaseChecks();
+  appearance();
   if (packages.checkHours === settings.value('versionCheckHours')) return;
   packages.checkHours = settings.value('versionCheckHours');
   hub.restartVersionChecks();

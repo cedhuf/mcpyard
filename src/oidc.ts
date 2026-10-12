@@ -2,7 +2,8 @@ import { constants, createHash, createHmac, createPublicKey, randomBytes, timing
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export type User = { sub: string; name: string };
+/** `picture` is the provider's avatar URL, kept only when it is http(s). */
+export type User = { sub: string; name: string; picture?: string };
 
 export type OidcConfig = {
   issuer: string;
@@ -121,7 +122,8 @@ export class Oidc {
       throw new Error(`${String(claims.preferred_username ?? claims.sub)} is not in an allowed group`);
     }
     const name = claims.preferred_username ?? claims.name ?? claims.email ?? claims.sub;
-    return { sub: String(claims.sub), name: String(name) };
+    const picture = typeof claims.picture === 'string' && /^https?:\/\//.test(claims.picture) ? claims.picture : undefined;
+    return { sub: String(claims.sub), name: String(name), ...(picture ? { picture } : {}) };
   }
 
   private async verifyIdToken(token: string, d: Discovery): Promise<Record<string, unknown>> {

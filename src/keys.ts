@@ -3,12 +3,15 @@ import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { matchesGlob } from 'node:path';
 import type { ToolFilter } from './config.ts';
 
+export const KINDS = ['client', 'admin', 'both'] as const;
+export type Kind = (typeof KINDS)[number];
+
 export type Key = {
   id: string;
   name: string;
   hash: string;
   prefix: string;
-  kind: 'client' | 'admin';
+  kind: Kind;
   scope: { servers: string[]; tools: ToolFilter };
   created: string;
   lastUsed: string | null;
@@ -33,6 +36,11 @@ export function newKey(name: string, kind: Key['kind'] = 'client'): { token: str
     enabled: true,
   };
   return { token, key };
+}
+
+/** `both` opens the client endpoint and the admin endpoint with one token. */
+export function reaches(key: Key, endpoint: 'client' | 'admin'): boolean {
+  return key.kind === endpoint || key.kind === 'both';
 }
 
 export function findKey(keys: Key[], token: string | undefined): Key | undefined {

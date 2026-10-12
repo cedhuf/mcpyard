@@ -2,6 +2,7 @@ import { McpServer, type CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { Hub } from './front.ts';
 import { allowed, type Key } from './keys.ts';
+import { VERSION } from './release.ts';
 
 const SETTLE_MS = 30_000;
 
@@ -11,7 +12,7 @@ const SETTLE_MS = 30_000;
  * manage every server may reload the configuration, since a reload can touch any of them.
  */
 export function adminServer(hub: Hub, key: Key, audit: (tool: string, ok: boolean, ms: number) => void): McpServer {
-  const server = new McpServer({ name: 'mcpyard-admin', version: '0.0.0' });
+  const server = new McpServer({ name: 'mcpyard-admin', version: VERSION });
   const manages = (name: string) => hub.upstreams.has(name) && (key.scope.servers.includes('*') || key.scope.servers.includes(name));
   const name = z.object({ name: z.string().describe('Server name, as in the configuration file') });
 

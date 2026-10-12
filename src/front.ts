@@ -2,9 +2,10 @@ import { Server, createMcpHandler, type CallToolResult, type Tool } from '@model
 import { Hono } from 'hono';
 import { adminServer } from './admin.ts';
 import type { ServerConfig } from './config.ts';
-import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
+import { allowed, findKey, keySees, loadKeys, reaches, saveKeys, type Key } from './keys.ts';
 import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
+import { VERSION } from './release.ts';
 
 const CLIENT_PREFIX = 'mcp__mcpyard__';
 const MAX_TOOL_NAME = 64;
@@ -151,7 +152,7 @@ export class Hub {
   }
 
   private mcpServer(key: Key): Server {
-    const server = new Server({ name: 'mcpyard', version: '0.0.0' }, { capabilities: { tools: { listChanged: true } } });
+    const server = new Server({ name: 'mcpyard', version: VERSION }, { capabilities: { tools: { listChanged: true } } });
 
     server.setRequestHandler('tools/list', () => ({
       tools: [...this.routes]
@@ -205,7 +206,7 @@ export function app(hub: Hub, keysPath: string, webUi?: Hono<any>, adminEnabled:
       if (kind === 'admin' && !adminEnabled()) return c.text('Not found', 404);
       const token = c.req.header('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
       const key = findKey(loadKeys(keysPath), token);
-      if (!key || key.kind !== kind) return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });
+      if (!key || !reaches(key, kind)) return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });
       touch(keysPath, key);
       return handler.fetch(c.req.raw, { authInfo: { token: token!, clientId: key.id, scopes: [], extra: { key } } });
     });

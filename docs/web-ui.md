@@ -44,6 +44,11 @@ The **Settings** page gathers what is not a server or a key:
 
 - **Admin endpoint**: on or off, the URL to give agents, and how many admin keys exist.
 - **Updates**: how often registries are checked.
+- **Appearance**: follow the system's light or dark mode, or force one, and pick the light and dark
+  [daisyUI themes](https://daisyui.com/docs/themes/) (`winter` and `dim` by default).
+- **About mcpyard**: the running version and the latest release on GitHub. The sidebar also shows
+  the version, with a link to the release notes when a newer one exists. The hub never updates
+  itself; turn the check off here or with `MCPYARD_UPDATE_CHECK=false`.
 - **Environment**: every startup variable with its value, behind a padlock. Secrets are masked.
 
 A setting whose environment variable is set shows a padlock and cannot be changed from the page:
@@ -74,7 +79,9 @@ In your provider, register a client with:
 - **Scopes**: `openid profile email`, plus `groups` when you use `OIDC_ALLOWED_GROUPS`
 - **Client authentication**: client secret (basic or post), or a public client with no secret
 
-Sessions last 12 hours in a signed, HTTP-only cookie. The signing key is generated in
+The sidebar shows your name and, when the provider sends a `picture` claim (PocketID does), your
+avatar; the page then allows images from that host only. Sessions last 12 hours in a signed,
+HTTP-only cookie. The signing key is generated in
 `$MCPYARD_DATA_DIR/session.key`; delete it and restart to sign everyone out.
 
 ### Who may sign in

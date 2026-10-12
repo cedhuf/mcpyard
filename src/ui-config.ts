@@ -2,8 +2,9 @@ import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import type { ConfigFile, RawServer } from './config.ts';
 import type { Hub } from './front.ts';
-import { loadKeys } from './keys.ts';
-import type { SettingKey, Settings } from './settings.ts';
+import { loadKeys, reaches } from './keys.ts';
+import { THEME_MODES, THEMES, type SettingKey, type Settings } from './settings.ts';
+import { release } from './release.ts';
 import { alert, badge, checkbox, field, formGrid, kv, linkButton, pageHead, panel, postButton, table } from './ui-kit.ts';
 import { icon, locked, log, page, toast, type Env, type Fragment } from './ui-layout.ts';
 
@@ -19,6 +20,7 @@ export type ConfigOptions = {
 };
 
 const NAME = /^[A-Za-z0-9_-]+$/;
+const FORM_FIELDS: SettingKey[] = ['adminEndpoint', 'versionCheckHours', 'updateCheck', 'theme', 'lightTheme', 'darkTheme'];
 const ADMIN_TOOLS = ['list_servers', 'get_server', 'restart_server', 'update_server', 'reload_config'];
 
 export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: ConfigOptions): void {
@@ -29,9 +31,10 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
   app.post('/settings', guard, async (c) => {
     if (!settings) return c.text('Not found', 404);
     const form = await c.req.parseBody({ all: true });
-    const changes: [SettingKey, string][] = [];
-    if (settings.get('adminEndpoint').source !== 'env') changes.push(['adminEndpoint', [form.adminEndpoint].flat().includes('true') ? 'true' : 'false']);
-    if (settings.get('versionCheckHours').source !== 'env') changes.push(['versionCheckHours', String(form.versionCheckHours ?? '')]);
+    // A toggle posts a hidden "false" then, when on, "true"; the last value wins.
+    const changes = FORM_FIELDS.filter((key) => settings.get(key).source !== 'env' && form[key] !== undefined).map(
+      (key): [SettingKey, string] => [key, String([form[key]].flat().at(-1))],
+    );
     try {
       for (const [key, value] of changes) settings.set(key, value);
     } catch (e) {
@@ -91,8 +94,19 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
   const { settings, environment = [] } = options;
   const admin = settings?.get('adminEndpoint');
   const hours = settings?.get('versionCheckHours');
-  const adminKeys = loadKeys(options.keysPath).filter((k) => k.kind === 'admin' && k.enabled).length;
-  const editable = settings && (admin?.source !== 'env' || hours?.source !== 'env');
+  const adminKeys = loadKeys(options.keysPath).filter((k) => reaches(k, 'admin') && k.enabled).length;
+  const updates = settings?.get('updateCheck');
+  const mode = settings?.get('theme');
+  const light = settings?.get('lightTheme');
+  const dark = settings?.get('darkTheme');
+  const editable = settings && [admin, hours, updates, mode, light, dark].some((s) => s?.source !== 'env');
+  const themeSelect = (key: 'lightTheme' | 'darkTheme') => {
+    const setting = settings?.get(key);
+    return setting?.source === 'env'
+      ? lockedValue(setting.value, setting.env)
+      : html`<select class="select select-sm w-44" name="${key}">${THEMES.map((t) => html`<option value="${t}" ${t === setting?.value ? 'selected' : ''}>${t}</option>`)}</select>`;
+  };
+  const about = release.status();
   const lockedValue = (value: string, env: string) => html`<span class="row-wrap"><strong>${value}</strong>${locked(env)}</span>`;
   return html`${pageHead('Settings', { subtitle: 'Applied at once, without a restart. A padlock means the environment sets it.' })}
     <form method="post" action="/settings">
@@ -105,9 +119,9 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
               : html`<input type="hidden" name="adminEndpoint" value="false" /><input type="checkbox" class="toggle toggle-primary" name="adminEndpoint" value="true" aria-label="Admin endpoint enabled" ${admin?.value ? 'checked' : ''} />`,
           )}
           ${kv('URL', html`<code class="mono break-all">${options.base(c)}/admin/mcp</code>`)}
-          ${kv('Admin keys', html`${adminKeys} active · <a class="link link-primary" href="/keys">create one</a> with kind <em>admin</em>`)}
+          ${kv('Admin keys', html`${adminKeys} active · <a class="link link-primary" href="/keys">create one</a> with kind <em>admin</em> or <em>both</em>`)}
           ${kv('Tools', html`<span class="row-wrap justify-end">${ADMIN_TOOLS.map((t) => badge(t, { mono: true }))}</span>`)}`,
-          { title: 'Admin endpoint', description: 'A second MCP endpoint for agents that watch and manage the hub. Only admin keys reach it; client keys never do.' },
+          { title: 'Admin endpoint', description: 'A second MCP endpoint for agents that watch and manage the hub. Only admin and both keys reach it; client keys never do.' },
         )}
         ${panel(
           kv(
@@ -117,6 +131,33 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
               : html`<label class="input input-sm w-32"><input type="number" name="versionCheckHours" min="1" max="168" value="${hours?.value ?? 6}" /><span class="muted">hours</span></label>`,
           ),
           { title: 'Updates', description: 'The hub only checks registries for new versions; it never updates on its own.' },
+        )}
+        ${panel(
+          html`${kv(
+            'Theme',
+            mode?.source === 'env'
+              ? lockedValue(mode.value, mode.env)
+              : html`<div class="join">${THEME_MODES.map((m) => html`<label class="btn btn-sm join-item seg"><input type="radio" class="hidden-radio" name="theme" value="${m}" ${m === mode?.value ? 'checked' : ''} />${m}</label>`)}</div>`,
+          )}
+          ${kv('Light theme', themeSelect('lightTheme'))}
+          ${kv('Dark theme', themeSelect('darkTheme'))}`,
+          { title: 'Appearance', description: html`<em>system</em> follows the device's light or dark preference; the two themes are daisyUI themes.` },
+        )}
+        ${panel(
+          html`${kv('Version', html`<span class="mono">${about.current}</span>`)}
+          ${kv(
+            'Latest release',
+            about.latest
+              ? html`<span class="row-wrap justify-end"><a class="link link-primary mono" href="${about.latest.url}" target="_blank" rel="noreferrer">${about.latest.version}</a>${about.newer ? badge('update available', { tone: 'primary', soft: true, icon: 'up' }) : about.current === 'dev' ? '' : badge('up to date', { tone: 'success', soft: true, icon: 'check' })}</span>`
+              : html`<span class="muted">${updates?.value ? (about.error ?? 'not checked yet') : 'not checked'}</span>`,
+          )}
+          ${kv(
+            'Check GitHub for new releases',
+            updates?.source === 'env'
+              ? lockedValue(updates.value ? 'yes' : 'no', updates.env)
+              : html`<input type="hidden" name="updateCheck" value="false" /><input type="checkbox" class="toggle toggle-primary" name="updateCheck" value="true" aria-label="Check GitHub for new releases" ${updates?.value ? 'checked' : ''} />`,
+          )}`,
+          { title: 'About mcpyard', description: html`Releases and their notes are on <a class="link link-primary" href="https://github.com/cedhuf/mcpyard/releases" target="_blank" rel="noreferrer">GitHub</a>. The hub tells you; it never updates itself.` },
         )}
       </div>
       ${editable ? html`<div class="mt-4"><button class="btn btn-primary">Save settings</button></div>` : ''}

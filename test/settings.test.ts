@@ -8,6 +8,7 @@ import { app, Hub } from '../src/front.ts';
 import { newKey } from '../src/keys.ts';
 import { Settings } from '../src/settings.ts';
 import { ui } from '../src/ui.ts';
+import { setAppearance, stylesheet } from '../src/ui-layout.ts';
 
 const PUBLIC = 'http://yard.test';
 const fixture = join(import.meta.dirname, 'fixture-server.ts');
@@ -49,6 +50,8 @@ test('the settings page locks environment values and turns the admin endpoint of
   const page = await (await request('/settings')).text();
   assert.match(page, /<strong>12 h<\/strong>\s*<span class="badge[^"]*locked"/);
   assert.ok(!page.includes('name="versionCheckHours"'), 'a locked setting has no input');
+  assert.match(page, /About mcpyard/);
+  assert.match(page, /name="updateCheck"/);
 
   const mcp = (token: string) =>
     request('/admin/mcp', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' }, body: '{}' });
@@ -91,4 +94,21 @@ test('servers are added, edited and removed through the file, keeping comments a
   assert.ok(!/^  b:/m.test(text));
   assert.ok(!hub.upstreams.has('b'));
   await hub.stop();
+});
+
+test('themes are chosen from daisyUI, applied to pages and baked into the stylesheet', async () => {
+  const { dir, settings, post, request } = setup({ MCPYARD_THEME_DARK: 'night' });
+  assert.throws(() => settings.set('lightTheme', 'neon'), /expected one of/);
+  assert.equal((await post('/settings', { theme: 'dark', lightTheme: 'cupcake' })).status, 200);
+  assert.deepEqual([settings.value('theme'), settings.value('lightTheme'), settings.value('darkTheme')], ['dark', 'cupcake', 'night']);
+  assert.match(await (await request('/settings')).text(), /MCPYARD_THEME_DARK/, 'the environment locks the dark theme');
+
+  setAppearance({ mode: 'dark', light: 'cupcake', dark: 'night' });
+  const page = await (await request('/')).text();
+  assert.match(page, /<html lang="en" data-theme="night">/);
+  const night = stylesheet().version;
+  setAppearance({ mode: 'system', light: 'winter', dark: 'dim' });
+  assert.notEqual(stylesheet().version, night);
+  assert.match(await (await request('/')).text(), /<html lang="en" >/);
+  assert.ok(new Settings(dir, {}).value('lightTheme') === 'cupcake');
 });

@@ -47,7 +47,9 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     }
     const nonce = randomBytes(16).toString('base64');
     c.set('nonce', nonce);
-    c.header('Content-Security-Policy', `default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'nonce-${nonce}'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'`);
+    const avatar = c.get('user')?.picture;
+    const imgSrc = ['\'self\'', 'data:', ...(avatar ? [new URL(avatar).origin] : [])].join(' ');
+    c.header('Content-Security-Policy', `default-src 'none'; style-src 'self' 'unsafe-inline'; img-src ${imgSrc}; script-src 'nonce-${nonce}'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'`);
     c.header('Referrer-Policy', 'same-origin');
     await next();
   };
@@ -58,7 +60,8 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     c.header('Cache-Control', 'public, max-age=31536000, immutable');
     c.header('Vary', 'Accept-Encoding');
     if (gzip) c.header('Content-Encoding', 'gzip');
-    return c.body(new Uint8Array(gzip ? stylesheet.gzip : stylesheet.body));
+    const sheet = stylesheet();
+    return c.body(new Uint8Array(gzip ? sheet.gzip : sheet.body));
   });
 
   if (auth.kind === 'oidc') {
@@ -250,7 +253,9 @@ function card(row: Row, editable: boolean): Fragment {
       </div>
       <dl>
         <div><dt>Version</dt><dd>${version(row.pkg)}</dd></div>
-        <div><dt>Tools</dt><dd>${row.upstream.tools.length ? html`<details data-id="card-${row.name}" class="tools"><summary class="cursor-pointer">${toolsSummary(row)}</summary>${toolsList(row)}</details>` : toolsSummary(row)}</dd></div>
+        <div><dt>Tools</dt><dd>${row.upstream.tools.length
+          ? html`<div class="tools"><label class="tools-toggle"><input type="checkbox" class="hidden-radio" data-id="card-${row.name}" />${toolsSummary(row)}</label><div class="tools-wrap"><div>${toolsList(row)}</div></div></div>`
+          : toolsSummary(row)}</dd></div>
       </dl>
       ${versionActions(row)}${errorOf(row)}
       ${rowActions(row, editable)}
@@ -260,21 +265,23 @@ function card(row: Row, editable: boolean): Fragment {
 
 function listRow(row: Row, editable: boolean): Fragment {
   const newer = newerVersion(row.pkg);
-  return html`<details class="collapse collapse-arrow" data-id="row-${row.name}">
-    <summary class="collapse-title">
+  return html`<div class="acc">
+    <label class="acc-title">
+      <input type="checkbox" class="hidden-radio" data-id="row-${row.name}" aria-label="Details of ${row.name}" />
       ${kindIcon(row.config)}
       <span class="min-w-0"><strong>${row.name}</strong><span class="mono muted truncate block">${source(row.config)}</span></span>
       <span>${stateBadge(stateOf(row))}</span>
       <span class="row-wrap hide-sm">${version(row.pkg)}${newer ? badge(newer, { tone: 'primary', soft: true, small: true, icon: 'up' }) : ''}</span>
       <span class="hide-sm">${toolsSummary(row)}</span>
-    </summary>
-    <div class="collapse-content">
+      <span class="chevron" aria-hidden="true"></span>
+    </label>
+    <div class="acc-wrap"><div><div class="acc-body">
       ${errorOf(row)}
       ${row.upstream.tools.length ? toolsList(row) : ''}
       ${versionActions(row)}
       ${rowActions(row, editable)}
-    </div>
-  </details>`;
+    </div></div></div>
+  </div>`;
 }
 
 function serversView(hub: Hub, editable: boolean, view: View): Fragment {

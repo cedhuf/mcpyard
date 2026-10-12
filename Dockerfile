@@ -17,6 +17,10 @@ ENV NODE_ENV=production \
     UV_PYTHON_INSTALL_DIR=/data/python
 
 RUN mkdir -p /data /config && chown node:node /data
+
+# Last, so a new version does not invalidate the layers above.
+ARG VERSION=dev
+ENV MCPYARD_VERSION=$VERSION
 USER node
 VOLUME /data
 EXPOSE 3000

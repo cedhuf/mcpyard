@@ -107,8 +107,12 @@ warns at startup about any tool that would cross that line. Keep server names sh
 | `OIDC_ALLOWED_GROUPS` | | Comma-separated groups allowed to sign in. |
 | `MCPYARD_UI_AUTH` | `oidc` | `none` turns web UI sign-in off. |
 | `MCPYARD_ADMIN_ENDPOINT` | `true` | `false` turns `/admin/mcp` off. Also on the Settings page. |
+| `MCPYARD_THEME` | `system` | `system`, `light` or `dark`. Also on the Settings page. |
+| `MCPYARD_THEME_LIGHT` | `winter` | Any [daisyUI theme](https://daisyui.com/docs/themes/) for light mode. |
+| `MCPYARD_THEME_DARK` | `dim` | Any daisyUI theme for dark mode. |
+| `MCPYARD_UPDATE_CHECK` | `true` | `false` stops asking GitHub whether a newer mcpyard exists. Also on the Settings page. |
 
-`MCPYARD_ADMIN_ENDPOINT` and `MCPYARD_VERSION_CHECK_HOURS` can instead be set on the web UI's
+`MCPYARD_ADMIN_ENDPOINT`, `MCPYARD_UPDATE_CHECK`, `MCPYARD_VERSION_CHECK_HOURS` and the three theme variables can instead be set on the web UI's
 **Settings** page, saved in `$MCPYARD_DATA_DIR/settings.json`. When the variable is set, it wins and
 the page shows the setting locked. Everything else on this list is read once at startup.
 

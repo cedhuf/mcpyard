@@ -5,12 +5,14 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import type { User } from './oidc.ts';
+import { release } from './release.ts';
 
 export type Env = { Variables: { user?: User; nonce: string } };
 export type Fragment = ReturnType<typeof html>;
 
-const LIGHT_THEME = 'winter';
-const DARK_THEME = 'dim';
+export type Appearance = { mode: 'system' | 'light' | 'dark'; light: string; dark: string };
+
+let appearance: Appearance = { mode: 'system', light: 'winter', dark: 'dim' };
 
 /** A daisyUI theme's variables, re-targeted so the theme follows the system without any script. */
 function themeVars(name: string): string {
@@ -18,19 +20,33 @@ function themeVars(name: string): string {
   return css.slice(css.indexOf('{') + 1, css.lastIndexOf('}'));
 }
 
-/** daisyUI, its themes and our layout as one stylesheet, built once at startup and served compressed. */
-export const stylesheet = (() => {
-  const daisy = (file: string) => readFileSync(fileURLToPath(import.meta.resolve(`daisyui/${file}`)), 'utf8');
-  const css = [
-    daisy('daisyui.css'),
-    daisy('themes.css'),
-    `:root:not([data-theme]){${themeVars(LIGHT_THEME)}}`,
-    `@media (prefers-color-scheme: dark){:root:not([data-theme]){${themeVars(DARK_THEME)}}}`,
-    CSS(),
-  ].join('\n');
-  const body = Buffer.from(css);
-  return { body, gzip: gzipSync(body, { level: 9 }), version: createHash('sha256').update(body).digest('hex').slice(0, 12) };
-})();
+const daisy = (file: string) => readFileSync(fileURLToPath(import.meta.resolve(`daisyui/${file}`)), 'utf8');
+const BASE = [daisy('daisyui.css'), daisy('themes.css')].join('\n');
+
+type Stylesheet = { body: Buffer; gzip: Buffer; version: string };
+let current: Stylesheet | undefined;
+let currentFor = '';
+
+/** daisyUI, its themes and our layout as one stylesheet, built once per theme pair and served compressed. */
+export function stylesheet(): Stylesheet {
+  const key = `${appearance.light}/${appearance.dark}`;
+  if (!current || currentFor !== key) {
+    const css = [
+      BASE,
+      `:root:not([data-theme]){${themeVars(appearance.light)}}`,
+      `@media (prefers-color-scheme: dark){:root:not([data-theme]){${themeVars(appearance.dark)}}}`,
+      CSS(),
+    ].join('\n');
+    const body = Buffer.from(css);
+    current = { body, gzip: gzipSync(body, { level: 9 }), version: createHash('sha256').update(body).digest('hex').slice(0, 12) };
+    currentFor = key;
+  }
+  return current;
+}
+
+export function setAppearance(next: Appearance): void {
+  appearance = next;
+}
 
 const ICONS: Record<string, string> = {
   server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
@@ -92,12 +108,12 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
   const path = c.req.path;
   const active = (href: string) => (href === '/' ? path === '/' || path.startsWith('/servers') || path === '/reload' : path.startsWith(href));
   const head = html`<!doctype html>
-    <html lang="en">
+    <html lang="en" ${appearance.mode === 'system' ? '' : html`data-theme="${appearance[appearance.mode]}"`}>
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>${title} · mcpyard</title>
-        <link rel="stylesheet" href="/assets/ui.css?v=${stylesheet.version}" />
+        <link rel="stylesheet" href="/assets/ui.css?v=${stylesheet().version}" />
       </head>`;
   if (options.bare) {
     return html`${head}
@@ -127,9 +143,13 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
             <ul class="menu w-full gap-1">
               ${NAV.map(([href, label, name]) => html`<li><a href="${href}" class="${active(href) ? 'menu-active' : ''}">${icon(name)}${label}</a></li>`)}
             </ul>
+            ${versionLine()}
             ${user
               ? html`<form method="post" action="/auth/logout" class="userbox">
-                  <div class="avatar avatar-placeholder"><div class="bg-primary text-primary-content w-8 rounded-full"><span>${user.name.slice(0, 1).toUpperCase()}</span></div></div>
+                  <div class="avatar avatar-placeholder"><div class="bg-primary text-primary-content w-8 rounded-full avatar-face">
+                    <span>${user.name.slice(0, 1).toUpperCase()}</span>
+                    ${user.picture ? html`<img src="${user.picture}" alt="" referrerpolicy="no-referrer" />` : ''}
+                  </div></div>
                   <div class="grow min-w-0"><div class="truncate font-medium">${user.name}</div><div class="text-xs opacity-60">signed in</div></div>
                   <button class="btn btn-ghost btn-sm btn-square" title="Sign out" aria-label="Sign out">${icon('logout', 'sm')}</button>
                 </form>`
@@ -140,6 +160,14 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
       ${nonce ? html`<script nonce="${nonce}">${raw(SCRIPT)}</script>` : ''}
     </body>
   </html>`;
+}
+
+function versionLine(): Fragment {
+  const { current, latest, newer } = release.status();
+  const label = current === 'dev' ? 'mcpyard dev' : `mcpyard v${current}`;
+  return newer && latest
+    ? html`<a class="version-line newer" href="${latest.url}" target="_blank" rel="noreferrer" title="v${latest.version} is available: release notes">${icon('up', 'xs')}<span>${label}</span></a>`
+    : html`<a class="version-line" href="/settings" title="About mcpyard"><span>${label}</span></a>`;
 }
 
 const SCRIPT = `
@@ -169,12 +197,12 @@ if (kind) {
 if (document.getElementById('servers')) setInterval(async () => {
   if (document.hidden || document.querySelector('dialog[open]')) return;
   const current = document.getElementById('servers');
-  const open = [...current.querySelectorAll('details[open]')].map((d) => d.dataset.id);
+  const open = [...current.querySelectorAll('input[data-id]:checked')].map((i) => i.dataset.id);
   const res = await fetch('/').catch(() => null);
   if (!res || !res.ok || res.redirected) return;
   const next = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById('servers');
   if (!next) return;
-  for (const id of open) next.querySelector('details[data-id="' + CSS.escape(id) + '"]')?.setAttribute('open', '');
+  for (const id of open) { const box = next.querySelector('input[data-id="' + CSS.escape(id) + '"]'); if (box) box.checked = true; }
   current.replaceWith(next);
 }, 4000);`;
 
@@ -195,6 +223,10 @@ body { background: var(--color-base-200); min-height: 100vh; }
 .sidebar { width: 252px; height: 100dvh; padding: 22px 14px; display: flex; flex-direction: column; gap: 18px; background: var(--color-base-200); border-right: 1px solid var(--color-base-300); }
 .sidebar .brand { padding: 4px 12px; }
 .sidebar .menu a { font-size: 0.95rem; padding: 0.55rem 0.8rem; }
+.version-line { margin-top: auto; display: flex; justify-content: center; align-items: center; gap: 5px; font-size: 0.75rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: inherit; opacity: 0.55; text-decoration: none; }
+.version-line:hover { opacity: 0.9; }
+.version-line.newer { color: var(--color-primary); opacity: 1; font-weight: 600; }
+.version-line + .userbox { margin-top: 0; }
 .userbox { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-box); background: var(--color-base-100); font-size: 0.85rem; }
 .mobilebar { display: none; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--color-base-300); background: var(--color-base-100); position: sticky; top: 0; z-index: 30; }
 @media (max-width: 1023px) { .mobilebar { display: flex; } }
@@ -224,12 +256,19 @@ body { background: var(--color-base-200); min-height: 100vh; }
 .tools-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .tools-list .off { text-decoration: line-through; opacity: 0.5; }
 .list { background: var(--color-base-100); border-radius: var(--radius-box); border: 1px solid var(--color-base-300); overflow: hidden; }
-.list > details + details { border-top: 1px solid var(--color-base-300); }
-.list .collapse { border-radius: 0; }
-.list .collapse-title { display: grid; grid-template-columns: 34px minmax(160px, 1.3fr) 110px minmax(140px, 1fr) 150px; align-items: center; gap: 14px; padding-top: 12px; padding-bottom: 12px; min-height: 0; }
-.list .kind-icon { width: 34px; height: 34px; border-radius: 10px; }
-.list .collapse-content { display: grid; gap: 14px; padding-left: 64px; }
-@media (max-width: 800px) { .list .collapse-title { grid-template-columns: 34px 1fr auto; } .list .hide-sm { display: none; } .list .collapse-content { padding-left: 1rem; } }
+.list > .acc + .acc { border-top: 1px solid var(--color-base-300); }
+.acc-title { position: relative; display: grid; grid-template-columns: 34px minmax(160px, 1.3fr) 110px minmax(140px, 1fr) 150px 16px; align-items: center; gap: 14px; padding: 12px 18px; cursor: pointer; transition: background-color 0.15s; }
+.acc-title:hover { background: color-mix(in oklab, var(--color-base-200) 60%, transparent); }
+.acc-title:has(:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.acc .kind-icon { width: 34px; height: 34px; border-radius: 10px; }
+.chevron { width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); opacity: 0.6; transition: transform 0.25s ease; justify-self: end; margin-top: -4px; }
+.acc:has(> .acc-title :checked) .chevron { transform: rotate(-135deg); margin-top: 4px; }
+.acc-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.25s ease; }
+.acc:has(> .acc-title :checked) .acc-wrap { grid-template-rows: 1fr; }
+.acc-wrap > div { overflow: hidden; min-height: 0; }
+.acc-body { display: grid; gap: 14px; padding: 2px 18px 16px 66px; }
+@media (max-width: 800px) { .acc-title { grid-template-columns: 34px 1fr auto 16px; } .acc .hide-sm { display: none; } .acc-body { padding-left: 18px; } }
+@media (prefers-reduced-motion: reduce) { .acc-wrap, .chevron { transition: none; } }
 .status-dot.pulse { animation: pulse 1.2s ease-in-out infinite; } @keyframes pulse { 50% { opacity: 0.25; } }
 .panel { background: var(--color-base-100); border: 1px solid var(--color-base-300); border-radius: var(--radius-box); padding: 22px 24px; }
 .panel h2 { font-size: 1.05rem; font-weight: 650; margin: 0 0 4px; }
@@ -238,11 +277,13 @@ body { background: var(--color-base-200); min-height: 100vh; }
 .kv > :first-child { font-weight: 600; font-size: 0.9rem; }
 .kv-value { text-align: right; min-width: 0; }
 .panel-flush { padding: 4px 6px; }
+.avatar-face { position: relative; overflow: hidden; }
+.avatar-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hint { font-size: 0.75rem; opacity: 0.7; margin-top: 2px; }
 .inline-form { display: inline-flex; }
 .checks { display: flex; flex-wrap: wrap; gap: 6px 22px; }
 .block { display: block; } .break-all { word-break: break-all; } .w-px { width: 1px; white-space: nowrap; } .justify-end { justify-content: flex-end; }
-.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; } .max-w-3xl { max-width: 48rem; } .whitespace-normal { white-space: normal; } .overflow-x-auto { overflow-x: auto; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; } .max-w-3xl { max-width: 48rem; } .w-44 { width: 11rem; } .whitespace-normal { white-space: normal; } .overflow-x-auto { overflow-x: auto; }
 .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 18px; align-items: start; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 4px 20px; }
 .form-grid .span { grid-column: 1 / -1; }
@@ -262,9 +303,14 @@ body { background: var(--color-base-200); min-height: 100vh; }
 .max-w-2xl { max-width: 42rem; } .w-32 { width: 8rem; } .text-lg { font-size: 1.125rem; } .text-sm { font-size: 0.875rem; } .font-bold { font-weight: 700; }
 .mt-1 { margin-top: 0.25rem; } .mt-2 { margin-top: 0.5rem; } .mt-4 { margin-top: 1rem; } .mb-2 { margin-bottom: 0.5rem; } .mb-4 { margin-bottom: 1rem; }
 .gap-4 { gap: 1rem; } .cursor-pointer { cursor: pointer; } .text-error { color: var(--color-error); }
-details.tools > summary { list-style: none; } details.tools > summary::-webkit-details-marker { display: none; }
-details.tools > summary { text-decoration: underline dotted; text-underline-offset: 3px; }
-details.tools .tools-list { margin-top: 8px; }
+.tools { display: grid; min-width: 0; }
+.tools-toggle { position: relative; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.tools-toggle:has(:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: 4px; }
+.tools-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.25s ease; }
+.tools:has(.tools-toggle :checked) .tools-wrap { grid-template-rows: 1fr; }
+.tools-wrap > div { overflow: hidden; min-height: 0; }
+.tools-wrap .tools-list { padding-top: 8px; }
+@media (prefers-reduced-motion: reduce) { .tools-wrap { transition: none; } }
 .bare { display: grid; place-items: center; }
 .bare-main { width: min(440px, calc(100vw - 32px)); padding: 40px 0; }
 `;

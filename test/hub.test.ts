@@ -15,9 +15,10 @@ const full = newKey('full');
 const narrow = newKey('narrow');
 narrow.key.scope.tools = { deny: ['*-delete_*'] };
 const admin = newKey('admin', 'admin');
+const both = newKey('both', 'both');
 const readOnly = newKey('read-only', 'admin');
 readOnly.key.scope = { servers: ['other'], tools: { allow: ['list_servers', 'get_server'] } };
-writeFileSync(join(dir, 'keys.json'), JSON.stringify([full.key, narrow.key, admin.key, readOnly.key]));
+writeFileSync(join(dir, 'keys.json'), JSON.stringify([full.key, narrow.key, admin.key, readOnly.key, both.key]));
 
 process.env.SECRET_FROM_HUB = 'leaked';
 const hub = new Hub(
@@ -116,6 +117,15 @@ test('admin key scope limits servers and tools', async () => {
   const result = await client.callTool({ name: 'get_server', arguments: { name: 'fix-ture' } });
   assert.equal(result.isError, true);
   await client.close();
+});
+
+test('a both key reaches the tools and the admin endpoint', async () => {
+  const tools = await connect(both.token);
+  assert.ok((await tools.listTools()).tools.some((t) => t.name === 'fix-ture-echo'));
+  await tools.close();
+  const adminClient = await connect(both.token, '/admin/mcp');
+  assert.ok((await adminClient.listTools()).tools.some((t) => t.name === 'list_servers'));
+  await adminClient.close();
 });
 
 test('client keys get 401 on /admin/mcp', async () => {

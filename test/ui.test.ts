@@ -67,9 +67,10 @@ test('a key can be renamed and rescoped without changing its token', async () =>
   const form = await (await request(`/keys/${key!.id}/edit`)).text();
   assert.match(form, /value="agent"/);
   assert.match(form, /value="alpha" checked/);
-  assert.equal((await post(`/keys/${key!.id}`, { name: 'agent-2', servers: ['beta'], allow: 'beta-*' })).status, 303);
+  assert.equal((await post(`/keys/${key!.id}`, { name: 'agent-2', kind: 'both', servers: ['beta'], allow: 'beta-*' })).status, 303);
   const [updated] = JSON.parse(readFileSync(keysPath, 'utf8')) as Key[];
   assert.equal(updated!.name, 'agent-2');
+  assert.equal(updated!.kind, 'both');
   assert.deepEqual(updated!.scope, { servers: ['beta'], tools: { allow: ['beta-*'] } });
   assert.equal(updated!.hash, key!.hash);
   assert.ok(token);
@@ -108,7 +109,7 @@ before(async () => {
       return c.json({ error: 'invalid_grant' }, 400);
     }
     const enc = (v: object) => Buffer.from(JSON.stringify(v)).toString('base64url');
-    const claims = { iss: idp.url, aud: 'mcpyard', sub: 'u1', preferred_username: 'admin', nonce: grant.nonce, groups: idp.groups, exp: Date.now() / 1000 + 300 };
+    const claims = { iss: idp.url, aud: 'mcpyard', sub: 'u1', preferred_username: 'admin', picture: 'https://avatars.example.test/u1.png', nonce: grant.nonce, groups: idp.groups, exp: Date.now() / 1000 + 300 };
     const input = `${enc({ alg: 'ES256', kid: 'k1' })}.${enc(claims)}`;
     let signature = sign('sha256', Buffer.from(input), { key: privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url');
     if (idp.tamper) signature = signature.slice(0, -4) + (signature.endsWith('AAAA') ? 'BBBB' : 'AAAA');
@@ -158,6 +159,8 @@ test('OIDC login with PKCE opens a session', async () => {
   const page = await request('/keys', { headers: { cookie: session } });
   assert.equal(page.status, 200);
   assert.match(await page.text(), /font-medium">admin<\/div>/);
+  assert.match(await (await request('/keys', { headers: { cookie: session } })).text(), /<img src="https:\/\/avatars\.example\.test\/u1\.png"/);
+  assert.match(page.headers.get('content-security-policy')!, /img-src 'self' data: https:\/\/avatars\.example\.test;/, 'the avatar host is allowed, nothing else');
 });
 
 test('a provider announcing another issuer is refused', async () => {

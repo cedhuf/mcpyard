@@ -1,14 +1,29 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+/** daisyUI's themes, any of which the UI can use. */
+export const THEMES = ['abyss', 'acid', 'aqua', 'autumn', 'black', 'bumblebee', 'business', 'caramellatte', 'cmyk', 'coffee', 'corporate', 'cupcake', 'cyberpunk', 'dark', 'dim', 'dracula', 'emerald', 'fantasy', 'forest', 'garden', 'halloween', 'lemonade', 'light', 'lofi', 'luxury', 'night', 'nord', 'pastel', 'retro', 'silk', 'sunset', 'synthwave', 'valentine', 'winter', 'wireframe'] as const;
+export const THEME_MODES = ['system', 'light', 'dark'] as const;
+
 /** Settings the UI may change at runtime. An environment variable, when set, wins and locks the setting. */
 const DEFINITIONS = {
   adminEndpoint: { env: 'MCPYARD_ADMIN_ENDPOINT', type: 'boolean', default: true },
   versionCheckHours: { env: 'MCPYARD_VERSION_CHECK_HOURS', type: 'number', default: 6, min: 1, max: 24 * 7 },
+  updateCheck: { env: 'MCPYARD_UPDATE_CHECK', type: 'boolean', default: true },
+  theme: { env: 'MCPYARD_THEME', type: 'choice', options: THEME_MODES, default: 'system' },
+  lightTheme: { env: 'MCPYARD_THEME_LIGHT', type: 'choice', options: THEMES, default: 'winter' },
+  darkTheme: { env: 'MCPYARD_THEME_DARK', type: 'choice', options: THEMES, default: 'dim' },
 } as const;
 
 export type SettingKey = keyof typeof DEFINITIONS;
-type Values = { adminEndpoint: boolean; versionCheckHours: number };
+type Values = {
+  adminEndpoint: boolean;
+  versionCheckHours: number;
+  updateCheck: boolean;
+  theme: (typeof THEME_MODES)[number];
+  lightTheme: (typeof THEMES)[number];
+  darkTheme: (typeof THEMES)[number];
+};
 export type Setting<K extends SettingKey> = { value: Values[K]; source: 'env' | 'file' | 'default'; env: string };
 
 export class Settings {
@@ -68,6 +83,11 @@ function parse<K extends SettingKey>(key: K, raw: string): Values[K] {
     if (['true', '1', 'on', 'yes'].includes(v)) return true as Values[K];
     if (['false', '0', 'off', 'no'].includes(v)) return false as Values[K];
     throw new Error(`${def.env}: expected true or false, got ${JSON.stringify(raw)}`);
+  }
+  if (def.type === 'choice') {
+    const v = raw.trim();
+    if (!(def.options as readonly string[]).includes(v)) throw new Error(`${def.env}: expected one of ${def.options.join(', ')}, got ${JSON.stringify(raw)}`);
+    return v as Values[K];
   }
   const n = Number(raw);
   if (!Number.isFinite(n) || n < def.min || n > def.max) throw new Error(`${def.env}: expected a number from ${def.min} to ${def.max}, got ${JSON.stringify(raw)}`);

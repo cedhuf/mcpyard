@@ -2,6 +2,7 @@ import { Client, SSEClientTransport, StreamableHTTPClientTransport, type Tool } 
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio';
 import type { ServerConfig } from './config.ts';
 import type { Launch, Packages } from './packages.ts';
+import { VERSION } from './release.ts';
 
 /** `degraded`: was ready, lost its connection, reconnecting. `failed`: never got ready, retrying. */
 export type State = 'installing' | 'starting' | 'ready' | 'degraded' | 'stopped' | 'failed';
@@ -133,7 +134,7 @@ export class Upstream {
 
   private async open(launch?: Launch): Promise<{ client: Client; tools: Tool[] }> {
     const client = new Client(
-      { name: 'mcpyard', version: '0.0.0' },
+      { name: 'mcpyard', version: VERSION },
       {
         listChanged: {
           tools: { onChanged: (error, tools) => this.client === client && this.toolsChanged(error, tools) },

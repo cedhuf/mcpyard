@@ -5,7 +5,7 @@ title: Admin endpoint
 # Admin endpoint
 
 `/admin/mcp` is a second MCP endpoint, separate from `/mcp`, for agents that watch and nurse the hub.
-Only admin keys reach it, and admin keys reach nothing else.
+Only `admin` and `both` keys reach it; an `admin` key reaches nothing else.
 
 It is on by default and does nothing until an admin key exists. Turn it off on the web UI's
 **Settings** page, which also shows its URL, or with `MCPYARD_ADMIN_ENDPOINT=false`; it then answers
@@ -13,7 +13,7 @@ It is on by default and does nothing until an admin key exists. Turn it off on t
 
 ## Connect
 
-Create a key of kind **admin** in the web UI, then:
+Create a key of kind **admin** (or **both**) in the web UI, then:
 
 ```bash
 claude mcp add --transport http mcpyard-admin https://mcpyard.example.lan/admin/mcp \

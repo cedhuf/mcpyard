@@ -80,6 +80,12 @@ location / {
 
 Keep the `Host` header: the web UI checks that forms come from the hub's own origin.
 
+## Outbound proxy
+
+The hub reaches npm, PyPI and GitHub to install packages and check versions. Behind an egress
+proxy, set `HTTPS_PROXY` and `NODE_USE_ENV_PROXY=1` so Node uses it; `npm` and `uv` read
+`HTTPS_PROXY` on their own.
+
 ## Health and logs
 
 `/healthz` answers `ok` once the HTTP server is up; the image's health check uses it. Server output is
@@ -93,5 +99,6 @@ servers you touched restart. See [Reloading](configuration.html#reloading).
 
 ## Upgrading
 
-Pull the new image and recreate the container. Releases follow semantic versioning; notes are on the
+The sidebar shows the running version and tells you when a newer release exists. Pull the new image
+and recreate the container. Releases follow semantic versioning; notes are on the
 [releases page](https://github.com/cedhuf/mcpyard/releases).
