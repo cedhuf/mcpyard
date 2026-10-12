@@ -40,6 +40,8 @@ database server. If a feature needs one of those, it belongs in MCPHub, not here
 
 ## Quick start
 
+A local trial, without sign-in and reachable only from your machine:
+
 ```yaml
 # mcpyard.yaml
 servers:
@@ -47,10 +49,6 @@ servers:
     package: { pypi: mcp-server-time }
   memory:
     package: { npm: "@modelcontextprotocol/server-memory", version: "2026.8.31" }   # pinned
-  search:
-    url: https://search.example.lan/mcp
-    headers:
-      Authorization: Bearer ${SEARCH_TOKEN}
 ```
 
 ```bash
@@ -67,8 +65,57 @@ claude mcp add --transport http mcpyard http://localhost:3000/mcp --header "Auth
 
 ![The servers page of the mcpyard web UI](docs/assets/servers-light.png)
 
-For sign-in with your identity provider, reverse proxies, packages and scopes, read the
-[documentation](https://cedhuf.github.io/mcpyard/).
+## Docker Compose or Podman
+
+For a real deployment, with the web UI behind your identity provider:
+
+```yaml
+# compose.yaml
+services:
+  mcpyard:
+    image: ghcr.io/cedhuf/mcpyard:latest
+    restart: unless-stopped
+    ports: ["127.0.0.1:3000:3000"]   # put a TLS reverse proxy in front
+    env_file: .env
+    volumes:
+      - ./mcpyard.yaml:/config/mcpyard.yaml:ro
+      - mcpyard-data:/data
+
+volumes:
+  mcpyard-data:
+```
+
+```bash
+# .env
+# What browsers type; the OIDC redirect URI is <this>/auth/callback
+MCPYARD_PUBLIC_URL=https://mcpyard.example.lan
+OIDC_ISSUER=https://id.example.lan
+OIDC_CLIENT_ID=mcpyard
+OIDC_CLIENT_SECRET=change-me
+# Optional: only these groups (from the groups claim) may sign in
+# OIDC_ALLOWED_GROUPS=mcpyard-admins
+
+# Every ${VAR} used in mcpyard.yaml must be defined here, or the hub refuses to start:
+# SEARCH_TOKEN=...
+```
+
+Start it with `docker compose up -d`, or `podman compose up -d` (`podman-compose` works too). On
+SELinux hosts such as Fedora or RHEL, label the bind mount: `./mcpyard.yaml:/config/mcpyard.yaml:ro,Z`.
+
+After editing `mcpyard.yaml`, apply it without a restart from the web UI, or with
+`docker kill -s HUP mcpyard` (`podman kill -s HUP ...`): only the servers you changed restart.
+
+Where to go next:
+
+| To... | Read |
+| --- | --- |
+| register mcpyard with PocketID, Authelia or Keycloak | [Web UI and sign-in](https://cedhuf.github.io/mcpyard/web-ui.html) |
+| set up Caddy or nginx in front, and know what `/data` holds | [Deployment](https://cedhuf.github.io/mcpyard/deployment.html) |
+| declare packages, commands and remote servers | [Server file](https://cedhuf.github.io/mcpyard/configuration.html) |
+| pin versions, update and roll back | [Packages and updates](https://cedhuf.github.io/mcpyard/packages.html) |
+| give each client only the servers and tools it needs | [Keys and scopes](https://cedhuf.github.io/mcpyard/keys.html) |
+| let an agent watch, restart and update servers | [Admin endpoint](https://cedhuf.github.io/mcpyard/admin.html) |
+| see every environment variable | [Environment variables](https://cedhuf.github.io/mcpyard/configuration.html#environment-variables) |
 
 ## License
 
