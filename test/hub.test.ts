@@ -127,4 +127,5 @@ test('config needs exactly one of package, url or command', () => {
   assert.throws(() => parseConfig('servers:\n  a: { command: x, url: "http://x" }'), /exactly one/);
   assert.throws(() => parseConfig('servers:\n  "a b": { command: x }'), /Invalid key.*"a b"/s);
   assert.throws(() => parseConfig('servers:\n  a: { command: "${NOPE_NOT_SET}" }', {}), /NOPE_NOT_SET/);
+  assert.throws(() => parseConfig('servers:\n  a: { command: x, env: { T: ${T} } }', { T: 't' }), /quote references/);
 });

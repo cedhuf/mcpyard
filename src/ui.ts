@@ -6,13 +6,17 @@ import type { ServerConfig } from './config.ts';
 import type { Hub } from './front.ts';
 import { allowed, loadKeys, newKey, saveKeys, type Key } from './keys.ts';
 import type { Oidc, Signer, User } from './oidc.ts';
+import type { ConfigFile } from './config.ts';
+import type { Settings } from './settings.ts';
+import { configRoutes, type EnvRow } from './ui-config.ts';
+import { log, page, type Env, type Fragment } from './ui-layout.ts';
+
+export type { EnvRow };
 
 export type UiAuth = { kind: 'none' } | { kind: 'oidc'; oidc: Oidc; signer: Signer };
 
-export type UiOptions = { keysPath: string; auth: UiAuth; publicUrl?: string };
+export type UiOptions = { keysPath: string; auth: UiAuth; publicUrl?: string; settings?: Settings; configFile?: ConfigFile; environment?: EnvRow[] };
 
-type Env = { Variables: { user?: User; nonce: string } };
-type Fragment = ReturnType<typeof html>;
 
 const SESSION = 'mcpyard_session';
 const LOGIN = 'mcpyard_login';
@@ -70,7 +74,13 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     });
   }
 
-  app.get('/', guard, (c) => c.html(page(c, 'Servers', serversView(hub))));
+  app.get('/', guard, (c) => {
+    const saved = c.req.query('saved');
+    const editable = !!options.configFile && !options.configFile.readOnlyReason();
+    return c.html(page(c, 'Servers', html`${saved ? html`<section class="card notice"><p>Saved <strong>${saved}</strong>; it is restarting with its new settings.</p></section>` : ''}${serversView(hub, editable)}`));
+  });
+
+  configRoutes(app, hub, guard, { keysPath, settings: options.settings, configFile: options.configFile, environment: options.environment, base });
 
   app.post('/servers/:name/update', guard, async (c) => {
     const name = c.req.param('name') ?? '';
@@ -98,7 +108,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     } catch (e) {
       notice = html`<section class="card notice failed"><p>Configuration not reloaded, the running servers are unchanged:</p><pre class="mono">${(e as Error).message}</pre></section>`;
     }
-    return c.html(page(c, 'Servers', html`${notice}${serversView(hub)}`));
+    return c.html(page(c, 'Servers', html`${notice}${serversView(hub, !!options.configFile && !options.configFile.readOnlyReason())}`));
   });
 
   app.get('/keys', guard, (c) => c.html(page(c, 'Keys', keysView(hub, loadKeys(keysPath)))));
@@ -111,7 +121,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     key.scope = scopeFrom(form);
     const keys = loadKeys(keysPath);
     saveKeys(keysPath, [...keys, key]);
-    log(c, 'key_created', key.name);
+    log(c, 'key_created', { key: key.name });
     return c.html(page(c, 'Keys', html`${created(key, token, base(c))}${keysView(hub, [...keys, key])}`));
   });
 
@@ -131,7 +141,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     key.name = name;
     key.scope = scopeFrom(form);
     saveKeys(keysPath, keys);
-    log(c, 'key_updated', key.name);
+    log(c, 'key_updated', { key: key.name });
     return c.redirect('/keys', 303);
   });
 
@@ -144,7 +154,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
       if (action === 'delete') keys.splice(keys.indexOf(key), 1);
       else key.enabled = action === 'enable';
       saveKeys(keysPath, keys);
-      log(c, `key_${action}`, key.name);
+      log(c, `key_${action}`, { key: key.name });
       return c.redirect('/keys', 303);
     });
   }
@@ -158,10 +168,6 @@ function sameOrigin(origin: string | undefined, base: string): boolean {
   } catch {
     return false;
   }
-}
-
-function log(c: Context<Env>, event: string, key?: string): void {
-  console.log(JSON.stringify({ event, time: new Date().toISOString(), ...(key ? { key } : {}), by: c.get('user')?.name ?? null }));
 }
 
 function scopeFrom(form: Record<string, unknown>): Key['scope'] {
@@ -195,7 +201,7 @@ function source(config: ServerConfig): string {
   return [config.command, ...config.args].join(' ');
 }
 
-function serversView(hub: Hub): Fragment {
+function serversView(hub: Hub, editable: boolean): Fragment {
   const packages = hub.packageStatus();
   const rows = [...hub.upstreams].map(([name, upstream]) => {
     const config = hub.configs[name]!;
@@ -218,6 +224,7 @@ function serversView(hub: Hub): Fragment {
             : html`<span class="muted">none</span>`}
         </td>
         <td class="actions">
+          <a class="button" href="/servers/${name}/edit">${editable ? 'Edit' : 'View'}</a>
           ${config.enabled ? html`<form method="post" action="/servers/${name}/restart"><button>Restart</button></form>` : ''}
         </td>
       </tr>
@@ -226,7 +233,10 @@ function serversView(hub: Hub): Fragment {
   return html`<section id="servers">
       <div class="heading">
         <h1>Servers</h1>
-        <form method="post" action="/reload"><button title="Re-read the server file and apply the changes">Reload configuration</button></form>
+        <div class="buttons">
+          ${editable ? html`<a class="button primary" href="/servers/new">Add server</a>` : ''}
+          <form method="post" action="/reload"><button title="Re-read the server file and apply the changes">Reload configuration</button></form>
+        </div>
       </div>
       ${rows.length
         ? html`<table>
@@ -323,101 +333,3 @@ function created(key: Key, token: string, base: string): Fragment {
 function signedOut(message: string): Fragment {
   return html`<section class="card"><p>${message}</p><a class="button primary" href="/auth/login">Sign in</a></section>`;
 }
-
-function page(c: Context<Env>, title: string, body: Fragment): Fragment {
-  const user = c.get('user');
-  const nonce = c.get('nonce');
-  return html`<!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>${title} · mcpyard</title>
-        <style>
-          ${raw(CSS)}
-        </style>
-      </head>
-      <body>
-        <header>
-          <a class="brand" href="/">mcpyard</a>
-          <nav><a href="/">Servers</a><a href="/keys">Keys</a></nav>
-          ${user ? html`<form method="post" action="/auth/logout" class="user"><span>${user.name}</span><button>Sign out</button></form>` : ''}
-        </header>
-        <main>${body}</main>
-        ${nonce ? html`<script nonce="${nonce}">${raw(SCRIPT)}</script>` : ''}
-      </body>
-    </html>`;
-}
-
-const SCRIPT = `
-document.addEventListener('submit', (e) => {
-  const message = e.target.dataset.confirm;
-  if (message && !confirm(message)) e.preventDefault();
-});
-if (document.getElementById('servers')) setInterval(async () => {
-  if (document.hidden) return;
-  const current = document.getElementById('servers');
-  const open = [...current.querySelectorAll('details[open]')].map((d) => d.dataset.id);
-  const res = await fetch('/').catch(() => null);
-  if (!res || !res.ok || res.redirected) return;
-  const next = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById('servers');
-  if (!next) return;
-  for (const id of open) next.querySelector('details[data-id="' + CSS.escape(id) + '"]')?.setAttribute('open', '');
-  current.replaceWith(next);
-}, 4000);`;
-
-const CSS = `
-:root { --bg: #f7f7f5; --fg: #1d1d1b; --muted: #6b6b66; --line: #e2e2dc; --card: #fff; --accent: #2f5bd3; --ok: #1f8a4c; --warn: #b7791f; --bad: #c53030; --info: #2b6cb0; color-scheme: light dark; }
-@media (prefers-color-scheme: dark) { :root { --bg: #151514; --fg: #ecece8; --muted: #9a9a93; --line: #2c2c2a; --card: #1d1d1c; --accent: #7aa2ff; --ok: #48bb78; --warn: #ecc94b; --bad: #fc8181; --info: #63b3ed; } }
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-header { display: flex; align-items: center; gap: 24px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--card); flex-wrap: wrap; }
-.brand { font-weight: 700; font-size: 17px; color: var(--fg); text-decoration: none; letter-spacing: -0.01em; }
-nav { display: flex; gap: 16px; flex: 1; }
-nav a { color: var(--muted); text-decoration: none; }
-nav a:hover { color: var(--fg); }
-.user { display: flex; align-items: center; gap: 10px; color: var(--muted); }
-main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
-h1 { font-size: 22px; margin: 8px 0 16px; }
-h2 { font-size: 17px; margin: 32px 0 12px; }
-section.card h2, .notice h2 { margin-top: 0; }
-table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
-tr:last-child td { border-bottom: 0; }
-tr.error td { color: var(--bad); font-size: 13px; padding-top: 0; white-space: pre-wrap; word-break: break-word; }
-tr.disabled td { opacity: 0.55; }
-.muted { color: var(--muted); font-size: 13px; }
-.mono, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
-td .mono { word-break: break-all; }
-pre { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
-.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid currentColor; }
-.badge.ready { color: var(--ok); } .badge.degraded { color: var(--warn); } .badge.failed { color: var(--bad); }
-.badge.installing, .badge.starting, .badge.updating { color: var(--info); } .badge.stopped, .badge.disabled { color: var(--muted); }
-.tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 4px; }
-details summary { cursor: pointer; }
-ul.tools { margin: 6px 0 0; padding-left: 18px; }
-ul.tools li.hidden { color: var(--muted); text-decoration: line-through; }
-.actions { white-space: nowrap; text-align: right; }
-.actions form, td form { display: inline-block; margin: 4px 4px 0 0; }
-button, .button { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; text-decoration: none; display: inline-block; }
-button:hover, .button:hover { border-color: var(--muted); }
-button.primary, .button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-button.danger { color: var(--bad); }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; }
-.notice { border-color: var(--accent); margin-bottom: 24px; }
-.notice.failed { border-color: var(--bad); }
-.notice p { margin: 0; }
-.notice pre { margin: 10px 0 0; }
-.heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.buttons { display: flex; gap: 8px; }
-.actions a.button { margin: 4px 4px 0 0; }
-form.card { display: grid; gap: 14px; max-width: 560px; }
-form.card label { display: grid; gap: 4px; font-weight: 600; font-size: 14px; }
-form.card label.check { display: flex; gap: 8px; font-weight: 400; align-items: center; }
-form.card button { justify-self: start; }
-input, select { font: inherit; font-weight: 400; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
-fieldset { border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 6px; padding: 10px 14px; }
-legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
-@media (max-width: 700px) { thead { display: none; } table, tbody, tr, td { display: block; width: 100%; } td { border-bottom: 0; padding: 4px 12px; } tr { border-bottom: 1px solid var(--line); padding: 8px 0; } .actions { text-align: left; } }
-`;

@@ -74,6 +74,12 @@ export class Hub {
     return new Upstream(name, config, () => this.rebuild(), this.packages);
   }
 
+  /** Applies a new check period without a restart. */
+  restartVersionChecks(): void {
+    this.packages?.unwatch();
+    this.watchPackages();
+  }
+
   private watchPackages(): void {
     this.packages?.watch(Object.values(this.configs).flatMap((c) => (c.enabled && c.package ? [c.package] : [])));
   }
@@ -188,7 +194,7 @@ function touch(keysPath: string, key: Key): void {
   saveKeys(keysPath, keys);
 }
 
-export function app(hub: Hub, keysPath: string, webUi?: Hono<any>): Hono {
+export function app(hub: Hub, keysPath: string, webUi?: Hono<any>, adminEnabled: () => boolean = () => true): Hono {
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
   for (const [path, kind, handler] of [
@@ -196,6 +202,7 @@ export function app(hub: Hub, keysPath: string, webUi?: Hono<any>): Hono {
     ['/admin/mcp', 'admin', hub.adminHandler],
   ] as const) {
     app.all(path, async (c) => {
+      if (kind === 'admin' && !adminEnabled()) return c.text('Not found', 404);
       const token = c.req.header('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
       const key = findKey(loadKeys(keysPath), token);
       if (!key || key.kind !== kind) return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });

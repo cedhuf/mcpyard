@@ -71,7 +71,7 @@ function assertVersion(version: string): void {
 }
 
 export class Packages {
-  readonly checkHours: number;
+  checkHours: number;
   private readonly dataDir: string;
   private readonly registry: Registry;
   private readonly installer: Installer;
