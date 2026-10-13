@@ -1,4 +1,4 @@
-<p align="center"><img src="static/icon.png" alt="MCP Yard logo: a glass greenhouse behind a locked gate, with a golden key" width="200"></p>
+<p align="center"><img src="static/icon.png" alt="MCP Yard logo: a little server holding a golden key, in a fenced yard" width="200"></p>
 
 # MCP Yard
 
@@ -31,8 +31,10 @@ MCP Yard aims at the small intersection none of them covers:
   No local password.
 - **Configured by environment and one file.** Runtime settings in env vars, servers in a single
   YAML file you can version.
+- **A dashboard, not just a list.** Server health with a one-click MCP ping, updates waiting and
+  **Update all**, a security check of keys and settings, recent activity and the most used tools.
 - **Manageable over MCP.** Keys you allow get the hub's own `yard-*` tools: read status and
-  versions, restart or update a server, reload the configuration.
+  versions, restart, switch or update a server, reload the configuration.
 - **One small Docker image**, built and published by GitHub Actions.
 
 ## Non-goals
@@ -65,7 +67,7 @@ Open http://localhost:3000, create a key, then point your client at `/mcp`:
 claude mcp add --transport http mcpyard http://localhost:3000/mcp --header "Authorization: Bearer yard_..."
 ```
 
-![The servers page of the MCP Yard web UI](docs/assets/servers-light.png)
+![The MCP Yard dashboard: server health, updates and security check](docs/assets/dashboard-light.png)
 
 ## Docker Compose or Podman
 
