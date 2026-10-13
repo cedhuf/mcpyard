@@ -76,6 +76,10 @@ jobs:
       - uses: actions/checkout@v7
       # The logo files live once, in static/; the site gets copies at build time.
       - run: cp static/favicon.ico static/favicon-32x32.png static/apple-touch-icon.png static/icon.png docs/assets/
+      # The heading font comes from the same npm package the hub serves it from, at the locked version.
+      - run: |
+          npm pack "@fontsource-variable/fredoka@$(node -p "require('./package-lock.json').packages['node_modules/@fontsource-variable/fredoka'].version")" --silent | xargs tar -xzf
+          cp package/files/fredoka-latin-wght-normal.woff2 docs/assets/fredoka.woff2
       - uses: actions/configure-pages@v6
       - uses: actions/jekyll-build-pages@v1
         with:
