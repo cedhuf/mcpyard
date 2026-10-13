@@ -150,7 +150,7 @@ export function menu(name: string, label: string, entries: (MenuEntry | false | 
   const item = (e: MenuEntry) => {
     const body = html`${icon(e.icon, 'sm')}<span class="flex-1">${e.label}</span>${e.badge ? html`<span class="badge badge-sm badge-primary">${e.badge}</span>` : ''}`;
     if (e.href) return html`<li><a href="${e.href}">${body}</a></li>`;
-    return html`<li><button formaction="${e.post}" class="${e.danger ? 'text-error' : ''}" ${e.value ? html`name="${e.value[0]}" value="${e.value[1]}"` : ''} ${e.confirm ? html`data-confirm="${e.confirm}"` : ''}>${body}</button></li>`;
+    return html`<li><button formaction="${e.post}" class="${e.danger ? 'text-error' : ''}" ${e.value ? html`name="${e.value[0]}" value="${e.value[1]}"` : ''} ${e.confirm ? html`data-confirm="${e.confirm}" ${e.danger ? 'data-danger' : ''}` : ''}>${body}</button></li>`;
   };
   return html`<form method="post" class="contents">
     <button type="button" class="btn btn-ghost ${options.trigger ? 'btn-circle' : 'btn-sm btn-square'}" popovertarget="${id}" style="anchor-name:--${id}" aria-label="${label}">${options.trigger ?? icon('dots')}</button>

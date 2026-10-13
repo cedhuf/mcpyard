@@ -186,15 +186,43 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
       </header>
       <main class="px-4 sm:px-6 lg:px-8 pt-6 pb-16 min-h-[calc(100dvh-10rem)]">${body}</main>
       ${footer()}
-      ${nonce ? html`<script nonce="${nonce}">${raw(SCRIPT)}</script>` : ''}
+      ${nonce ? html`${CONFIRM}<script nonce="${nonce}">${raw(SCRIPT)}</script>` : ''}
     </body>
   </html>`;
 }
 
+/** Asks before any form or button carrying `data-confirm`; `data-danger` turns the confirm button red. */
+const CONFIRM = html`<dialog id="confirm" class="modal" aria-labelledby="confirm-text">
+  <div class="modal-box max-w-sm grid gap-5">
+    <p id="confirm-text" class="text-base"></p>
+    <form method="dialog" class="modal-action mt-0">
+      <button class="btn btn-sm btn-ghost" value="">Cancel</button>
+      <button class="btn btn-sm" value="ok" autofocus></button>
+    </form>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>`;
+
 const SCRIPT = `
+const ask = document.getElementById('confirm');
+let confirmed = false;
 document.addEventListener('submit', (e) => {
-  const message = (e.submitter?.dataset.confirm) || e.target.dataset.confirm;
-  if (message && !confirm(message)) e.preventDefault();
+  const from = e.submitter?.dataset.confirm ? e.submitter : e.target;
+  if (confirmed || !from.dataset.confirm) return;
+  e.preventDefault();
+  e.submitter?.closest('[popover]')?.hidePopover();
+  const ok = ask.querySelector('[value=ok]');
+  ask.querySelector('#confirm-text').textContent = from.dataset.confirm;
+  ok.textContent = e.submitter?.textContent.trim() || 'Confirm';
+  ok.className = 'btn btn-sm ' + ('danger' in from.dataset ? 'btn-error' : 'btn-primary');
+  ask.returnValue = '';
+  ask.onclose = () => {
+    if (ask.returnValue !== 'ok') return;
+    confirmed = true;
+    e.target.requestSubmit(e.submitter);
+    confirmed = false;
+  };
+  ask.showModal();
 });
 document.addEventListener('click', (e) => {
   const copy = e.target.closest('[data-copy]');
