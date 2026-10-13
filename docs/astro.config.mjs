@@ -19,6 +19,13 @@ export default defineConfig({
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/cedhuf/mcpyard' }],
       editLink: { baseUrl: 'https://github.com/cedhuf/mcpyard/edit/main/docs/' },
       customCss: ['@fontsource-variable/fredoka', './src/styles/custom.css'],
+      // Self-hosted Umami: no cookie and no personal data, so no consent banner.
+      head: [
+        {
+          tag: 'script',
+          attrs: { defer: true, src: 'https://audience.thehuf.uk/script.js', 'data-website-id': '6f3d2ca5-ddc2-40da-9ed1-60195b4112f2' },
+        },
+      ],
       components: { Hero: './src/components/Hero.astro' },
       sidebar: [
         { label: 'Start', items: ['getting-started', 'deployment'] },
