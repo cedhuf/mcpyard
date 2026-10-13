@@ -4,15 +4,16 @@ import { join } from 'node:path';
 /** MCP Yard's own themes, then daisyUI's, any of which the UI can use. */
 export const THEMES = ['yard', 'yard-night', 'abyss', 'acid', 'aqua', 'autumn', 'black', 'bumblebee', 'business', 'caramellatte', 'cmyk', 'coffee', 'corporate', 'cupcake', 'cyberpunk', 'dark', 'dim', 'dracula', 'emerald', 'fantasy', 'forest', 'garden', 'halloween', 'lemonade', 'light', 'lofi', 'luxury', 'night', 'nord', 'pastel', 'retro', 'silk', 'sunset', 'synthwave', 'valentine', 'winter', 'wireframe'] as const;
 export const THEME_MODES = ['system', 'light', 'dark'] as const;
-export const AUTO_UPDATE_HOURS = ['off', ...Array.from({ length: 24 }, (_, h) => String(h))] as const;
 
 /** Settings the UI may change at runtime. An environment variable, when set, wins and locks the setting. */
 const DEFINITIONS = {
   adminTools: { env: 'MCPYARD_ADMIN_TOOLS', type: 'boolean', default: true },
-  versionCheckHours: { env: 'MCPYARD_VERSION_CHECK_HOURS', type: 'number', default: 6, min: 1, max: 24 * 7 },
+  versionCheckHours: { env: 'MCPYARD_VERSION_CHECK_HOURS', type: 'number', default: 6, min: 0, max: 24 * 30 },
+  healthCheck: { env: 'MCPYARD_HEALTH_CHECK', type: 'boolean', default: true },
   healthCheckMinutes: { env: 'MCPYARD_HEALTH_CHECK_MINUTES', type: 'number', default: 5, min: 0, max: 24 * 60 },
   updateCheck: { env: 'MCPYARD_UPDATE_CHECK', type: 'boolean', default: true },
-  autoUpdateHour: { env: 'MCPYARD_AUTO_UPDATE_HOUR', type: 'choice', options: AUTO_UPDATE_HOURS, default: 'off' },
+  autoUpdate: { env: 'MCPYARD_AUTO_UPDATE', type: 'boolean', default: false },
+  autoUpdateTime: { env: 'MCPYARD_AUTO_UPDATE_TIME', type: 'time', default: '02:00' },
   theme: { env: 'MCPYARD_THEME', type: 'choice', options: THEME_MODES, default: 'system' },
   lightTheme: { env: 'MCPYARD_THEME_LIGHT', type: 'choice', options: THEMES, default: 'yard' },
   darkTheme: { env: 'MCPYARD_THEME_DARK', type: 'choice', options: THEMES, default: 'yard-night' },
@@ -22,9 +23,11 @@ export type SettingKey = keyof typeof DEFINITIONS;
 type Values = {
   adminTools: boolean;
   versionCheckHours: number;
+  healthCheck: boolean;
   healthCheckMinutes: number;
   updateCheck: boolean;
-  autoUpdateHour: (typeof AUTO_UPDATE_HOURS)[number];
+  autoUpdate: boolean;
+  autoUpdateTime: string;
   theme: (typeof THEME_MODES)[number];
   lightTheme: (typeof THEMES)[number];
   darkTheme: (typeof THEMES)[number];
@@ -88,6 +91,11 @@ function parse<K extends SettingKey>(key: K, raw: string): Values[K] {
     if (['true', '1', 'on', 'yes'].includes(v)) return true as Values[K];
     if (['false', '0', 'off', 'no'].includes(v)) return false as Values[K];
     throw new Error(`${def.env}: expected true or false, got ${JSON.stringify(raw)}`);
+  }
+  if (def.type === 'time') {
+    const v = raw.trim();
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) throw new Error(`${def.env}: expected a time as HH:MM, got ${JSON.stringify(raw)}`);
+    return v as Values[K];
   }
   if (def.type === 'choice') {
     const v = raw.trim();

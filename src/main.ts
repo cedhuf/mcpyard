@@ -34,13 +34,11 @@ releaseChecks();
 appearance();
 hub.yardEnabled = () => settings.value('adminTools');
 const healthChecks = () => {
-  if (hub.healthEveryMinutes !== settings.value('healthCheckMinutes')) hub.startHealthChecks(settings.value('healthCheckMinutes'));
+  const minutes = settings.value('healthCheck') ? settings.value('healthCheckMinutes') : 0;
+  if (hub.healthEveryMinutes !== minutes) hub.startHealthChecks(minutes);
 };
 healthChecks();
-const autoUpdates = () => {
-  const hour = settings.value('autoUpdateHour');
-  hub.startAutoUpdates(hour === 'off' ? undefined : Number(hour));
-};
+const autoUpdates = () => hub.startAutoUpdates(settings.value('autoUpdate') ? settings.value('autoUpdateTime') : undefined);
 autoUpdates();
 settings.onChange(() => {
   hub.notifyToolsChanged();

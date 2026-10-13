@@ -44,14 +44,14 @@ test('settings come from the environment, then the file, then defaults', () => {
   assert.equal(settings.get('adminTools').source, 'default');
   settings.set('adminTools', 'false');
   assert.deepEqual(new Settings(dir, {}).get('adminTools'), { value: false, source: 'file', env: 'MCPYARD_ADMIN_TOOLS' });
-  assert.throws(() => new Settings(dir, {}).set('versionCheckHours', '0'), /1 to 168/);
+  assert.throws(() => new Settings(dir, {}).set('versionCheckHours', '-1'), /0 to 720/);
   assert.throws(() => new Settings(dir, { MCPYARD_ADMIN_TOOLS: 'maybe' }), /true or false/);
 });
 
 test('the settings page locks environment values and turns hub administration off', async () => {
   const { request, post, admin, server } = setup({ MCPYARD_VERSION_CHECK_HOURS: '12' });
   const page = await (await request('/settings')).text();
-  assert.match(page, /<span>12 h<\/span><span class="badge[^>]*>[\s\S]{0,800}MCPYARD_VERSION_CHECK_HOURS/);
+  assert.match(page, /<span>12 hours<\/span><span class="badge[^>]*>[\s\S]{0,800}MCPYARD_VERSION_CHECK_HOURS/);
   assert.match(page, /<form method="post" action="\/settings" data-autosave>/, 'settings save on change');
   assert.ok(!page.includes('name="versionCheckHours"'), 'a locked setting has no input');
   assert.match(page, /<section id="about"/);

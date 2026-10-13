@@ -1,3 +1,5 @@
+import { MAX_TIMER } from './packages.ts';
+
 /** The running version, stamped into the image at release time; "dev" anywhere else. */
 export const VERSION = process.env.MCPYARD_VERSION?.replace(/^v/, '') || 'dev';
 
@@ -61,7 +63,7 @@ export class ReleaseCheck {
       return;
     }
     void this.check();
-    this.timer = setInterval(() => void this.check(), hours * 3_600_000);
+    this.timer = setInterval(() => void this.check(), Math.min(hours * 3_600_000, MAX_TIMER));
     this.timer.unref();
   }
 }

@@ -118,9 +118,9 @@ The **Settings** page gathers what is not a server or a key. Every change is sav
 soon as it is made; there is no save button.
 
 - **Hub administration**: the `yard-*` tools on or off for every key, and how many keys may use them.
-- **Updates**: how often registries are checked, and the hour of the nightly updates, off by
-  default (see [Packages](packages.html#nightly-updates)).
-- **Health**: how often every running server is pinged, or never.
+- **Updates**: how often registries are checked, and a switch with a time for the nightly updates,
+  off by default (see [Packages](packages.html#nightly-updates)).
+- **Health**: a switch and how often every running server is pinged, every 5 minutes by default.
 - **Appearance**: follow the system's light or dark mode, or force one, and pick the light and dark
   themes: MCP Yard's own `yard` and `yard-night`, drawn from the logo, by default, or any
   [daisyUI theme](https://daisyui.com/docs/themes/).

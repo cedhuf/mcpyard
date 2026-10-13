@@ -109,9 +109,11 @@ servers:
 | `MCPYARD_CONFIG` | `/config/mcpyard.yaml` | The server file. |
 | `MCPYARD_DATA_DIR` | `/data` | Keys, installed packages, recorded versions, session key. |
 | `MCPYARD_PORT` | `3000` | HTTP port. |
-| `MCPYARD_VERSION_CHECK_HOURS` | `6` | How often registries are asked for new versions. |
-| `MCPYARD_AUTO_UPDATE_HOUR` | `off` | Hour (`0` to `23`, hub time, set `TZ` in the container) at which every unpinned package updates itself, once a day. |
-| `MCPYARD_HEALTH_CHECK_MINUTES` | `5` | How often every running server is pinged over MCP; `0` turns it off. |
+| `MCPYARD_VERSION_CHECK_HOURS` | `6` | How often registries are asked for new versions, up to `720` (a month); `0` turns it off. |
+| `MCPYARD_AUTO_UPDATE` | `false` | `true` updates every unpinned package once a day. |
+| `MCPYARD_AUTO_UPDATE_TIME` | `02:00` | When, as `HH:MM` in hub time: set `TZ` in the container. |
+| `MCPYARD_HEALTH_CHECK` | `true` | `false` stops the automatic health check. |
+| `MCPYARD_HEALTH_CHECK_MINUTES` | `5` | How often every running server is pinged over MCP. |
 | `MCPYARD_PUBLIC_URL` | | Base URL browsers use. Required with OIDC. |
 | `OIDC_ISSUER` | | Issuer URL of your identity provider. |
 | `OIDC_CLIENT_ID` | | Client id registered for MCP Yard. |
@@ -124,7 +126,8 @@ servers:
 | `MCPYARD_THEME_DARK` | `yard-night` | MCP Yard's own `yard-night`, or any daisyUI theme, for dark mode. |
 | `MCPYARD_UPDATE_CHECK` | `true` | `false` stops asking GitHub whether a newer MCP Yard exists. Also on the Settings page. |
 
-`MCPYARD_ADMIN_TOOLS`, `MCPYARD_UPDATE_CHECK`, `MCPYARD_VERSION_CHECK_HOURS` and the three theme variables can instead be set on the web UI's
+`MCPYARD_ADMIN_TOOLS`, `MCPYARD_UPDATE_CHECK`, `MCPYARD_VERSION_CHECK_HOURS`, the automatic update and health check
+variables and the three theme variables can instead be set on the web UI's
 **Settings** page, saved in `$MCPYARD_DATA_DIR/settings.json`. When the variable is set, it wins and
 the page shows the setting locked. Everything else on this list is read once at startup.
 

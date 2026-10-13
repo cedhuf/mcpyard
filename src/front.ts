@@ -187,19 +187,20 @@ export class Hub {
 
   private autoUpdateTimer?: NodeJS.Timeout;
 
-  /** Once a day at `hour`, hub time, asks the registries then updates every hub-owned package; never when undefined. */
-  startAutoUpdates(hour: number | undefined): void {
+  /** Once a day at `at` (HH:MM, hub time), asks the registries then updates every hub-owned package; never when undefined. */
+  startAutoUpdates(at: string | undefined): void {
     clearTimeout(this.autoUpdateTimer);
-    if (hour === undefined) return;
+    if (at === undefined) return;
+    const [hour, minute] = at.split(':').map(Number);
     const next = new Date();
-    next.setHours(hour, 0, 0, 0);
+    next.setHours(hour!, minute!, 0, 0);
     if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1);
     this.autoUpdateTimer = setTimeout(() => {
       void this.checkUpdates().then(() => {
         const servers = this.updateAll();
         if (servers.length) event('auto_update', { servers: servers.join(', ') });
       });
-      this.startAutoUpdates(hour);
+      this.startAutoUpdates(at);
     }, next.getTime() - Date.now());
     this.autoUpdateTimer.unref();
   }

@@ -7,7 +7,7 @@ test('automatic updates run once at the chosen hour', () => {
   const hub = new Hub({});
   let runs = 0;
   hub.checkUpdates = async () => void runs++;
-  hub.startAutoUpdates(2);
+  hub.startAutoUpdates('02:00');
   mock.timers.tick(60_000);
   assert.equal(runs, 0, 'not before the hour');
   mock.timers.tick(60_000);

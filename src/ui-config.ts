@@ -4,7 +4,7 @@ import type { ConfigFile, RawServer } from './config.ts';
 import type { Hub } from './front.ts';
 import { isAdmin, loadKeys } from './keys.ts';
 import { YARD_TOOLS } from './yard.ts';
-import { AUTO_UPDATE_HOURS, THEME_MODES, THEMES, type SettingKey, type Settings } from './settings.ts';
+import { THEME_MODES, THEMES, type SettingKey, type Settings } from './settings.ts';
 import { plural } from './ui-servers.ts';
 import { release } from './release.ts';
 import { box, checkbox, field, fields, linkButton, note, pageHead, section, segRadio, setting, tag } from './ui-kit.ts';
@@ -24,7 +24,7 @@ export type ConfigOptions = {
 };
 
 const NAME = /^[A-Za-z0-9_-]+$/;
-const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'healthCheckMinutes', 'updateCheck', 'autoUpdateHour', 'theme', 'lightTheme', 'darkTheme'];
+const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'healthCheckMinutes', 'updateCheck', 'autoUpdate', 'autoUpdateTime', 'healthCheck', 'theme', 'lightTheme', 'darkTheme'];
 
 export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: ConfigOptions): void {
   const { settings, configFile } = options;
@@ -113,17 +113,19 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
   const { settings, environment = [] } = options;
   const admin = settings?.get('adminTools');
   const hours = settings?.get('versionCheckHours');
+  const healthOn = settings?.get('healthCheck');
   const health = settings?.get('healthCheckMinutes');
   const adminKeys = loadKeys(options.keysPath).filter((k) => isAdmin(k) && k.enabled).length;
   const updates = settings?.get('updateCheck');
-  const autoHour = settings?.get('autoUpdateHour');
+  const autoOn = settings?.get('autoUpdate');
+  const autoAt = settings?.get('autoUpdateTime');
   const mode = settings?.get('theme');
   const light = settings?.get('lightTheme');
   const dark = settings?.get('darkTheme');
-  const editable = settings && [admin, hours, health, updates, autoHour, mode, light, dark].some((s) => s?.source !== 'env');
+  const editable = settings && [admin, hours, healthOn, health, updates, autoOn, autoAt, mode, light, dark].some((s) => s?.source !== 'env');
   const lockedValue = (value: string, env: string) => html`<span class="inline-flex flex-wrap items-center gap-2"><span>${value}</span>${locked(env)}</span>`;
-  const toggle = (key: 'adminTools' | 'updateCheck', label: string, on: boolean | undefined) =>
-    html`<input type="hidden" name="${key}" value="false" /><input type="checkbox" class="toggle toggle-sm" name="${key}" value="true" aria-label="${label}" ${on ? 'checked' : ''} />`;
+  const toggle = (key: 'adminTools' | 'updateCheck' | 'autoUpdate' | 'healthCheck', label: string, on: boolean | undefined) =>
+    html`<input type="hidden" name="${key}" value="false" /><input type="checkbox" class="toggle toggle-sm peer" name="${key}" value="true" aria-label="${label}" ${on ? 'checked' : ''} />`;
   const themeSelect = (key: 'lightTheme' | 'darkTheme') => {
     const s = settings?.get(key);
     return s?.source === 'env'
@@ -151,14 +153,17 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
           html`${setting(
             'Check registries every',
             hours?.source === 'env'
-              ? lockedValue(`${hours.value} h`, hours.env)
-              : html`<label class="input input-sm w-32"><input type="number" name="versionCheckHours" min="1" max="168" value="${hours?.value ?? 6}" aria-label="Hours between checks" /><span class="opacity-50">hours</span></label>`,
+              ? lockedValue(period(hours.value), hours.env)
+              : html`<select class="select select-sm w-32" name="versionCheckHours" aria-label="Time between checks">${[...new Set([...PERIODS, hours?.value ?? 6])].map((h) => html`<option value="${h}" ${h === (hours?.value ?? 6) ? 'selected' : ''}>${period(h)}</option>`)}</select>`,
           )}
             ${setting(
-              'Update automatically at',
-              autoHour?.source === 'env'
-                ? lockedValue(autoHour.value === 'off' ? 'off' : `${autoHour.value}:00`, autoHour.env)
-                : html`<select class="select select-sm w-32" name="autoUpdateHour" aria-label="Hour of the automatic update">${AUTO_UPDATE_HOURS.map((h) => html`<option value="${h}" ${h === (autoHour?.value ?? 'off') ? 'selected' : ''}>${h === 'off' ? 'Off' : `${h.padStart(2, '0')}:00`}</option>`)}</select>`,
+              'Update automatically',
+              switched(
+                autoOn?.source === 'env' ? lockedValue(autoOn.value ? 'on' : 'off', autoOn.env) : toggle('autoUpdate', 'Update automatically', autoOn?.value),
+                autoAt?.source === 'env'
+                  ? lockedValue(autoAt.value, autoAt.env)
+                  : html`<input type="time" class="input input-sm w-32 peer-not-checked:opacity-50" name="autoUpdateTime" value="${autoAt?.value ?? '02:00'}" required aria-label="Time of the automatic update" />`,
+              ),
               html`Every unpinned package, once a day, hub time (${Intl.DateTimeFormat().resolvedOptions().timeZone}).`,
             )}`,
         )}
@@ -167,10 +172,12 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
           'MCP Yard pings every running server over MCP and logs a server that stops or starts answering. The dashboard shows the last results.',
           setting(
             'Check every',
-            health?.source === 'env'
-              ? lockedValue(health.value ? `${health.value} min` : 'off', health.env)
-              : html`<label class="input input-sm w-32"><input type="number" name="healthCheckMinutes" min="0" max="1440" value="${health?.value ?? 5}" aria-label="Minutes between health checks" /><span class="opacity-50">min</span></label>`,
-            '0 turns the automatic check off.',
+            switched(
+              healthOn?.source === 'env' ? lockedValue(healthOn.value ? 'on' : 'off', healthOn.env) : toggle('healthCheck', 'Automatic health check', healthOn?.value),
+              health?.source === 'env'
+                ? lockedValue(health.value ? `${health.value} min` : 'off', health.env)
+                : html`<label class="input input-sm w-32 peer-not-checked:opacity-50"><input type="number" name="healthCheckMinutes" min="1" max="1440" value="${health?.value || 5}" required aria-label="Minutes between health checks" /><span class="opacity-50">min</span></label>`,
+            ),
           ),
         )}
         ${section(
@@ -209,6 +216,11 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
       <noscript><div class="mt-4 flex justify-end"><button class="btn btn-sm btn-primary">Save settings</button></div></noscript>
     </form></div>`;
 }
+
+const PERIODS = [0, 6, 24, 168, 720];
+const period = (hours: number) =>
+  ({ 0: 'Off', 6: '6 hours', 24: '1 day', 168: '1 week', 720: '1 month' })[hours] ?? `${hours} hours`;
+const switched = (toggle: Fragment, field: Fragment) => html`<span class="inline-flex flex-wrap items-center gap-3">${toggle}${field}</span>`;
 
 const lines = (value: unknown) =>
   String(value ?? '')

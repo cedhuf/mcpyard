@@ -22,6 +22,8 @@ export type LatestStatus = { version?: string; error?: string; checkedAt: string
 type Recorded = { version: string; previous?: string };
 
 const INSTALLED_MARKER = '.mcpyard-installed';
+/** setInterval's ceiling, about 24.8 days: longer periods fire at once in Node. */
+export const MAX_TIMER = 2 ** 31 - 1;
 
 export const registry: Registry = {
   async latest(spec) {
@@ -111,8 +113,9 @@ export class Packages {
     const check = (maxAge?: number) => {
       for (const spec of specs) this.latest(spec, maxAge).catch(() => {});
     };
+    if (!this.checkHours) return;
     check();
-    this.timer = setInterval(() => check(0), this.checkHours * 3_600_000);
+    this.timer = setInterval(() => check(0), Math.min(this.checkHours * 3_600_000, MAX_TIMER));
     this.timer.unref();
   }
 
