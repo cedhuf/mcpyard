@@ -30,6 +30,7 @@ function status(hub: Hub, key: Key, server: string, withTools: boolean) {
   const config = hub.configs[server]!;
   return {
     name: server,
+    ...(config.title ? { title: config.title } : {}),
     source: config.package ? { ...config.package } : config.url ? { url: config.url } : { command: config.command },
     enabled: config.enabled && !hub.isDisabled(server),
     switchedOff: hub.isDisabled(server),
@@ -73,6 +74,22 @@ export const YARD_TOOLS: YardTool[] = [
     async (hub, key, { name, version }) => {
       if (!manages(hub, key, name!)) throw new Error(`unknown server ${name}`);
       await hub.update(name!, version);
+      return status(hub, key, name!, false);
+    },
+  ),
+  define(
+    'set_title',
+    'Set the title the web UI shows for a server, or remove it with an empty title. Tool names keep the server name. Writes the server file.',
+    z.object({ name: z.string().describe('Server name'), title: z.string().describe('Title to show; empty to remove it') }),
+    false,
+    async (hub, key, { name, title }) => {
+      if (!manages(hub, key, name!)) throw new Error(`unknown server ${name}`);
+      const file = hub.configFile;
+      const reason = file ? file.readOnlyReason() : 'there is no server file';
+      if (reason) throw new Error(`cannot edit the server file: ${reason}`);
+      const { title: _, ...rest } = file!.raw(name!)!;
+      file!.save(name!, title!.trim() ? { title: title!.trim(), ...rest } : rest);
+      await hub.reload();
       return status(hub, key, name!, false);
     },
   ),

@@ -1,6 +1,6 @@
 import { Server, createMcpHandler, type CallToolResult, type Tool } from '@modelcontextprotocol/server';
 import { Hono } from 'hono';
-import type { ServerConfig } from './config.ts';
+import type { ConfigFile, ServerConfig } from './config.ts';
 import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
 import { event, note } from './logs.ts';
 import { YARD, YARD_TOOLS } from './yard.ts';
@@ -46,6 +46,8 @@ export class Hub {
   yardEnabled: () => boolean = () => true;
   /** Where the keys live, for the admin tools that report on them. Set by app(). */
   keysPath?: string;
+  /** The server file, for the admin tools that edit it. */
+  configFile?: ConfigFile;
   /** The web UI's security check, when the UI runs; the admin tools return it too. */
   security?: () => { ok: boolean; title: string; detail: string; label: string }[];
 

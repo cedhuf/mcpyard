@@ -132,6 +132,7 @@ test('an administration-only key manages every server without seeing their tools
     'yard-read_logs',
     'yard-reload_config',
     'yard-restart_server',
+    'yard-set_title',
     'yard-update_all',
     'yard-update_server',
   ]);

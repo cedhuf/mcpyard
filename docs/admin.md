@@ -41,6 +41,7 @@ no server tools and manages every server.
 | `yard-check_updates` | Asks the registries now; returns the managed servers with an update ready. |
 | `yard-update_all` | Updates every managed hub-owned package that has a newer version. |
 | `yard-update_server` | Updates a hub-owned package to a version, or the latest; pass the previous version to roll back. |
+| `yard-set_title` | Sets or removes the title the web UI shows for a server, in the server file. Tool names do not change. |
 | `yard-reload_config` | Re-reads the server file and applies it; returns the added, removed and restarted servers. |
 
 A key that manages only some servers sees only their lines in `yard-read_logs` and their figures in
