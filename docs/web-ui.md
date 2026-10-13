@@ -25,7 +25,8 @@ their failures and median duration, and active keys. The hub's own clock sits ne
   answering also gets a line in the logs.
 - **Updates**: how many hub-owned packages run their latest version, the ones that do not, **Check
   now** to ask the registries at once, and **Update all** to update every one of them, each keeping
-  the old version serving until the new one answers.
+  the old version serving until the new one answers. Nightly updates, when turned on, show up in
+  the activity.
 - **Security check**: sign-in on, HTTPS address, keys that can administer the hub, keys idle for 30
   days, keys without limits, packages allowed to run install scripts, the hub's version and whether
   the server file is writable from the UI.
@@ -43,7 +44,8 @@ their failures and median duration, and active keys. The hub's own clock sits ne
 The servers page, at `/servers`, has two layouts, switched with the buttons at the right of the toolbar and
 remembered in a cookie: **cards**, one per server, and a **list** with one row per server. Tabs
 filter the servers by state (**All**, **Online**, **Failed**, **Disabled**) and the search field in
-the top bar matches names and packages. Each server has a switch and a **⋯** menu to restart, update, roll back
+the top bar matches names, titles and packages. A server with a `title` in the server file shows it
+in place of its name; tools keep the short name. Each server has a switch and a **⋯** menu to restart, update, roll back
 or remove it.
 
 <picture>
@@ -116,7 +118,8 @@ The **Settings** page gathers what is not a server or a key. Every change is sav
 soon as it is made; there is no save button.
 
 - **Hub administration**: the `yard-*` tools on or off for every key, and how many keys may use them.
-- **Updates**: how often registries are checked.
+- **Updates**: how often registries are checked, and the hour of the nightly updates, off by
+  default (see [Packages](packages.html#nightly-updates)).
 - **Health**: how often every running server is pinged, or never.
 - **Appearance**: follow the system's light or dark mode, or force one, and pick the light and dark
   themes: MCP Yard's own `yard` and `yard-night`, drawn from the logo, by default, or any

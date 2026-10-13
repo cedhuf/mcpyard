@@ -24,7 +24,8 @@ MCP Yard aims at the small intersection none of them covers:
 - **One merged endpoint.** `/mcp` serves the tools of every server the key may see.
 - **Known versions, one-click updates.** Each server runs a package version installed by the hub,
   not whatever `npx -y` has cached. The UI shows when a newer one exists and updates it in one
-  click, with rollback if it fails to start. Pin a version in the file to freeze it.
+  click, with rollback if it fails to start, or every night at an hour you pick. Pin a version in
+  the file to freeze it.
 - **Keys with scopes from day one.** One bearer key per client, each limited to a set of servers
   and tools.
 - **OIDC first.** The web UI sits behind your identity provider (PocketID, Authelia, Keycloak...).

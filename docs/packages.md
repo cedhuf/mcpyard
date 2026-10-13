@@ -64,7 +64,17 @@ never upgrades anything.
 
 Every `MCPYARD_VERSION_CHECK_HOURS` hours (6 by default) the hub asks npm and PyPI for the latest
 version of each package, once per package. The web UI and the admin endpoint show the installed and
-latest versions side by side. **Nothing is ever updated automatically.**
+latest versions side by side. **Nothing is updated automatically** unless you ask for it.
+
+## Nightly updates
+
+Pick an hour in **Settings > Updates > Update automatically at**, or set `MCPYARD_AUTO_UPDATE_HOUR`
+(`0` to `23`). Once a day at that hour the hub asks the registries, then updates every hub-owned
+package that has a newer version, with the same safe flow as **Update**. Pinned packages never move.
+It is off by default.
+
+The hour is the hub's local time: set `TZ` in the container (for example `TZ=Europe/Paris`), or it
+runs in UTC. The dashboard clock shows which zone the hub uses.
 
 ## Updating and rolling back
 

@@ -19,6 +19,7 @@ servers:
       version: "2026.8.31"          # pinned: the hub never changes it
 
   mail:
+    title: Example Mail             # shown in the web UI; tools keep the name mail
     package: { npm: "@example/mcp-mail", bin: mcp-mail }
     env:
       MAIL_TOKEN: ${MAIL_TOKEN}     # from the hub's environment
