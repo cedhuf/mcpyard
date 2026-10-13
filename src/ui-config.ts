@@ -142,7 +142,7 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
         )}
         ${section(
           'Updates',
-          'MCP Yard checks the registries and tells you. It updates servers on its own only when you pick an hour.',
+          'MCP Yard checks the registries and tells you. It updates servers on its own only when you switch that on.',
           html`${setting(
             'Check registries every',
             hours?.source === 'env'
