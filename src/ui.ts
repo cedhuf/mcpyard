@@ -12,7 +12,7 @@ import { configRoutes, type EnvRow } from './ui-config.ts';
 import { keyRoutes } from './ui-keys.ts';
 import { logRoutes } from './ui-logs.ts';
 import { dashboardRoutes } from './ui-dashboard.ts';
-import { mascot } from './ui-icons.ts';
+import { mascot, MOODS } from './ui-icons.ts';
 import { note as inlineNote } from './ui-kit.ts';
 import { FILTERS, serversView, type Filter, type FilterState, type View } from './ui-servers.ts';
 import { note } from './logs.ts';
@@ -31,6 +31,7 @@ const STATIC_FILES = [
   ['/favicon-32x32.png', 'image/png'],
   ['/apple-touch-icon.png', 'image/png'],
   ['/icon.png', 'image/png'],
+  ...MOODS.map((mood) => [`/mascots/${mood}.png`, 'image/png'] as const),
 ] as const;
 
 const FONT = readFileSync(fileURLToPath(import.meta.resolve('@fontsource-variable/fredoka/files/fredoka-latin-wght-normal.woff2')));
@@ -213,7 +214,7 @@ function sameOrigin(origin: string | undefined, base: string): boolean {
 
 function signedOut(message: string, failed = false): Fragment {
   return html`<div class="card card-border border-base-300 bg-base-100 w-full"><div class="card-body items-center text-center gap-3">
-    ${mascot('md')}
+    ${mascot('md', failed ? 'worried' : 'sleeping')}
     <h1 class="font-display text-2xl font-semibold">${failed ? 'The gate stayed shut' : 'See you soon'}</h1>
     ${failed ? inlineNote(message, 'error') : html`<p class="text-base-content/70">${message}</p>`}
     <a class="btn btn-primary mt-2" href="/auth/login">Sign in again</a>

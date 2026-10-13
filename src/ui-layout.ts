@@ -84,7 +84,7 @@ export function log(c: Context<Env>, name: string, subject?: Record<string, stri
 
 /** A friendly 404 inside the app, for a server, key or page that is not there. */
 export function notFound(c: Context<Env>): Response | Promise<Response> {
-  return c.html(page(c, 'Not found', hero('Nothing grows here', 'This page, server or key does not exist, or not any more.', linkButton('/', 'Back to the dashboard', { tone: 'primary', icon: 'home' }))), 404);
+  return c.html(page(c, 'Not found', hero('Nothing grows here', 'This page, server or key does not exist, or not any more.', linkButton('/', 'Back to the dashboard', { tone: 'primary', icon: 'home' }), 'lost')), 404);
 }
 
 const NAV = [

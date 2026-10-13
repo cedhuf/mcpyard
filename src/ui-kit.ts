@@ -1,5 +1,5 @@
 import { html } from 'hono/html';
-import { icon, mascot } from './ui-icons.ts';
+import { icon, mascot, type Mood } from './ui-icons.ts';
 import type { Fragment } from './ui-layout.ts';
 
 /**
@@ -12,7 +12,7 @@ export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'in
 export type Crumb = { label: Content; href?: string };
 
 /** The top of every page: breadcrumbs from the home page, the title, a line under it, and the page's actions. */
-export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[]; eyebrow?: Content } = {}): Fragment {
+export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[]; eyebrow?: Content; wideActions?: boolean } = {}): Fragment {
   return html`<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-6">
     <div class="min-w-0">
       ${breadcrumbs(options.crumbs ?? [{ label: title }])}
@@ -20,7 +20,7 @@ export function pageHead(title: Content, options: { sub?: Content; actions?: Con
       <h1 class="flex flex-wrap items-center gap-3 font-display text-3xl font-semibold">${title}</h1>
       ${options.sub ? html`<p class="mt-1 text-base-content/60">${options.sub}</p>` : ''}
     </div>
-    ${options.actions ? html`<div class="flex flex-wrap items-center gap-2 max-sm:w-full">${options.actions}</div>` : ''}
+    ${options.actions ? html`<div class="flex flex-wrap items-center gap-2 max-sm:w-full ${options.wideActions ? 'sm:flex-1' : ''}">${options.actions}</div>` : ''}
   </header>`;
 }
 
@@ -231,9 +231,9 @@ export function empty(content: Content): Fragment {
 }
 
 /** An empty or lost page: the mascot, a title, a line and what to do next. */
-export function hero(heading: Content, text: Content, action?: Content): Fragment {
+export function hero(heading: Content, text: Content, action?: Content, mood: Mood = 'yard'): Fragment {
   return html`<div class="card card-border border-base-300 bg-base-100"><div class="card-body items-center text-center gap-3 py-12">
-    ${mascot('lg')}
+    ${mascot('lg', mood)}
     <h2 class="font-display text-2xl font-semibold">${heading}</h2>
     <p class="max-w-md text-base-content/70">${text}</p>
     ${action ? html`<div class="mt-2">${action}</div>` : ''}

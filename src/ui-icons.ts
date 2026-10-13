@@ -48,10 +48,15 @@ export function icon(name: string, size: 'xs' | 'sm' | 'md' = 'md'): Fragment {
   return html`<svg class="${SIZES[size]} shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${raw(ICONS[name] ?? '')}</svg>`;
 }
 
+/** The A1 mark: the server's face, readable down to 16 px. */
 export const LOGO = raw('<img src="/apple-touch-icon.png" width="36" height="36" alt="" class="size-9 shrink-0 object-contain" />');
 
-/** The mascot from the logo, for the moments the UI is empty, waiting or lost. */
-export function mascot(size: 'sm' | 'md' | 'lg' = 'md'): Fragment {
-  const px = { sm: 56, md: 120, lg: 160 }[size];
-  return html`<img src="/icon.png" width="${px}" height="${px}" alt="" class="shrink-0 select-none drop-shadow-sm" />`;
+/** The mascot's moods, each drawn in static/mascots/; `yard` is the logo itself. */
+export const MOODS = ['sleeping', 'worried', 'busy', 'celebrating', 'lost', 'hello'] as const;
+export type Mood = (typeof MOODS)[number] | 'yard';
+
+/** The mascot from the logo, for the moments the UI is empty, waiting, busy or lost. */
+export function mascot(size: 'xs' | 'sm' | 'md' | 'lg' = 'md', mood: Mood = 'yard'): Fragment {
+  const px = { xs: 40, sm: 56, md: 120, lg: 160 }[size];
+  return html`<img src="${mood === 'yard' ? '/icon.png' : `/mascots/${mood}.png`}" width="${px}" height="${px}" alt="" class="shrink-0 select-none drop-shadow-sm" />`;
 }

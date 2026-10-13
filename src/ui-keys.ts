@@ -122,7 +122,7 @@ function keysView(hub: Hub, all: Key[], q = ''): Fragment {
       actions: dialogButton('new-key', 'New key', { tone: 'primary', icon: 'key' }),
     })}
     ${q ? html`<div class="mb-3"><a class="badge badge-ghost gap-1" href="/keys" title="Clear the search">“${q}” ✕</a></div>` : ''}
-    ${!all.length ? hero('No keys yet', 'Every client gets its own key, so you can see who calls what and switch one off without touching the others.', dialogButton('new-key', 'Make the first key', { tone: 'primary', icon: 'key' })) : !keys.length && q ? empty(html`<p>No key matches <strong>${q}</strong>.</p>`) : keys.length ? list(['Name', { label: 'Access', hide: true }, { label: 'Servers', hide: true }, { label: 'Tools', hide: true }, { label: 'Last used', hide: true }], keys.map(keyRow)) : empty('No keys yet. Create one for each client.')}
+    ${!all.length ? hero('No keys yet', 'Every client gets its own key, so you can see who calls what and switch one off without touching the others.', dialogButton('new-key', 'Make the first key', { tone: 'primary', icon: 'key' }), 'hello') : !keys.length && q ? empty(html`<p>No key matches <strong>${q}</strong>.</p>`) : keys.length ? list(['Name', { label: 'Access', hide: true }, { label: 'Servers', hide: true }, { label: 'Tools', hide: true }, { label: 'Last used', hide: true }], keys.map(keyRow)) : empty('No keys yet. Create one for each client.')}
     <dialog id="new-key" class="modal">
       <div class="modal-box max-w-2xl">
         <h3 class="font-display text-xl font-semibold mb-4 flex items-center gap-2"><span class="text-secondary">${icon('key')}</span>New key</h3>
@@ -171,7 +171,7 @@ function created(key: Key, token: string, base: string): Fragment {
     html`<div class="flex items-center gap-2 rounded-field bg-base-200 py-1.5 pl-3 pr-1.5"><code id="${id}" class="flex-1 min-w-0 break-all font-mono text-xs">${value}</code><button type="button" class="btn btn-sm btn-ghost" data-copy="${id}">${icon('copy', 'xs')}<span>Copy</span></button></div>`;
   return html`<dialog class="modal modal-open" open>
     <div class="modal-box max-w-2xl grid gap-4">
-      <div class="flex items-center gap-4">${mascot('sm')}<div><h3 class="font-display text-xl font-semibold">Here is the key for ${key.name}</h3>
+      <div class="flex items-center gap-4">${mascot('sm', 'hello')}<div><h3 class="font-display text-xl font-semibold">Here is the key for ${key.name}</h3>
       <p class="text-base-content/60">Copy it now: it is shown once, and only its hash is kept.</p></div></div>
       <div class="grid gap-1.5">
         <span class="text-xs font-semibold">Token</span>${secret('new-token', token)}

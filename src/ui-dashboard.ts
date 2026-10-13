@@ -7,7 +7,7 @@ import { overview, type SecurityCheck } from './insights.ts';
 import { logs, type LogEntry } from './logs.ts';
 import { release } from './release.ts';
 import type { Settings } from './settings.ts';
-import { icon } from './ui-icons.ts';
+import { icon, mascot, type Mood } from './ui-icons.ts';
 import { box, linkButton, pageHead, postButton, stats, status, tag } from './ui-kit.ts';
 import { log, page, toast, type Env, type Fragment } from './ui-layout.ts';
 import { plural } from './ui-servers.ts';
@@ -134,6 +134,7 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
   const calls = ov.calls24h;
   const checks = securityChecks(hub, keys, options);
   const passed = checks.filter((k) => k.ok).length;
+  const mood: Mood = Object.values(packages).some((p) => p.updating) ? 'busy' : care.length ? 'worried' : names.length && passed === checks.length ? 'celebrating' : 'yard';
 
   const summary = !names.length
     ? 'Your yard is empty: add a first server to get going.'
@@ -144,9 +145,13 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
       eyebrow: date,
       sub: summary,
       crumbs: [{ label: 'Dashboard' }],
-      actions: html`<div class="grid w-full gap-2">
-        ${clock()}
-        <form method="post" action="/dashboard/reload" class="contents"><button class="btn btn-sm w-full" title="Re-read the server file and apply the changes">${icon('refresh', 'sm')}Reload server file</button></form>
+      wideActions: true,
+      actions: html`<div class="flex w-full items-center gap-4">
+        <div class="flex flex-1 justify-center">${mascot('md', mood)}</div>
+        <div class="grid gap-2 max-sm:flex-1">
+          ${clock()}
+          <form method="post" action="/dashboard/reload" class="contents"><button class="btn btn-sm w-full" title="Re-read the server file and apply the changes">${icon('refresh', 'sm')}Reload server file</button></form>
+        </div>
       </div>`,
     })}
 

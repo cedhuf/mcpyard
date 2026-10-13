@@ -4,6 +4,7 @@ import { newerVersion, type Hub, type PackageStatus } from './front.ts';
 import { allowed } from './keys.ts';
 import type { Upstream } from './upstream.ts';
 import { box, cell, chips, hero, ROW, ROW_ANCHOR, ROW_END, type Content, empty, linkButton, list, menu, type MenuEntry, note, onOff, pageHead, postButton, row as item, segLinks, status, tabs, tag, title, toolbar, type Tone } from './ui-kit.ts';
+import { mascot, type Mood } from './ui-icons.ts';
 import { icon, type Fragment } from './ui-layout.ts';
 
 export type View = 'cards' | 'list';
@@ -165,6 +166,7 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
           'Your yard is empty',
           editable ? 'Plant a first MCP server: an npm or PyPI package, a command, or a remote URL. Its tools show up behind /mcp at once.' : 'Declare servers in the server file, then reload.',
           editable ? linkButton('/servers/new', 'Add a first server', { tone: 'primary', icon: 'sprout' }) : postButton('/reload', 'Reload', { icon: 'refresh' }),
+          'hello',
         )
       : !rows.length
         ? empty(filter.q ? html`<p>No server matches <strong>${filter.q}</strong>. <a class="link link-primary" href="/servers">Show all</a></p>` : 'No server matches this filter.')
@@ -196,6 +198,21 @@ export function serverHead(row: Row, editable: boolean, active: ServerTab, logCo
     ])}`;
 }
 
+/** The mascot says how the server is doing when it is not simply running. */
+function moodBanner(row: Row): Fragment {
+  const state = stateOf(row);
+  const [mood, text]: [Mood, string] | [] =
+    state === 'disabled'
+      ? ['sleeping', row.config.enabled ? 'Switched off from the UI: its tools are hidden from every key. The switch at the top wakes it up.' : 'Disabled in the server file: set enabled back to true and reload.']
+      : state === 'failed' || state === 'degraded'
+        ? ['worried', state === 'failed' ? 'It never got ready and keeps retrying. The error below says why.' : 'It was ready, lost its connection and is reconnecting.']
+        : ['installing', 'starting', 'updating'].includes(state)
+          ? ['busy', state === 'updating' ? 'Updating: the new version starts next to the old one and takes over once it answers.' : `${state[0]!.toUpperCase()}${state.slice(1)}…`]
+          : [];
+  if (!mood) return html``;
+  return html`<div class="card card-border border-base-300 bg-base-100"><div class="card-body flex-row items-center gap-4 p-4">${mascot('sm', mood)}<p class="text-base-content/80">${text}</p></div></div>`;
+}
+
 export function serverOverview(row: Row, editable: boolean, logCount: number): Fragment {
   const pkg = row.pkg;
   const { visible, total } = toolCounts(row);
@@ -203,6 +220,7 @@ export function serverOverview(row: Row, editable: boolean, logCount: number): F
   return html`<div id="server" data-refresh>
     ${serverHead(row, editable, 'overview', logCount)}
     <div class="grid gap-4">
+      ${moodBanner(row)}
       ${notes(row)}
       ${box(
         html`<dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4">
