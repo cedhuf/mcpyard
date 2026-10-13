@@ -35,7 +35,7 @@ test('servers page lists every server with its state', async () => {
   const res = await request('/servers');
   assert.equal(res.status, 200);
   const body = await res.text();
-  assert.match(body, /<a class="[^"]*after:inset-0[^"]*" href="\/servers\/alpha">alpha<\/a>/);
+  assert.match(body, /<a class="[^"]*after:inset-0[^"]*" href="\/servers\/alpha"><span class="font-mono">alpha<\/span><\/a>/);
   assert.match(body, /http:\/\/beta\.test\/mcp/);
   const csp = res.headers.get('content-security-policy')!;
   const nonce = csp.match(/script-src 'nonce-([^']+)'/)![1];

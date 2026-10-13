@@ -71,7 +71,8 @@ export class Hub {
     const next = this.load();
     const removed = Object.keys(this.configs).filter((name) => !next[name]);
     const added = Object.keys(next).filter((name) => !this.configs[name]);
-    const changed = Object.keys(next).filter((name) => this.configs[name] && JSON.stringify(this.configs[name]) !== JSON.stringify(next[name]));
+    const launch = ({ title: _, ...config }: ServerConfig) => JSON.stringify(config);
+    const changed = Object.keys(next).filter((name) => this.configs[name] && launch(this.configs[name]) !== launch(next[name]!));
     const stopping = [...removed, ...changed].map((name) => this.upstreams.get(name)!);
     for (const name of removed) this.upstreams.delete(name);
     this.configs = next;

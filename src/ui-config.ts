@@ -55,14 +55,14 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
   app.get('/servers/:name', guard, (c) => {
     const row = rowOf(hub, c.req.param('name') ?? '');
     if (!row) return notFound(c);
-    return c.html(page(c, row.name, serverOverview(row, editable(), logsForServer(row.name).length)));
+    return c.html(page(c, row.config.title ?? row.name, serverOverview(row, editable(), logsForServer(row.name).length)));
   });
 
   app.get('/servers/:name/logs', guard, (c) => {
     const row = rowOf(hub, c.req.param('name') ?? '');
     if (!row) return notFound(c);
     const entries = logsForServer(row.name);
-    return c.html(page(c, `${row.name} logs`, html`<div id="server-logs" data-refresh>${serverHead(row, editable(), 'logs', entries.length)}${logsBlock(entries)}</div>`));
+    return c.html(page(c, `${row.config.title ?? row.name} logs`, html`<div id="server-logs" data-refresh>${serverHead(row, editable(), 'logs', entries.length)}${logsBlock(entries)}</div>`));
   });
 
   app.get('/servers/:name/edit', guard, (c) => {
@@ -226,6 +226,7 @@ function toRaw(form: Record<string, unknown>): RawServer {
   const one = (k: string) => String([form[k] ?? ''].flat().at(-1) ?? '').trim();
   const kind = one('kind');
   const raw: RawServer = {};
+  if (one('title')) raw.title = one('title');
   if (kind === 'npm' || kind === 'pypi') {
     raw.package = { [kind]: one('package'), ...(one('version') ? { version: one('version') } : {}), ...(one('bin') ? { bin: one('bin') } : {}) };
   } else if (kind === 'command') {
@@ -284,6 +285,7 @@ function serverPage(hub: Hub, name: string | undefined, raw: RawServer, file: Co
                 { wide: true },
               )}
               ${name ? '' : field('Name', html`<input class="input input-sm" name="name" required pattern="[A-Za-z0-9_\\-]+" value="${typedName ?? ''}" placeholder="mail" />`, { hint: html`Prefixes every tool: <span class="font-mono">name-tool</span>.` })}
+              ${field('Title', input('title', text(raw.title), 'Mail'), { hint: 'Shown here only. Tools keep the name.' })}
               ${field('Package', input('package', pkg.npm ?? pkg.pypi ?? '', '@scope/mcp-server'), { kinds: 'npm pypi' })}
               ${field('Version', input('version', pkg.version ?? '', 'latest, owned by the hub'), { kinds: 'npm pypi', hint: 'Set it to pin the version.' })}
               ${field('Command', input('command', text(raw.command), '/usr/local/bin/my-server'), { kinds: 'command' })}

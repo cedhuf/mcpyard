@@ -106,7 +106,7 @@ function listRow(row: Row, editable: boolean): Fragment {
   const newer = newerVersion(row.pkg);
   const meta = [transport(row.config), version(row), toolsText(row)].filter(Boolean).join(' · ');
   return item(
-    html`${title(row.name, html`<span class="lg:hidden">${meta}</span><span class="max-lg:hidden font-mono">${source(row.config)}</span>`, { mono: true, href: `/servers/${row.name}` })}
+    html`${title(serverLabel(row.name, row.config), html`<span class="lg:hidden">${meta}</span><span class="max-lg:hidden font-mono">${source(row.config)}</span>`, { href: `/servers/${row.name}` })}
       ${cell(stateLabel(row))}
       ${cell(tag(transport(row.config)), { hide: true })}
       ${cell(version(row) ? html`<span class="inline-flex items-center gap-1 font-mono">${version(row)}${row.pkg?.pinned ? icon('pin', 'xs') : ''}</span>` : html`<span class="opacity-40">none</span>`, { hide: true })}
@@ -122,7 +122,7 @@ function tile(row: Row, editable: boolean): Fragment {
   return html`<article class="${ROW} card card-border border-base-300 bg-base-100 hover:border-base-content/20 transition-colors">
     <div class="card-body p-4 gap-2">
       <div class="flex items-center gap-2">
-        <a class="${ROW_ANCHOR} flex-1 min-w-0 truncate font-mono font-semibold ${off ? 'opacity-50' : ''}" href="/servers/${row.name}">${row.name}</a>
+        <a class="${ROW_ANCHOR} flex-1 min-w-0 truncate font-semibold ${off ? 'opacity-50' : ''}" href="/servers/${row.name}">${serverLabel(row.name, row.config)}</a>
         <div class="${ROW_END} flex items-center gap-1">${controls(row, editable)}</div>
       </div>
       <p class="font-mono text-xs text-base-content/50 truncate" title="${source(row.config)}">${source(row.config)}</p>
@@ -141,7 +141,7 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
   const all = [...hub.upstreams.keys()].map((name) => rowOf(hub, name)!);
   const count = (f: FilterState) => all.filter((r) => GROUP[f](stateOf(r))).length;
   const q = filter.q.toLowerCase();
-  const rows = all.filter((r) => GROUP[filter.state](stateOf(r)) && (!q || r.name.toLowerCase().includes(q) || source(r.config).toLowerCase().includes(q)));
+  const rows = all.filter((r) => GROUP[filter.state](stateOf(r)) && (!q || [r.name, r.config.title ?? '', source(r.config)].some((s) => s.toLowerCase().includes(q))));
   const updates = all.filter((r) => newerVersion(r.pkg)).length;
   const link = (state: FilterState) => `/servers?state=${state}${filter.q ? `&q=${encodeURIComponent(filter.q)}` : ''}`;
   return html`<div id="servers" data-refresh>
@@ -176,6 +176,9 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
   </div>`;
 }
 
+/** The server's title when the file sets one, else its name in monospace. */
+export const serverLabel = (name: string, config?: ServerConfig): Content => config?.title ?? html`<span class="font-mono">${name}</span>`;
+
 export function rowOf(hub: Hub, name: string): Row | undefined {
   const upstream = hub.upstreams.get(name);
   if (!upstream) return undefined;
@@ -186,9 +189,9 @@ export type ServerTab = 'overview' | 'settings' | 'logs';
 
 /** The top of every page of one server: name, state, switch, actions and tabs. */
 export function serverHead(row: Row, editable: boolean, active: ServerTab, logCount?: number): Fragment {
-  return html`${pageHead(html`<span class="font-mono">${row.name}</span><span class="text-sm font-normal">${stateLabel(row)}</span>`, {
-      crumbs: [{ label: 'Servers', href: '/servers' }, { label: row.name, href: active === 'overview' ? undefined : `/servers/${row.name}` }, ...(active === 'overview' ? [] : [{ label: active === 'logs' ? 'Logs' : 'Settings' }])],
-      sub: html`<span class="font-mono text-xs break-all">${source(row.config)}</span>`,
+  return html`${pageHead(html`${serverLabel(row.name, row.config)}<span class="text-sm font-normal">${stateLabel(row)}</span>`, {
+      crumbs: [{ label: 'Servers', href: '/servers' }, { label: row.config.title ?? row.name, href: active === 'overview' ? undefined : `/servers/${row.name}` }, ...(active === 'overview' ? [] : [{ label: active === 'logs' ? 'Logs' : 'Settings' }])],
+      sub: html`<span class="font-mono text-xs break-all">${row.config.title ? `${row.name} · ` : ''}${source(row.config)}</span>`,
       actions: controls(row, editable, { settings: false }),
     })}
     ${tabs([

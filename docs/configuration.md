@@ -63,6 +63,7 @@ Packages are covered in [Packages and updates](packages.html).
 
 | Field | Default | Meaning |
 | --- | --- | --- |
+| `title` | the name | Shown in the web UI only. Tool names keep the short server name. |
 | `args` | `[]` | Arguments for a package bin or a command. |
 | `env` | `{}` | Environment of the spawned process, on top of `PATH`, `HOME` and the like. |
 | `tools` | `{}` | `allow` and `deny` globs on the server's own tool names. |
@@ -90,7 +91,15 @@ Clients see `<server>-<tool>`: `time-get_current_time`, `mail-send_email`. Routi
 so names are never split on `-`. If two names collide, the first wins and the hub logs a warning.
 
 Claude Code prefixes tools with `mcp__<client name>__` and rejects names over 64 characters; the hub
-warns at startup about any tool that would cross that line. Keep server names short.
+warns at startup about any tool that would cross that line. Keep server names short and put the
+readable name in `title`:
+
+```yaml
+servers:
+  info_mail:
+    title: Infomaniak Mail
+    url: https://mail.example/mcp
+```
 
 ## Environment variables
 

@@ -10,7 +10,7 @@ import type { Settings } from './settings.ts';
 import { icon, mascot, type Mood } from './ui-icons.ts';
 import { box, linkButton, pageHead, postButton, stats, status, tag } from './ui-kit.ts';
 import { log, page, toast, type Env, type Fragment } from './ui-layout.ts';
-import { plural } from './ui-servers.ts';
+import { plural, serverLabel } from './ui-servers.ts';
 
 export type DashboardOptions = { keysPath: string; signIn: boolean; publicUrl?: string; settings?: Settings; configFile?: ConfigFile };
 
@@ -169,7 +169,7 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
 
       <div class="grid gap-4 lg:grid-cols-3">
         <div class="lg:col-span-2">${healthCard(hub, names, off)}</div>
-        ${updatesCard(updates, packages, upToDate, ov.updates.hubOwned)}
+        ${updatesCard(hub, updates, packages, upToDate, ov.updates.hubOwned)}
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
@@ -190,7 +190,7 @@ function healthCard(hub: Hub, names: string[], off: (name: string) => boolean): 
     const state = off(name) ? status('neutral', 'Switched off') : r ? (r.ok ? status('success', 'Answering') : status('error', 'No answer')) : status(upstream.state === 'ready' ? 'success' : upstream.state === 'failed' ? 'error' : 'info', upstream.state[0]!.toUpperCase() + upstream.state.slice(1));
     return html`<li class="list-row items-center">
       <div class="min-w-0 list-col-grow">
-        <a class="font-mono font-semibold link link-hover" href="/servers/${name}">${name}</a>
+        <a class="font-semibold link link-hover" href="/servers/${name}">${serverLabel(name, hub.configs[name])}</a>
         ${r && !r.ok ? html`<p class="text-xs text-error truncate" title="${r.error}">${r.error}</p>` : ''}
       </div>
       <span class="text-sm">${state}</span>
@@ -208,7 +208,7 @@ function healthCard(hub: Hub, names: string[], off: (name: string) => boolean): 
   );
 }
 
-function updatesCard(updates: [string, ReturnType<Hub['packageStatus']>[string]][], packages: ReturnType<Hub['packageStatus']>, upToDate: number, owned: number): Fragment {
+function updatesCard(hub: Hub, updates: [string, ReturnType<Hub['packageStatus']>[string]][], packages: ReturnType<Hub['packageStatus']>, upToDate: number, owned: number): Fragment {
   const checked = Object.values(packages)
     .map((p) => p.latest?.checkedAt)
     .filter((t): t is string => !!t)
@@ -231,7 +231,7 @@ function updatesCard(updates: [string, ReturnType<Hub['packageStatus']>[string]]
         </div>
       </div>
       ${updates.length
-        ? html`<ul class="grid gap-1.5 rounded-box bg-base-content/10 p-3 text-sm">${updates.map(([name, p]) => html`<li class="flex items-center justify-between gap-3"><a class="font-mono link link-hover" href="/servers/${name}">${name}</a><span class="font-mono text-xs opacity-80">${p.installed} → <span class="text-secondary">${p.latest!.version}</span></span></li>`)}</ul>`
+        ? html`<ul class="grid gap-1.5 rounded-box bg-base-content/10 p-3 text-sm">${updates.map(([name, p]) => html`<li class="flex items-center justify-between gap-3"><a class="link link-hover" href="/servers/${name}">${serverLabel(name, hub.configs[name])}</a><span class="font-mono text-xs opacity-80">${p.installed} → <span class="text-secondary">${p.latest!.version}</span></span></li>`)}</ul>`
         : html`<p class="text-sm opacity-70">${owned ? 'Every hub-owned package runs its latest version.' : 'No hub-owned packages: pinned versions stay as written.'}</p>`}
       <div class="card-actions mt-auto grid grid-cols-2 gap-2">
         <form method="post" action="/dashboard/check-updates" class="contents"><button class="btn btn-sm">${icon('refresh', 'sm')}Check now</button></form>

@@ -6,6 +6,7 @@ const filter = z.object({ allow: z.array(z.string()).optional(), deny: z.array(z
 
 const server = z
   .object({
+    title: z.string().trim().min(1).optional(),
     package: z
       .object({
         npm: z.string().optional(),
