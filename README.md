@@ -133,3 +133,5 @@ The [architecture pages](https://cedhuf.github.io/mcpyard/architecture.html) exp
 ## License
 
 [MIT](LICENSE)
+
+If MCP Yard saves you some time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/cedric52222).

@@ -16,7 +16,10 @@ export default defineConfig({
       description: 'A small, self-hosted MCP hub. One endpoint, every MCP server behind it, one key per client.',
       logo: { src: '../static/apple-touch-icon.png', alt: 'MCP Yard' },
       favicon: '/favicon.ico',
-      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/cedhuf/mcpyard' }],
+      social: [
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/cedhuf/mcpyard' },
+        { icon: 'heart', label: 'Support MCP Yard on Ko-fi', href: 'https://ko-fi.com/cedric52222' },
+      ],
       editLink: { baseUrl: 'https://github.com/cedhuf/mcpyard/edit/main/docs/' },
       customCss: ['@fontsource-variable/fredoka', './src/styles/custom.css'],
       // Self-hosted Umami: no cookie and no personal data, so no consent banner.
