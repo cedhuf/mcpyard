@@ -4,7 +4,7 @@ import type { ConfigFile, RawServer } from './config.ts';
 import type { Hub } from './front.ts';
 import { isAdmin, loadKeys } from './keys.ts';
 import { YARD_TOOLS } from './yard.ts';
-import { THEME_MODES, THEMES, type SettingKey, type Settings } from './settings.ts';
+import { AUTO_UPDATE_HOURS, THEME_MODES, THEMES, type SettingKey, type Settings } from './settings.ts';
 import { plural } from './ui-servers.ts';
 import { release } from './release.ts';
 import { box, checkbox, field, fields, linkButton, note, pageHead, section, segRadio, setting, tag } from './ui-kit.ts';
@@ -24,7 +24,7 @@ export type ConfigOptions = {
 };
 
 const NAME = /^[A-Za-z0-9_-]+$/;
-const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'healthCheckMinutes', 'updateCheck', 'theme', 'lightTheme', 'darkTheme'];
+const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'healthCheckMinutes', 'updateCheck', 'autoUpdateHour', 'theme', 'lightTheme', 'darkTheme'];
 
 export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: ConfigOptions): void {
   const { settings, configFile } = options;
@@ -116,10 +116,11 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
   const health = settings?.get('healthCheckMinutes');
   const adminKeys = loadKeys(options.keysPath).filter((k) => isAdmin(k) && k.enabled).length;
   const updates = settings?.get('updateCheck');
+  const autoHour = settings?.get('autoUpdateHour');
   const mode = settings?.get('theme');
   const light = settings?.get('lightTheme');
   const dark = settings?.get('darkTheme');
-  const editable = settings && [admin, hours, health, updates, mode, light, dark].some((s) => s?.source !== 'env');
+  const editable = settings && [admin, hours, health, updates, autoHour, mode, light, dark].some((s) => s?.source !== 'env');
   const lockedValue = (value: string, env: string) => html`<span class="inline-flex flex-wrap items-center gap-2"><span>${value}</span>${locked(env)}</span>`;
   const toggle = (key: 'adminTools' | 'updateCheck', label: string, on: boolean | undefined) =>
     html`<input type="hidden" name="${key}" value="false" /><input type="checkbox" class="toggle toggle-sm" name="${key}" value="true" aria-label="${label}" ${on ? 'checked' : ''} />`;
@@ -146,13 +147,20 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
         )}
         ${section(
           'Updates',
-          'MCP Yard checks the registries and tells you. It never updates a server on its own.',
-          setting(
+          'MCP Yard checks the registries and tells you. It updates servers on its own only when you pick an hour.',
+          html`${setting(
             'Check registries every',
             hours?.source === 'env'
               ? lockedValue(`${hours.value} h`, hours.env)
               : html`<label class="input input-sm w-32"><input type="number" name="versionCheckHours" min="1" max="168" value="${hours?.value ?? 6}" aria-label="Hours between checks" /><span class="opacity-50">hours</span></label>`,
-          ),
+          )}
+            ${setting(
+              'Update automatically at',
+              autoHour?.source === 'env'
+                ? lockedValue(autoHour.value === 'off' ? 'off' : `${autoHour.value}:00`, autoHour.env)
+                : html`<select class="select select-sm w-32" name="autoUpdateHour" aria-label="Hour of the automatic update">${AUTO_UPDATE_HOURS.map((h) => html`<option value="${h}" ${h === (autoHour?.value ?? 'off') ? 'selected' : ''}>${h === 'off' ? 'Off' : `${h.padStart(2, '0')}:00`}</option>`)}</select>`,
+              html`Every unpinned package, once a day, hub time (${Intl.DateTimeFormat().resolvedOptions().timeZone}).`,
+            )}`,
         )}
         ${section(
           'Health',

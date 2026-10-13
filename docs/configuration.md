@@ -109,6 +109,7 @@ servers:
 | `MCPYARD_DATA_DIR` | `/data` | Keys, installed packages, recorded versions, session key. |
 | `MCPYARD_PORT` | `3000` | HTTP port. |
 | `MCPYARD_VERSION_CHECK_HOURS` | `6` | How often registries are asked for new versions. |
+| `MCPYARD_AUTO_UPDATE_HOUR` | `off` | Hour (`0` to `23`, hub time, set `TZ` in the container) at which every unpinned package updates itself, once a day. |
 | `MCPYARD_HEALTH_CHECK_MINUTES` | `5` | How often every running server is pinged over MCP; `0` turns it off. |
 | `MCPYARD_PUBLIC_URL` | | Base URL browsers use. Required with OIDC. |
 | `OIDC_ISSUER` | | Issuer URL of your identity provider. |

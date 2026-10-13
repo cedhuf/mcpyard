@@ -36,11 +36,17 @@ const healthChecks = () => {
   if (hub.healthEveryMinutes !== settings.value('healthCheckMinutes')) hub.startHealthChecks(settings.value('healthCheckMinutes'));
 };
 healthChecks();
+const autoUpdates = () => {
+  const hour = settings.value('autoUpdateHour');
+  hub.startAutoUpdates(hour === 'off' ? undefined : Number(hour));
+};
+autoUpdates();
 settings.onChange(() => {
   hub.notifyToolsChanged();
   releaseChecks();
   appearance();
   healthChecks();
+  autoUpdates();
   if (packages.checkHours === settings.value('versionCheckHours')) return;
   packages.checkHours = settings.value('versionCheckHours');
   hub.restartVersionChecks();

@@ -272,6 +272,7 @@ const ACTION_LABEL: Record<string, string> = {
   server_restarted: 'Server restarted',
   package_update: 'Update started',
   update_all: 'All updates started',
+  auto_update: 'Nightly updates started',
   config_reloaded: 'Server file reloaded',
   settings_saved: 'Settings saved',
   health_check: 'Health check run',

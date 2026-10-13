@@ -183,6 +183,25 @@ export class Hub {
     return due.map(([name]) => name);
   }
 
+  private autoUpdateTimer?: NodeJS.Timeout;
+
+  /** Once a day at `hour`, hub time, asks the registries then updates every hub-owned package; never when undefined. */
+  startAutoUpdates(hour: number | undefined): void {
+    clearTimeout(this.autoUpdateTimer);
+    if (hour === undefined) return;
+    const next = new Date();
+    next.setHours(hour, 0, 0, 0);
+    if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1);
+    this.autoUpdateTimer = setTimeout(() => {
+      void this.checkUpdates().then(() => {
+        const servers = this.updateAll();
+        if (servers.length) event('auto_update', { servers: servers.join(', ') });
+      });
+      this.startAutoUpdates(hour);
+    }, next.getTime() - Date.now());
+    this.autoUpdateTimer.unref();
+  }
+
   /** Applies a new check period without a restart. */
   restartVersionChecks(): void {
     this.packages?.unwatch();
@@ -227,6 +246,7 @@ export class Hub {
 
   async stop(): Promise<void> {
     clearInterval(this.healthTimer);
+    clearTimeout(this.autoUpdateTimer);
     this.packages?.unwatch();
     await Promise.all([...this.upstreams.values()].map((u) => u.stop()));
     await this.handler.close();
