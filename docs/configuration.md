@@ -118,7 +118,7 @@ the page shows the setting locked. Everything else on this list is read once at 
 
 ## Reloading
 
-After editing the file, apply it without a restart: click **Reload configuration** in the web UI, call
+After editing the file, apply it without a restart: click **Reload** in the web UI, call
 `reload_config` on the [admin endpoint](admin.html), or send `SIGHUP`:
 
 ```bash

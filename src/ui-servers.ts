@@ -3,7 +3,7 @@ import type { ServerConfig } from './config.ts';
 import type { Hub, PackageStatus } from './front.ts';
 import { allowed } from './keys.ts';
 import type { Upstream } from './upstream.ts';
-import { badge, empty, linkButton, menu, menuDivider, menuItem, menuLink, onOff, pageHead, postButton, search, tabs } from './ui-kit.ts';
+import { box, cell, chips, type Content, empty, linkButton, list, menu, menuItem, menuLink, note, onOff, pageHead, postButton, row as item, search, segLinks, status, tabs, tag, title, toolbar, type Tone } from './ui-kit.ts';
 import { icon, type Fragment } from './ui-layout.ts';
 
 export type View = 'cards' | 'list';
@@ -13,7 +13,7 @@ export type Filter = { state: FilterState; q: string };
 
 export type Row = { name: string; config: ServerConfig; upstream: Upstream; pkg?: PackageStatus; uiDisabled: boolean };
 
-const STATE_TONE: Record<string, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
+const STATE_TONE: Record<string, Tone> = {
   ready: 'success',
   degraded: 'warning',
   failed: 'error',
@@ -40,19 +40,19 @@ function source(config: ServerConfig): string {
 function transport(config: ServerConfig): string {
   if (config.package) return config.package.npm ? 'npm' : 'PyPI';
   if (config.url) return config.transport === 'sse' ? 'SSE' : 'HTTP';
-  return 'STDIO';
+  return 'Command';
 }
 
 function stateOf(row: Row): string {
   return row.pkg?.updating ? 'updating' : !row.config.enabled || row.uiDisabled ? 'disabled' : row.upstream.state;
 }
 
-function stateBadge(state: string, label: string = state): Fragment {
-  const tone = STATE_TONE[state] ?? 'neutral';
-  return html`<span class="state state-${tone}"><span class="status status-${tone} ${BUSY.includes(state) ? 'pulse' : ''}"></span>${label}</span>`;
+function stateLabel(row: Row): Fragment {
+  const state = stateOf(row);
+  return status(STATE_TONE[state] ?? 'neutral', state[0]!.toUpperCase() + state.slice(1), { busy: BUSY.includes(state) });
 }
 
-function plural(n: number, word: string): string {
+export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
@@ -66,9 +66,13 @@ function toolCounts(row: Row): { visible: number; total: number } {
   return { visible: row.upstream.tools.filter((t) => allowed(t.name, row.config.tools)).length, total };
 }
 
-function toolsCell(row: Row): Fragment {
+function toolsText(row: Row): string {
   const { visible, total } = toolCounts(row);
-  return html`<span class="meta" title="${total ? `${visible} of ${total} tools exposed` : 'No tools yet'}">${icon('wrench', 'xs')}${total ? `${visible}/${total}` : '0'}</span>`;
+  return !total ? 'no tools' : visible === total ? plural(total, 'tool') : `${visible} of ${plural(total, 'tool')}`;
+}
+
+function version(row: Row): string | undefined {
+  return row.pkg?.installed ? `v${row.pkg.installed}` : undefined;
 }
 
 function enableSwitch(row: Row): Fragment {
@@ -76,135 +80,95 @@ function enableSwitch(row: Row): Fragment {
   return onOff(`/servers/${row.name}/${on ? 'disable' : 'enable'}`, on, `${on ? 'Switch off' : 'Switch on'} ${row.name}`, row.config.enabled ? undefined : 'Disabled in the server file');
 }
 
-export function actionItems(row: Row, editable: boolean, options: { edit?: boolean } = {}): Fragment[] {
+function actionItems(row: Row, editable: boolean, options: { settings?: boolean } = {}): Fragment[] {
   const pkg = row.pkg;
   const newer = newerVersion(pkg);
   return [
-    options.edit === false ? '' : menuLink(`/servers/${row.name}/edit`, editable ? 'Edit' : 'View settings', 'pencil'),
+    options.settings === false ? '' : menuLink(`/servers/${row.name}/edit`, editable ? 'Edit settings' : 'View settings', 'pencil'),
     row.config.enabled && !row.uiDisabled ? menuItem(`/servers/${row.name}/restart`, 'Restart', 'rotate') : '',
     newer && !pkg!.updating ? menuItem(`/servers/${row.name}/update`, `Update to ${newer}`, 'up', { fields: { version: newer } }) : '',
     pkg && !pkg.pinned && !pkg.updating && pkg.previous && pkg.previous !== newer ? menuItem(`/servers/${row.name}/update`, `Roll back to ${pkg.previous}`, 'undo', { fields: { version: pkg.previous } }) : '',
-    editable ? html`${menuDivider}${menuItem(`/servers/${row.name}/delete`, 'Remove', 'trash', { confirm: `Remove ${row.name} from the server file? It stops now.`, danger: true })}` : '',
+    editable ? html`${menuItem(`/servers/${row.name}/delete`, 'Remove', 'trash', { confirm: `Remove ${row.name} from the server file? It stops now.`, danger: true })}` : '',
   ].filter((x): x is Fragment => !!x);
 }
 
-function actionsMenu(row: Row, editable: boolean): Fragment {
-  return menu(`Actions for ${row.name}`, actionItems(row, editable));
+function controls(row: Row, editable: boolean, options: { settings?: boolean } = {}): Fragment {
+  return html`${enableSwitch(row)}${menu(`Actions for ${row.name}`, actionItems(row, editable, options))}`;
 }
 
-function errorOf(row: Row): Fragment {
+/** The error or the available update, as one line each. */
+function notes(row: Row): Fragment {
   const error = row.upstream.lastError ?? row.pkg?.updateError;
-  if (!error || stateOf(row) === 'disabled') return html``;
-  const prefix = row.pkg?.updateError && !row.upstream.lastError ? 'Update failed: ' : '';
-  return html`<div class="callout error">${icon('alert', 'sm')}<span class="grow">${prefix}${error}</span></div>`;
-}
-
-function updateCallout(row: Row): Fragment {
   const newer = newerVersion(row.pkg);
-  if (!newer || row.pkg!.updating) return html``;
-  return html`<div class="callout update">${icon('up', 'sm')}<span class="grow"><strong>${newer}</strong> is available</span>
-    ${postButton(`/servers/${row.name}/update`, 'Update', { tone: 'soft', size: 'sm', fields: { version: newer } })}</div>`;
-}
-
-function versionBadge(row: Row): Fragment {
-  const pkg = row.pkg;
-  if (!pkg?.installed) return html``;
-  return badge(`v${pkg.installed}`, { mono: true, small: true, icon: pkg.pinned ? 'pin' : undefined, title: pkg.pinned ? 'Pinned in the server file' : 'Version owned by the hub' });
-}
-
-/** Tool names and descriptions, folded by default and scrollable once open: some servers have dozens. */
-function toolsSection(row: Row): Fragment {
-  const { visible, total } = toolCounts(row);
-  if (!total) return html``;
-  return html`<div class="fold">
-    <label class="fold-toggle"><input type="checkbox" class="hidden-radio" data-id="tools-${row.name}" />${icon('wrench', 'xs')}<span>Show ${plural(total, 'tool')}${visible < total ? html` <span class="muted" title="Hidden by the server file">(${total - visible} hidden)</span>` : ''}</span><span class="chevron sm" aria-hidden="true"></span></label>
-    <div class="acc-wrap"><div><div class="tools-scroll"><table class="tools-table">
-      ${row.upstream.tools.map((t) => {
-        const shown = allowed(t.name, row.config.tools);
-        return html`<tr class="${shown ? '' : 'off'}"><td class="mono">${row.name}-${t.name}</td><td class="desc" title="${t.description ?? ''}">${t.description ?? ''}</td></tr>`;
-      })}
-    </table></div></div></div>
-  </div>`;
-}
-
-function details(row: Row): Fragment {
-  const pkg = row.pkg;
-  const { visible, total } = toolCounts(row);
-  return html`<div class="facts">
-      <span>${icon('wrench', 'xs')}Tools <strong>${visible}/${total}</strong></span>
-      <span>${icon(row.config.package ? 'package' : row.config.url ? 'globe' : 'terminal', 'xs')}<span class="mono truncate">${row.config.package ? `${transport(row.config)} · ` : ''}${source(row.config)}</span></span>
-      ${pkg ? html`<span>${icon('pin', 'xs')}${pkg.pinned ? 'Pinned' : 'Hub-owned'}${pkg.latest?.version && !newerVersion(pkg) ? html` · <span class="muted">up to date</span>` : ''}</span>` : ''}
-      ${row.uiDisabled ? html`<span>${icon('power', 'xs')}Switched off from the UI</span>` : ''}
-    </div>
-    ${errorOf(row)}${updateCallout(row)}${toolsSection(row)}`;
+  return html`${error && stateOf(row) !== 'disabled' ? note(html`${row.pkg?.updateError && !row.upstream.lastError ? 'Update failed: ' : ''}<span class="font-mono">${error}</span>`, 'error') : ''}
+    ${newer && !row.pkg!.updating ? note(html`Version <strong>${newer}</strong> is available.`, 'info', postButton(`/servers/${row.name}/update`, 'Update', { tone: 'primary', fields: { version: newer } })) : ''}`;
 }
 
 function listRow(row: Row, editable: boolean): Fragment {
   const newer = newerVersion(row.pkg);
-  return html`<div class="acc srow ${stateOf(row) === 'disabled' ? 'is-off' : ''}">
-    <div class="srow-head">
-      <label class="srow-main">
-        <input type="checkbox" class="hidden-radio" data-id="row-${row.name}" aria-label="Details of ${row.name}" />
-        <span class="chevron side" aria-hidden="true"></span>
-        <span class="srow-name"><strong class="mono">${row.name}</strong>${versionBadge(row)}</span>
-        <span>${stateBadge(stateOf(row))}</span>
-        <span class="hide-sm"><span class="kind-tag">${transport(row.config)}</span></span>
-        <span class="hide-sm">${toolsCell(row)}</span>
-        <span class="hide-sm">${newer ? badge(`${newer} available`, { tone: 'primary', soft: true, small: true, icon: 'up' }) : ''}</span>
-      </label>
-      <div class="srow-controls">${enableSwitch(row)}${actionsMenu(row, editable)}</div>
-    </div>
-    <div class="acc-wrap"><div><div class="srow-body">${details(row)}</div></div></div>
-  </div>`;
+  const meta = [transport(row.config), version(row), toolsText(row)].filter(Boolean).join(' · ');
+  return item(
+    html`${title(row.name, html`<span class="md:hidden">${meta}</span><span class="max-md:hidden font-mono">${source(row.config)}</span>`, { mono: true, href: `/servers/${row.name}` })}
+      ${cell(stateLabel(row))}
+      ${cell(tag(transport(row.config)), { hide: true })}
+      ${cell(version(row) ? html`<span class="inline-flex items-center gap-1 font-mono">${version(row)}${row.pkg?.pinned ? icon('pin', 'xs') : ''}</span>` : html`<span class="opacity-40">none</span>`, { hide: true })}
+      ${cell(toolsText(row), { hide: true })}
+      ${cell(newer ? tag(`${newer} available`, { tone: 'primary', icon: 'up' }) : '', { hide: true })}`,
+    { end: controls(row, editable), off: stateOf(row) === 'disabled' },
+  );
 }
 
-function card(row: Row, editable: boolean): Fragment {
-  return html`<article class="card card-border srv ${stateOf(row) === 'disabled' ? 'is-off' : ''}">
-    <div class="card-body">
-      <div class="srv-top">
-        <div class="srv-title"><h3><strong class="mono">${row.name}</strong>${versionBadge(row)}</h3><p class="mono muted truncate" title="${source(row.config)}">${source(row.config)}</p></div>
-        ${enableSwitch(row)}
+function tile(row: Row, editable: boolean): Fragment {
+  const newer = newerVersion(row.pkg);
+  const off = stateOf(row) === 'disabled';
+  return html`<article class="row-link card card-border border-base-300 bg-base-100 hover:border-base-content/20 transition-colors">
+    <div class="card-body p-4 gap-2">
+      <div class="flex items-center gap-2">
+        <a class="row-anchor flex-1 min-w-0 truncate font-mono font-semibold ${off ? 'opacity-50' : ''}" href="/servers/${row.name}">${row.name}</a>
+        <div class="row-end flex items-center gap-1">${controls(row, editable)}</div>
       </div>
-      <div class="row-wrap">${stateBadge(stateOf(row))}<span class="kind-tag">${transport(row.config)}</span>${toolsCell(row)}</div>
-      ${errorOf(row)}${updateCallout(row)}
-      <div class="card-foot">${toolsSection(row)}${actionsMenu(row, editable)}</div>
+      <p class="font-mono text-xs text-base-content/50 truncate" title="${source(row.config)}">${source(row.config)}</p>
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-base-content/70">
+        ${stateLabel(row)}<span class="opacity-40">·</span>${transport(row.config)}
+        ${version(row) ? html`<span class="opacity-40">·</span><span class="font-mono">${version(row)}</span>` : ''}
+        <span class="opacity-40">·</span>${toolsText(row)}
+      </div>
+      ${newer ? html`<div>${tag(`${newer} available`, { tone: 'primary', icon: 'up' })}</div>` : ''}
+      ${row.upstream.lastError && !off ? html`<p class="font-mono text-xs text-error truncate" title="${row.upstream.lastError}">${row.upstream.lastError}</p>` : ''}
     </div>
   </article>`;
 }
 
 export function serversView(hub: Hub, editable: boolean, view: View, filter: Filter): Fragment {
-  const packages = hub.packageStatus();
-  const all: Row[] = [...hub.upstreams].map(([name, upstream]) => ({ name, upstream, config: hub.configs[name]!, pkg: packages[name], uiDisabled: hub.isDisabled(name) }));
+  const all = [...hub.upstreams.keys()].map((name) => rowOf(hub, name)!);
   const count = (f: FilterState) => all.filter((r) => GROUP[f](stateOf(r))).length;
   const q = filter.q.toLowerCase();
   const rows = all.filter((r) => GROUP[filter.state](stateOf(r)) && (!q || r.name.toLowerCase().includes(q) || source(r.config).toLowerCase().includes(q)));
   const updates = all.filter((r) => newerVersion(r.pkg)).length;
   const link = (state: FilterState) => `/?state=${state}${filter.q ? `&q=${encodeURIComponent(filter.q)}` : ''}`;
-  const layout = html`<div class="join" role="group" aria-label="Layout">
-    <a class="btn btn-sm join-item ${view === 'cards' ? 'btn-active' : 'btn-ghost'}" href="/?view=cards" title="Cards" aria-label="Cards">${icon('grid', 'sm')}</a>
-    <a class="btn btn-sm join-item ${view === 'list' ? 'btn-active' : 'btn-ghost'}" href="/?view=list" title="List" aria-label="List">${icon('list', 'sm')}</a>
-  </div>`;
-  return html`<section id="servers" data-refresh>
+  return html`<div id="servers" data-refresh>
     ${pageHead('Servers', {
-      subtitle: html`${plural(all.length, 'server')} · ${count('online')} online · ${count('failed')} failing · ${count('disabled')} off${updates ? html` · <span class="text-primary">${plural(updates, 'update')}</span>` : ''}`,
-      actions: html`${postButton('/reload', 'Reload', { size: 'sm', icon: 'refresh', title: 'Re-read the server file and apply the changes' })}
-        ${editable ? linkButton('/servers/new', 'Add server', { tone: 'primary', size: 'sm', icon: 'plus' }) : ''}`,
+      sub: html`${plural(all.length, 'server')}, ${count('online')} online${count('failed') ? `, ${count('failed')} failing` : ''}${updates ? html`, <span class="text-primary">${plural(updates, 'update')} available</span>` : ''}`,
+      actions: html`${postButton('/reload', 'Reload', { icon: 'refresh', title: 'Re-read the server file and apply the changes' })}
+        ${editable ? linkButton('/servers/new', 'Add server', { tone: 'primary', icon: 'plus' }) : ''}`,
     })}
-    <div class="toolbar">
-      ${tabs(FILTERS.map((f) => ({ href: link(f), label: `${f[0]!.toUpperCase()}${f.slice(1)}`, count: count(f), active: filter.state === f })))}
-      ${search('/', filter.q, 'Search by name or package', filter.state !== 'all' ? { state: filter.state } : {})}
-      <div class="grow"></div>
-      ${layout}
-    </div>
+    ${toolbar(html`
+      ${chips(FILTERS.map((f) => ({ href: link(f), label: `${f[0]!.toUpperCase()}${f.slice(1)}`, count: count(f), active: filter.state === f })))}
+      ${search('/', filter.q, 'Search servers', filter.state !== 'all' ? { state: filter.state } : {})}
+      <span class="flex-1"></span>
+      ${segLinks('Layout', [
+        { href: '/?view=list', icon: 'list', label: 'List', active: view === 'list' },
+        { href: '/?view=cards', icon: 'grid', label: 'Cards', active: view === 'cards' },
+      ])}
+    `)}
     ${!all.length
-      ? empty(editable ? html`No servers yet. <a class="link link-primary" href="/servers/new">Add the first one</a>.` : 'No servers yet. Declare them in the server file and reload.')
+      ? empty(editable ? html`<p>No servers yet. <a class="link link-primary" href="/servers/new">Add the first one</a>.</p>` : 'No servers yet. Declare them in the server file and reload.')
       : !rows.length
         ? empty('No server matches this filter.')
         : view === 'list'
-          ? html`<div class="list">${rows.map((r) => listRow(r, editable))}</div>`
-          : html`<div class="cards">${rows.map((r) => card(r, editable))}</div>`}
-    ${rows.length && rows.length !== all.length ? html`<p class="muted text-sm mt-4">Showing ${rows.length} of ${all.length}.</p>` : ''}
-  </section>`;
+          ? list(['Name', 'State', { label: 'Kind', hide: true }, { label: 'Version', hide: true }, { label: 'Tools', hide: true }, { label: '', hide: true }], rows.map((r) => listRow(r, editable)))
+          : html`<div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))]">${rows.map((r) => tile(r, editable))}</div>`}
+  </div>`;
 }
 
 export function rowOf(hub: Hub, name: string): Row | undefined {
@@ -213,18 +177,55 @@ export function rowOf(hub: Hub, name: string): Row | undefined {
   return { name, upstream, config: hub.configs[name]!, pkg: hub.packageStatus()[name], uiDisabled: hub.isDisabled(name) };
 }
 
-/** The top of a server's own page: what it is, how it runs, and the same switch and actions as its row. */
-export function serverSummary(row: Row, editable: boolean): { controls: Fragment; summary: Fragment } {
-  const { visible, total } = toolCounts(row);
-  return {
-    controls: html`<div class="srow-controls">${enableSwitch(row)}${menu(`Actions for ${row.name}`, actionItems(row, editable, { edit: false }))}</div>`,
-    summary: html`<div class="summary">
-        ${stateBadge(stateOf(row))}<span class="kind-tag">${transport(row.config)}</span>${versionBadge(row)}
-        <span class="meta">${icon('wrench', 'xs')}${visible}/${total} tools</span>
-        <span class="mono muted truncate grow" title="${source(row.config)}">${source(row.config)}</span>
-      </div>
-      ${errorOf(row)}${updateCallout(row)}`,
-  };
+export type ServerTab = 'overview' | 'settings' | 'logs';
+
+/** The top of every page of one server: name, state, switch, actions and tabs. */
+export function serverHead(row: Row, editable: boolean, active: ServerTab, logCount?: number): Fragment {
+  return html`${pageHead(html`<span class="font-mono">${row.name}</span><span class="text-sm font-normal">${stateLabel(row)}</span>`, {
+      crumbs: [{ label: 'Servers', href: '/' }, { label: row.name, href: active === 'overview' ? undefined : `/servers/${row.name}` }, ...(active === 'overview' ? [] : [{ label: active === 'logs' ? 'Logs' : 'Settings' }])],
+      sub: html`<span class="font-mono text-xs break-all">${source(row.config)}</span>`,
+      actions: controls(row, editable, { settings: false }),
+    })}
+    ${tabs([
+      { href: `/servers/${row.name}`, label: 'Overview', active: active === 'overview' },
+      { href: `/servers/${row.name}/logs`, label: 'Logs', count: logCount, active: active === 'logs' },
+      { href: `/servers/${row.name}/edit`, label: 'Settings', active: active === 'settings' },
+    ])}`;
 }
 
-export { toolsSection };
+export function serverOverview(row: Row, editable: boolean, logCount: number): Fragment {
+  const pkg = row.pkg;
+  const { visible, total } = toolCounts(row);
+  const fact = (label: string, value: Content) => html`<div><dt class="text-xs text-base-content/50">${label}</dt><dd class="mt-0.5">${value}</dd></div>`;
+  return html`<div id="server" data-refresh>
+    ${serverHead(row, editable, 'overview', logCount)}
+    <div class="grid gap-4">
+      ${notes(row)}
+      ${box(
+        html`<dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4">
+          ${fact('State', stateLabel(row))}
+          ${fact('Kind', transport(row.config))}
+          ${fact('Version', pkg?.installed ? html`<span class="font-mono">${pkg.installed}</span>` : html`<span class="opacity-40">n/a</span>`)}
+          ${fact('Owned by', pkg ? (pkg.pinned ? 'the server file (pinned)' : 'the hub') : html`<span class="opacity-40">n/a</span>`)}
+          ${fact('Latest', pkg?.latest?.version ? html`<span class="font-mono">${pkg.latest.version}</span>` : html`<span class="opacity-40">${pkg ? 'not checked yet' : 'n/a'}</span>`)}
+          ${fact('Tools', total ? `${visible} of ${total} exposed` : 'none yet')}
+        </dl>`,
+        { pad: true },
+      )}
+      ${total
+        ? box(
+            html`<ul class="list">${row.upstream.tools.map((t) => {
+              const shown = allowed(t.name, row.config.tools);
+              return html`<li class="list-row ${shown ? '' : 'opacity-50'}">
+                <div class="list-col-grow min-w-0">
+                  <div class="font-mono font-medium flex flex-wrap items-center gap-2"><span class="${shown ? '' : 'line-through'}">${row.name}-${t.name}</span>${shown ? '' : tag('hidden by the server file')}</div>
+                  ${t.description ? html`<p class="mt-0.5 text-[13px] text-base-content/60 break-words">${t.description}</p>` : ''}
+                </div>
+              </li>`;
+            })}</ul>`,
+            { title: html`Tools <span class="badge badge-sm badge-ghost">${total}</span>`, aside: visible < total ? html`<span class="text-xs text-base-content/50">${total - visible} hidden by the server file</span>` : '' },
+          )
+        : ''}
+    </div>
+  </div>`;
+}

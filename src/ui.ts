@@ -11,7 +11,7 @@ import type { Settings } from './settings.ts';
 import { configRoutes, type EnvRow } from './ui-config.ts';
 import { keyRoutes } from './ui-keys.ts';
 import { logRoutes } from './ui-logs.ts';
-import { alert, panel } from './ui-kit.ts';
+import { box, note as inlineNote } from './ui-kit.ts';
 import { FILTERS, serversView, type Filter, type FilterState, type View } from './ui-servers.ts';
 import { note } from './logs.ts';
 import { log, page, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
@@ -39,6 +39,7 @@ const SESSION_HOURS = 12;
 export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   const app = new Hono<Env>();
   const { auth, keysPath } = options;
+  void stylesheet();
   const secure = (c: Context) => new URL(options.publicUrl ?? c.req.url).protocol === 'https:';
   const base = (c: Context) => (options.publicUrl ?? new URL(c.req.url).origin).replace(/\/$/, '');
   const editable = () => !!options.configFile && !options.configFile.readOnlyReason();
@@ -64,13 +65,14 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     await next();
   };
 
-  app.get('/assets/ui.css', (c) => {
+  app.get('/assets/ui.css', async (c) => {
     const gzip = /\bgzip\b/.test(c.req.header('accept-encoding') ?? '');
     c.header('Content-Type', 'text/css; charset=utf-8');
-    c.header('Cache-Control', 'public, max-age=31536000, immutable');
+    const sheet = await stylesheet();
+    // Only the URL carrying this exact version may be cached for good.
+    c.header('Cache-Control', c.req.query('v') === sheet.version ? 'public, max-age=31536000, immutable' : 'no-cache');
     c.header('Vary', 'Accept-Encoding');
     if (gzip) c.header('Content-Encoding', 'gzip');
-    const sheet = stylesheet();
     return c.body(new Uint8Array(gzip ? sheet.gzip : sheet.body));
   });
 
@@ -176,7 +178,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
       notice = toast(`Configuration reloaded: ${parts.length ? parts.join('; ') : 'no changes'}.`);
       log(c, 'config_reloaded');
     } catch (e) {
-      notice = alert(html`<div class="font-medium">Configuration not reloaded, the running servers are unchanged:</div><pre class="mono">${(e as Error).message}</pre>`, 'error');
+      notice = html`<div class="mb-4">${inlineNote(html`Configuration not reloaded, the running servers are unchanged: <span class="font-mono">${(e as Error).message}</span>`, 'error')}</div>`;
     }
     return c.html(page(c, 'Servers', html`${notice}${serversView(hub, editable(), view(c), { state: 'all', q: '' })}`));
   });
@@ -197,5 +199,5 @@ function sameOrigin(origin: string | undefined, base: string): boolean {
 }
 
 function signedOut(message: string, failed = false): Fragment {
-  return panel(html`${alert(message, failed ? 'error' : 'info')}<a class="btn btn-primary w-full" href="/auth/login">Sign in</a>`);
+  return box(html`<div class="stack">${inlineNote(message, failed ? 'error' : 'info')}<a class="btn btn-sm btn-primary" href="/auth/login">Sign in</a></div>`, { pad: true });
 }

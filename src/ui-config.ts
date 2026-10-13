@@ -5,10 +5,12 @@ import type { Hub } from './front.ts';
 import { isAdmin, loadKeys } from './keys.ts';
 import { YARD_TOOLS } from './yard.ts';
 import { THEME_MODES, THEMES, type SettingKey, type Settings } from './settings.ts';
+import { plural } from './ui-servers.ts';
 import { release } from './release.ts';
-import { alert, badge, checkbox, field, formGrid, kv, linkButton, pageHead, panel, postButton, section } from './ui-kit.ts';
-import { icon, locked, log, page, toast, type Env, type Fragment } from './ui-layout.ts';
-import { rowOf, serverSummary, toolsSection } from './ui-servers.ts';
+import { box, checkbox, field, fields, linkButton, note, pageHead, section, segRadio, setting, tag } from './ui-kit.ts';
+import { icon, locked, log, page, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
+import { logsBlock, logsForServer } from './ui-logs.ts';
+import { rowOf, serverHead, serverOverview } from './ui-servers.ts';
 
 /** An environment variable shown on the settings page; these are read at startup and never editable. */
 export type EnvRow = { env: string; value?: string; secret?: boolean };
@@ -26,6 +28,7 @@ const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'updateChe
 
 export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: ConfigOptions): void {
   const { settings, configFile } = options;
+  const editable = () => !!configFile && !configFile.readOnlyReason();
 
   app.get('/settings', guard, (c) => c.html(page(c, 'Settings', settingsView(c, hub, options))));
 
@@ -33,25 +36,40 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
     if (!settings) return c.text('Not found', 404);
     const form = await c.req.parseBody({ all: true });
     // A toggle posts a hidden "false" then, when on, "true"; the last value wins.
-    const changes = FORM_FIELDS.filter((key) => settings.get(key).source !== 'env' && form[key] !== undefined).map(
-      (key): [SettingKey, string] => [key, String([form[key]].flat().at(-1))],
-    );
+    const changes = FORM_FIELDS.filter((key) => settings.get(key).source !== 'env' && form[key] !== undefined)
+      .map((key): [SettingKey, string] => [key, String([form[key]].flat().at(-1))])
+      .filter(([key, value]) => value !== String(settings.value(key)));
     try {
       for (const [key, value] of changes) settings.set(key, value);
     } catch (e) {
       return c.html(page(c, 'Settings', html`${settingsView(c, hub, options)}${toast((e as Error).message, 'error')}`), 400);
     }
-    log(c, 'settings_saved', Object.fromEntries(changes));
+    if (changes.length) log(c, 'settings_saved', Object.fromEntries(changes));
+    // A theme change rebuilds the stylesheet; wait for it so the page links the new one.
+    await stylesheet();
     return c.html(page(c, 'Settings', html`${settingsView(c, hub, options)}${toast('Settings saved and applied.')}`));
   });
 
   app.get('/servers/new', guard, (c) => c.html(page(c, 'New server', serverPage(hub, undefined, {}, configFile))));
 
+  app.get('/servers/:name', guard, (c) => {
+    const row = rowOf(hub, c.req.param('name') ?? '');
+    if (!row) return c.text('Not found', 404);
+    return c.html(page(c, row.name, serverOverview(row, editable(), logsForServer(row.name).length)));
+  });
+
+  app.get('/servers/:name/logs', guard, (c) => {
+    const row = rowOf(hub, c.req.param('name') ?? '');
+    if (!row) return c.text('Not found', 404);
+    const entries = logsForServer(row.name);
+    return c.html(page(c, `${row.name} logs`, html`<div id="server-logs" data-refresh>${serverHead(row, editable(), 'logs', entries.length)}${logsBlock(entries)}</div>`));
+  });
+
   app.get('/servers/:name/edit', guard, (c) => {
     const name = c.req.param('name') ?? '';
     const raw = configFile?.raw(name);
     if (!raw) return c.text('Not found', 404);
-    return c.html(page(c, `Edit ${name}`, serverPage(hub, name, raw, configFile)));
+    return c.html(page(c, `${name} settings`, serverPage(hub, name, raw, configFile)));
   });
 
   const save = async (c: Context<Env>, existing: string | undefined) => {
@@ -101,87 +119,74 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
   const light = settings?.get('lightTheme');
   const dark = settings?.get('darkTheme');
   const editable = settings && [admin, hours, updates, mode, light, dark].some((s) => s?.source !== 'env');
+  const lockedValue = (value: string, env: string) => html`<span class="inline-flex flex-wrap items-center gap-2"><span>${value}</span>${locked(env)}</span>`;
+  const toggle = (key: 'adminTools' | 'updateCheck', label: string, on: boolean | undefined) =>
+    html`<input type="hidden" name="${key}" value="false" /><input type="checkbox" class="toggle toggle-sm" name="${key}" value="true" aria-label="${label}" ${on ? 'checked' : ''} />`;
   const themeSelect = (key: 'lightTheme' | 'darkTheme') => {
-    const setting = settings?.get(key);
-    return setting?.source === 'env'
-      ? lockedValue(setting.value, setting.env)
-      : html`<select class="select select-sm w-44" name="${key}">${THEMES.map((t) => html`<option value="${t}" ${t === setting?.value ? 'selected' : ''}>${t}</option>`)}</select>`;
+    const s = settings?.get(key);
+    return s?.source === 'env'
+      ? lockedValue(s.value, s.env)
+      : html`<select class="select select-sm" name="${key}" aria-label="${key === 'lightTheme' ? 'Light theme' : 'Dark theme'}">${THEMES.map((t) => html`<option value="${t}" ${t === s?.value ? 'selected' : ''}>${t}</option>`)}</select>`;
   };
   const about = release.status();
-  const lockedValue = (value: string, env: string) => html`<span class="row-wrap"><strong>${value}</strong>${locked(env)}</span>`;
-  const setEnv = environment.filter((row) => row.value !== undefined && row.value !== '').length;
-  return html`${pageHead('Settings', { subtitle: 'Applied at once, without a restart. A padlock means the environment sets it.' })}
-    <form method="post" action="/settings">
-      <div class="sections">
-        <section class="section admin-section">
-          <div class="section-side"><h2>${icon('wrench')}Hub administration</h2>
-            <p>MCP Yard's own <span class="mono">yard-*</span> tools, served in <span class="mono">/mcp</span> to the keys allowed to administer the hub. Off here means off for every key.</p></div>
-          <div class="section-main">
-            ${kv(
-              'Enabled',
-              admin?.source === 'env'
-                ? lockedValue(admin.value ? 'yes' : 'no', admin.env)
-                : html`<input type="hidden" name="adminTools" value="false" /><input type="checkbox" class="toggle toggle-warning" name="adminTools" value="true" aria-label="Hub administration enabled" ${admin?.value ? 'checked' : ''} />`,
-            )}
-            ${kv('Keys allowed', html`${adminKeys} · <a class="link link-primary" href="/keys">manage keys</a>`)}
-            ${kv('Tools', html`<span class="row-wrap justify-end">${YARD_TOOLS.map((t) => badge(`yard-${t.tool.name}`, { mono: true, small: true }))}</span>`)}
-          </div>
-        </section>
+  return html`<div id="settings">${pageHead('Settings', {
+      sub: 'Every change is saved and applied at once. A padlock means the environment sets the value.',
+      actions: editable ? html`<span class="badge badge-ghost gap-1.5" aria-live="polite" data-autosave-status>${icon('check', 'xs')}Saved automatically</span>` : '',
+    })}
+    <form method="post" action="/settings" data-autosave>
+      ${box(html`
+        ${section(
+          html`${icon('wrench', 'sm')}Hub administration`,
+          html`MCP Yard's own <span class="font-mono">yard-*</span> tools, for the keys allowed to administer the hub.`,
+          html`${setting('Admin tools', admin?.source === 'env' ? lockedValue(admin.value ? 'on' : 'off', admin.env) : toggle('adminTools', 'Admin tools', admin?.value), 'Off removes them from every key at once.')}
+            ${setting('Keys allowed', html`<a class="link link-primary" href="/keys">${plural(adminKeys, 'key')}</a>`)}
+            <div class="grid gap-2 pt-2.5 border-t border-base-300"><span class="font-medium">Tools</span><span class="flex flex-wrap gap-1.5">${YARD_TOOLS.map((t) => tag(t.tool.name, { mono: true }))}</span></div>`,
+          { tone: 'warning' },
+        )}
         ${section(
           'Updates',
-          'The hub checks registries for new versions of your servers. It never updates on its own.',
-          kv(
+          'MCP Yard checks the registries and tells you. It never updates a server on its own.',
+          setting(
             'Check registries every',
             hours?.source === 'env'
               ? lockedValue(`${hours.value} h`, hours.env)
-              : html`<label class="input input-sm w-32"><input type="number" name="versionCheckHours" min="1" max="168" value="${hours?.value ?? 6}" /><span class="muted">hours</span></label>`,
+              : html`<label class="input input-sm w-32"><input type="number" name="versionCheckHours" min="1" max="168" value="${hours?.value ?? 6}" aria-label="Hours between checks" /><span class="opacity-50">hours</span></label>`,
           ),
         )}
         ${section(
           'Appearance',
-          html`<em>system</em> follows the device's light or dark preference. Both themes are daisyUI themes.`,
-          html`${kv(
-            'Theme',
+          'System follows the device. Both themes are daisyUI themes.',
+          html`${setting(
+            'Mode',
             mode?.source === 'env'
               ? lockedValue(mode.value, mode.env)
-              : html`<div class="join">${THEME_MODES.map((m) => html`<label class="btn btn-sm join-item seg"><input type="radio" class="hidden-radio" name="theme" value="${m}" ${m === mode?.value ? 'checked' : ''} />${m}</label>`)}</div>`,
+              : segRadio('theme', THEME_MODES.map((m) => ({ value: m, label: `${m[0]!.toUpperCase()}${m.slice(1)}` })), mode?.value ?? 'system', 'Mode'),
           )}
-          ${kv('Light theme', themeSelect('lightTheme'))}
-          ${kv('Dark theme', themeSelect('darkTheme'))}`,
+            ${setting('Light theme', themeSelect('lightTheme'))}
+            ${setting('Dark theme', themeSelect('darkTheme'))}`,
         )}
         ${section(
-          'About MCP Yard',
-          html`Release notes are on <a class="link link-primary" href="https://github.com/cedhuf/mcpyard/releases" target="_blank" rel="noreferrer">GitHub</a>. The hub tells you about a new release; it never updates itself.`,
-          html`${kv('Version', html`<span class="mono">${about.current}</span>`)}
-          ${kv(
-            'Latest release',
-            about.latest
-              ? html`<span class="row-wrap justify-end"><a class="link link-primary mono" href="${about.latest.url}" target="_blank" rel="noreferrer">${about.latest.version}</a>${about.newer ? badge('update available', { tone: 'primary', soft: true, icon: 'up' }) : about.current === 'dev' ? '' : badge('up to date', { tone: 'success', soft: true, icon: 'check' })}</span>`
-              : html`<span class="muted">${updates?.value ? (about.error ?? 'not checked yet') : 'not checked'}</span>`,
-          )}
-          ${kv(
-            'Check GitHub for new releases',
-            updates?.source === 'env'
-              ? lockedValue(updates.value ? 'yes' : 'no', updates.env)
-              : html`<input type="hidden" name="updateCheck" value="false" /><input type="checkbox" class="toggle toggle-primary" name="updateCheck" value="true" aria-label="Check GitHub for new releases" ${updates?.value ? 'checked' : ''} />`,
-          )}`,
+          'About',
+          html`Release notes are on <a class="link link-primary" href="https://github.com/cedhuf/mcpyard/releases" target="_blank" rel="noreferrer">GitHub</a>.`,
+          html`${setting('Version', html`<span class="font-mono">${about.current}</span>`)}
+            ${setting(
+              'Latest release',
+              about.latest
+                ? html`<span class="inline-flex flex-wrap items-center gap-2"><a class="link link-primary font-mono" href="${about.latest.url}" target="_blank" rel="noreferrer">${about.latest.version}</a>${about.newer ? tag('update available', { tone: 'primary', icon: 'up' }) : about.current === 'dev' ? '' : tag('up to date', { tone: 'success', icon: 'check' })}</span>`
+                : html`<span class="text-base-content/50">${updates?.value ? (about.error ?? 'not checked yet') : 'not checked'}</span>`,
+            )}
+            ${setting('Check for new releases', updates?.source === 'env' ? lockedValue(updates.value ? 'on' : 'off', updates.env) : toggle('updateCheck', 'Check for new releases', updates?.value), 'Asks GitHub every few hours. MCP Yard never updates itself.')}`,
         )}
         ${section(
           'Environment',
-          html`Read once at startup. Change them in the container's environment and restart.`,
-          html`<details class="fold-panel">
-            <summary class="fold-toggle">${icon('lock', 'xs')}Show the ${environment.length} startup variables <span class="muted">(${setEnv} set)</span><span class="chevron sm" aria-hidden="true"></span></summary>
-            <div class="tools-scroll"><table class="tools-table">${environment.map(
-              (row) => html`<tr>
-                  <td class="mono">${row.env}</td>
-                  <td class="mono break-all">${row.value === undefined || row.value === '' ? html`<span class="muted">not set</span>` : row.secret ? '••••••••' : row.value}</td>
-                </tr>`,
-            )}</table></div>
-          </details>`,
+          "Read once at startup. Change them in the container's environment, then restart.",
+          html`<dl class="divide-y divide-base-300">${environment.map(
+            (row) => html`<div class="grid sm:grid-cols-[auto_minmax(0,1fr)] gap-x-6 py-1.5 first:pt-0 last:pb-0"><dt class="font-mono font-medium">${row.env}</dt><dd class="font-mono text-base-content/60 truncate sm:text-right" title="${row.secret ? '' : (row.value ?? '')}">${row.value === undefined || row.value === '' ? html`<span class="opacity-60">not set</span>` : row.secret ? '••••••••' : row.value}</dd></div>`,
+          )}</dl>`,
         )}
-      </div>
-      ${editable ? html`<div class="savebar"><span class="grow">Changes apply as soon as they are saved.</span><button class="btn btn-primary btn-sm">Save settings</button></div>` : ''}
-    </form>`;
+      `)}
+      <noscript><div class="mt-4 flex justify-end"><button class="btn btn-sm btn-primary">Save settings</button></div></noscript>
+    </form></div>`;
 }
 
 const lines = (value: unknown) =>
@@ -240,83 +245,79 @@ function serverPage(hub: Hub, name: string | undefined, raw: RawServer, file: Co
     Object.entries((v ?? {}) as Record<string, unknown>)
       .map(([k, x]) => `${k}${sep}${String(x)}`)
       .join('\n');
-  const input = (fieldName: string, value: string, placeholder = '') => html`<input class="input" name="${fieldName}" value="${value}" placeholder="${placeholder}" />`;
-  const area = (fieldName: string, value: string, placeholder = '') => html`<textarea class="textarea" name="${fieldName}" rows="3" placeholder="${placeholder}">${value}</textarea>`;
+  const input = (fieldName: string, value: string, placeholder = '') => html`<input class="input input-sm" name="${fieldName}" value="${value}" placeholder="${placeholder}" />`;
+  const area = (fieldName: string, value: string, placeholder = '') => html`<textarea class="textarea textarea-sm font-mono" name="${fieldName}" rows="3" placeholder="${placeholder}">${value}</textarea>`;
   const kinds = [
-    ['npm', 'npm package', 'package'],
-    ['pypi', 'PyPI package', 'package'],
-    ['command', 'Command', 'terminal'],
-    ['url', 'Remote URL', 'globe'],
+    ['npm', 'npm'],
+    ['pypi', 'PyPI'],
+    ['command', 'Command'],
+    ['url', 'Remote URL'],
   ] as const;
   const row = name ? rowOf(hub, name) : undefined;
-  const top = row ? serverSummary(row, !readOnly) : undefined;
-  return html`<a class="back-link" href="/">${icon('back', 'xs')}Servers</a>
-    ${pageHead(name ? html`<span class="mono">${name}</span>` : 'New server', {
-      subtitle: readOnly ? 'Read-only: these are the settings from the server file.' : 'Saved into the server file; only this server restarts.',
-      actions: top?.controls,
-    })}
-    ${top?.summary ?? ''}
-    ${readOnly ? alert(`Servers cannot be edited here: ${readOnly}. Mount the server file read-write to edit it from the UI, or edit it by hand and reload.`, 'warning') : ''}
-    ${error ? alert(html`<div class="font-medium">Not saved:</div><pre class="mono">${error}</pre>`, 'error') : ''}
-    <form method="post" action="${name ? `/servers/${name}` : '/servers'}">
+  return html`${row ? serverHead(row, !readOnly, 'settings', logsForServer(row.name).length) : pageHead('New server', { crumbs: [{ label: 'Servers', href: '/' }, { label: 'New server' }], sub: 'It is added to the server file and starts at once.' })}
+    <div class="grid gap-4">
+    ${readOnly ? note(`Read-only: ${readOnly}. Mount the server file read-write to edit servers here, or edit it by hand and reload.`, 'warning') : ''}
+    ${error ? note(html`Not saved: <span class="font-mono whitespace-pre-wrap">${error}</span>`, 'error') : ''}
+    <form method="post" action="${name ? `/servers/${name}` : '/servers'}" class="grid gap-4">
       <fieldset class="contents" ${readOnly ? 'disabled' : ''}>
-        <div class="sections">
+        ${box(html`
           ${section(
             'Source',
             'Where the server comes from. Packages are installed and versioned by the hub.',
-            formGrid(html`
+            fields(html`
               ${field(
                 'Kind',
-                html`<div class="join flex-wrap">${kinds.map(([value, label, ic]) => html`<label class="btn btn-sm join-item seg gap-2"><input type="radio" class="hidden-radio" name="kind" value="${value}" ${kind === value ? 'checked' : ''} />${icon(ic, 'sm')}${label}</label>`)}</div>`,
+                segRadio('kind', kinds.map(([value, label]) => ({ value, label })), kind, 'Kind'),
                 { wide: true },
               )}
-              ${name ? '' : field('Name', html`<input class="input" name="name" required pattern="[A-Za-z0-9_\\-]+" value="${typedName ?? ''}" placeholder="mail" />`, { hint: html`Prefixes every tool: <span class="mono">name-tool</span>. Keep it short.` })}
+              ${name ? '' : field('Name', html`<input class="input input-sm" name="name" required pattern="[A-Za-z0-9_\\-]+" value="${typedName ?? ''}" placeholder="mail" />`, { hint: html`Prefixes every tool: <span class="font-mono">name-tool</span>.` })}
               ${field('Package', input('package', pkg.npm ?? pkg.pypi ?? '', '@scope/mcp-server'), { kinds: 'npm pypi' })}
-              ${field('Version', input('version', pkg.version ?? '', 'empty: the hub owns it'), { kinds: 'npm pypi', hint: 'Set it to pin the version.' })}
+              ${field('Version', input('version', pkg.version ?? '', 'latest, owned by the hub'), { kinds: 'npm pypi', hint: 'Set it to pin the version.' })}
               ${field('Command', input('command', text(raw.command), '/usr/local/bin/my-server'), { kinds: 'command' })}
+              ${field('Working directory', input('cwd', text(raw.cwd)), { kinds: 'command' })}
               ${field('URL', input('url', text(raw.url), 'https://example.lan/mcp'), { kinds: 'url' })}
-              ${field('Transport', html`<select class="select" name="transport"><option value="streamable-http">Streamable HTTP</option><option value="sse" ${raw.transport === 'sse' ? 'selected' : ''}>SSE (legacy)</option></select>`, { kinds: 'url' })}
+              ${field('Transport', html`<select class="select select-sm" name="transport"><option value="streamable-http">Streamable HTTP</option><option value="sse" ${raw.transport === 'sse' ? 'selected' : ''}>SSE (legacy)</option></select>`, { kinds: 'url' })}
             `),
           )}
           ${section(
             'Launch',
-            html`Arguments and environment of the process. <span class="mono">\${VAR}</span> reads the hub's environment; nothing else is passed.`,
-            formGrid(html`
-              ${field('Arguments', area('args', ((raw.args ?? []) as unknown[]).map(String).join('\n'), 'one per line'), {})}
-              ${field('Environment', area('env', record(raw.env, '='), 'TOKEN=\${TOKEN}'), { hint: html`One <span class="mono">NAME=value</span> per line.` })}
-              ${field('Working directory', input('cwd', text(raw.cwd)), { kinds: 'command' })}
+            html`<span class="font-mono">\${VAR}</span> reads the hub's environment. Nothing else is passed to the process.`,
+            fields(html`
+              ${field('Arguments', area('args', ((raw.args ?? []) as unknown[]).map(String).join('\n'), 'one per line'))}
+              ${field('Environment', area('env', record(raw.env, '='), 'TOKEN=\${TOKEN}'), { hint: html`One <span class="font-mono">NAME=value</span> per line.` })}
             `),
             { kinds: 'npm pypi command' },
           )}
           ${section(
             'Connection',
             'Headers sent with every request, for example a bearer token.',
-            formGrid(field('Headers', area('headers', record(raw.headers, ': '), 'Authorization: Bearer \${TOKEN}'), { wide: true })),
+            fields(field('Headers', area('headers', record(raw.headers, ': '), 'Authorization: Bearer \${TOKEN}'), { wide: true, hint: html`One <span class="font-mono">Name: value</span> per line.` })),
             { kinds: 'url' },
           )}
           ${section(
             'Tools',
             "Globs on the server's own tool names. Keys can narrow this further, never widen it.",
-            html`${formGrid(html`
-              ${field('Allow tools', input('allow', (tools.allow ?? []).join(', '), 'empty: all'))}
-              ${field('Deny tools', input('deny', (tools.deny ?? []).join(', '), 'delete_*'))}
-            `)}${row ? html`<div class="mt-2">${toolsSection(row)}</div>` : ''}`,
+            fields(html`
+              ${field('Allow', input('allow', (tools.allow ?? []).join(', '), 'all tools'))}
+              ${field('Deny', input('deny', (tools.deny ?? []).join(', '), 'delete_*'))}
+            `),
           )}
           ${section(
             'Advanced',
             'Rarely needed.',
-            formGrid(html`
-              ${field('Bin', input('bin', pkg.bin ?? '', 'only if the package has several'), { kinds: 'npm pypi' })}
-              ${field('Install', checkbox('allowScripts', 'true', 'Allow install scripts', !!raw.allowScripts), { kinds: 'npm pypi', hint: 'Only for packages that need a build step.' })}
-              ${field('In the server file', checkbox('enabled', 'true', 'Enabled', raw.enabled !== false, 'toggle'), { hint: 'Off keeps the entry but never starts it. The switch at the top is the quicker way.' })}
+            fields(html`
+              ${field('Bin', input('bin', pkg.bin ?? '', 'when the package has several'), { kinds: 'npm pypi' })}
+              ${field('Install scripts', checkbox('allowScripts', 'true', 'Allow', !!raw.allowScripts), { kinds: 'npm pypi', hint: 'Only for packages that need a build step.' })}
+              ${field('In the server file', checkbox('enabled', 'true', 'Enabled', raw.enabled !== false, 'toggle'), { hint: 'Off keeps the entry but never starts it.' })}
             `),
           )}
-        </div>
-        <div class="savebar">
-          <span class="grow">${readOnly ? 'The server file is read-only.' : name ? 'Saving restarts this server only.' : 'The server starts as soon as it is added.'}</span>
-          ${linkButton('/', readOnly ? 'Back' : 'Cancel', { size: 'sm' })}
-          ${readOnly ? '' : html`<button class="btn btn-primary btn-sm">${name ? 'Save and restart' : 'Add server'}</button>`}
+        `)}
+        <div class="savebar sticky bottom-3 z-20 flex flex-wrap items-center justify-end gap-2 rounded-box border border-base-300 bg-base-100/85 py-2.5 pl-5 pr-3 shadow-sm">
+          <span class="flex-1 text-[13px] text-base-content/50">${readOnly ? 'The server file is read-only.' : name ? 'Saving restarts this server only.' : 'The server starts as soon as it is added.'}</span>
+          ${linkButton(name ? `/servers/${name}` : '/', readOnly ? 'Back' : 'Cancel', { tone: 'ghost' })}
+          ${readOnly ? '' : html`<button class="btn btn-sm btn-primary">${name ? 'Save and restart' : 'Add server'}</button>`}
         </div>
       </fieldset>
-    </form>`;
+    </form>
+    </div>`;
 }

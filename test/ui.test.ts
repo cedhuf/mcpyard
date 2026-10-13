@@ -35,12 +35,23 @@ test('servers page lists every server with its state', async () => {
   const res = await request('/');
   assert.equal(res.status, 200);
   const body = await res.text();
-  assert.match(body, /<strong class="mono">alpha<\/strong>/);
+  assert.match(body, /<a class="row-anchor[^"]*" href="\/servers\/alpha">alpha<\/a>/);
   assert.match(body, /http:\/\/beta\.test\/mcp/);
   const csp = res.headers.get('content-security-policy')!;
   const nonce = csp.match(/script-src 'nonce-([^']+)'/)![1];
   assert.ok(body.includes(`<script nonce="${nonce}">`), 'the only script carries the nonce');
   assert.ok(!/ on[a-z]+="/.test(body), 'no inline event handlers');
+});
+
+test('each server has its own page with tabs and breadcrumbs', async () => {
+  const { request } = setup({ kind: 'none' });
+  note('hello from alpha', { server: 'alpha' });
+  const overview = await (await request('/servers/alpha')).text();
+  assert.match(overview, /class="breadcrumbs[\s\S]*href="\/">Servers<\/a>[\s\S]*aria-current="page">alpha</);
+  assert.match(overview, /href="\/servers\/alpha\/logs"[^>]*>Logs<span[^>]*>\d+</);
+  const logsTab = await (await request('/servers/alpha/logs')).text();
+  assert.ok(logsTab.includes('hello from alpha'));
+  assert.equal((await request('/servers/nope')).status, 404);
 });
 
 test('a server is switched off from the UI, kept off across restarts, and filtered', async () => {
@@ -80,7 +91,7 @@ test('the logs page lists calls, actions and output, and filters them', async ()
 
   const calls = await (await request('/logs?kind=calls')).text();
   assert.ok(calls.includes('alpha-search') && !calls.includes('listening on stdio'), 'the calls tab shows only MCP calls');
-  assert.match(calls, /Failed<\/div><div class="stat-num text-error">1</);
+  assert.match(calls, /stat-title">Failed<\/div><div class="stat-value[^"]*text-error">1</);
 
   const errors = await (await request('/logs?kind=errors')).text();
   assert.ok(errors.includes('beta-send') && !errors.includes('alpha-search'));
@@ -214,8 +225,8 @@ test('OIDC login with PKCE opens a session', async () => {
   const session = callback.headers.get('set-cookie')!.match(/mcpyard_session=[^;]+/)![0];
   const page = await request('/keys', { headers: { cookie: session } });
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /font-medium">admin<\/div>/);
-  assert.match(await (await request('/keys', { headers: { cookie: session } })).text(), /<img src="https:\/\/avatars\.example\.test\/u1\.png"/);
+  assert.match(await page.text(), /truncate font-medium">admin<\/span>/);
+  assert.match(await (await request('/keys', { headers: { cookie: session } })).text(), /<img class="[^"]*" src="https:\/\/avatars\.example\.test\/u1\.png"/);
   assert.match(page.headers.get('content-security-policy')!, /img-src 'self' data: https:\/\/avatars\.example\.test;/, 'the avatar host is allowed, nothing else');
 });
 

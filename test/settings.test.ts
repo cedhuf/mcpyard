@@ -51,7 +51,8 @@ test('settings come from the environment, then the file, then defaults', () => {
 test('the settings page locks environment values and turns hub administration off', async () => {
   const { request, post, admin, server } = setup({ MCPYARD_VERSION_CHECK_HOURS: '12' });
   const page = await (await request('/settings')).text();
-  assert.match(page, /<strong>12 h<\/strong>\s*<span class="badge[^"]*locked"/);
+  assert.match(page, /<span>12 h<\/span><span class="badge[^>]*>[\s\S]{0,800}MCPYARD_VERSION_CHECK_HOURS/);
+  assert.match(page, /<form method="post" action="\/settings" data-autosave>/, 'settings save on change');
   assert.ok(!page.includes('name="versionCheckHours"'), 'a locked setting has no input');
   assert.match(page, /About MCP Yard/);
   assert.match(page, /name="updateCheck"/);
@@ -116,12 +117,12 @@ test('themes are chosen from daisyUI, applied to pages and baked into the styles
   assert.deepEqual([settings.value('theme'), settings.value('lightTheme'), settings.value('darkTheme')], ['dark', 'cupcake', 'night']);
   assert.match(await (await request('/settings')).text(), /MCPYARD_THEME_DARK/, 'the environment locks the dark theme');
 
-  setAppearance({ mode: 'dark', light: 'cupcake', dark: 'night' });
+  await setAppearance({ mode: 'dark', light: 'cupcake', dark: 'night' });
   const page = await (await request('/')).text();
   assert.match(page, /<html lang="en" data-theme="night">/);
-  const night = stylesheet().version;
-  setAppearance({ mode: 'system', light: 'winter', dark: 'dim' });
-  assert.notEqual(stylesheet().version, night);
+  const night = (await stylesheet()).version;
+  await setAppearance({ mode: 'system', light: 'winter', dark: 'dim' });
+  assert.notEqual((await stylesheet()).version, night);
   assert.match(await (await request('/')).text(), /<html lang="en" >/);
   assert.ok(new Settings(dir, {}).value('lightTheme') === 'cupcake');
 });

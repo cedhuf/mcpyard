@@ -13,20 +13,26 @@ disables and deletes keys, and shows the hub's logs. It refreshes itself every f
   <img src="assets/servers-light.png" alt="The servers page of the web UI">
 </picture>
 
-## Cards or list
+## Servers
 
 The servers page has two layouts, switched with the buttons at the right of the toolbar and
-remembered in a cookie: **cards**, one per server, and a compact **list** where each row unfolds to
-show the server's source, its error and its tools. A server's tools stay folded behind
-**Show N tools**, in a box that scrolls when there are many.
-
-Tabs filter the servers by state (**All**, **Online**, **Failed**, **Disabled**) and the search box
-matches names and packages. Restart, update, roll back, edit and remove sit in each server's
-**⋯** menu.
+remembered in a cookie: **cards**, one per server, and a **list** with one row per server. Tabs
+filter the servers by state (**All**, **Online**, **Failed**, **Disabled**) and the search box
+matches names and packages. Each server has a switch and a **⋯** menu to restart, update, roll back
+or remove it.
 
 <picture>
   <source srcset="assets/servers-list-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/servers-list-light.png" alt="The servers page in list layout, with one row unfolded">
+  <img src="assets/servers-list-light.png" alt="The servers page in list layout">
+</picture>
+
+Click a server to open its own page, with three tabs: **Overview** (state, versions, its error or
+available update, and every tool with its description), **Logs** (that server's lines only) and
+**Settings** (its form).
+
+<picture>
+  <source srcset="assets/server-dark.png" media="(prefers-color-scheme: dark)">
+  <img src="assets/server-light.png" alt="A server's own page, on its Overview tab">
 </picture>
 
 ## Switching a server off
@@ -36,20 +42,20 @@ file: the choice is kept in `state.json` in the data directory and survives rest
 It works when the server file is read-only. A server with `enabled: false` in the file shows a
 padlock instead of the switch.
 
-The UI is built with [daisyUI](https://daisyui.com) and follows your system's light or dark theme.
-It needs no build step and no external request: the hub serves its own stylesheet.
+The UI is built with [daisyUI](https://daisyui.com) on [Tailwind CSS](https://tailwindcss.com) and
+follows your system's light or dark theme. There is no build step: the hub compiles its stylesheet
+from its own source when it starts, and makes no external request.
 
 ## Servers from the UI
 
-**Add server** and **Edit** open a form for any kind of server: npm or PyPI package, command, or
-remote URL, with its arguments, environment, headers and tool filters, in sections. An existing
-server's page starts with its state, its switch and its actions, and lists its tools. Saving
+**Add server** and a server's **Settings** tab open a form for any kind of server: npm or PyPI
+package, command, or remote URL, with its arguments, environment, headers and tool filters. Saving
 rewrites the server file and restarts only that server.
 
 - Comments elsewhere in the file and `${VAR}` references are kept as written.
 - The whole file must still be valid, or nothing is written and the error is shown.
 - If the file is read-only (a `:ro` mount, or not writable by uid 1000), the forms are shown locked
-  and the file stays yours to edit by hand; **Reload configuration** applies it.
+  and the file stays yours to edit by hand; **Reload** applies it.
 
 ## Logs
 
@@ -73,7 +79,8 @@ page keeps nothing on disk.
 
 ## Settings
 
-The **Settings** page gathers what is not a server or a key:
+The **Settings** page gathers what is not a server or a key. Every change is saved and applied as
+soon as it is made; there is no save button.
 
 - **Hub administration**: the `yard-*` tools on or off for every key, and how many keys may use them.
 - **Updates**: how often registries are checked.

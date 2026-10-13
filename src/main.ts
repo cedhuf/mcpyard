@@ -27,7 +27,7 @@ const configFile = new ConfigFile(env.MCPYARD_CONFIG ?? '/config/mcpyard.yaml');
 const hub = new Hub(configFile.load(), packages, () => configFile.load());
 hub.useState(join(dataDir, 'state.json'));
 const releaseChecks = () => release.start(settings.value('updateCheck') ? settings.value('versionCheckHours') : 0);
-const appearance = () => setAppearance({ mode: settings.value('theme'), light: settings.value('lightTheme'), dark: settings.value('darkTheme') });
+const appearance = () => void setAppearance({ mode: settings.value('theme'), light: settings.value('lightTheme'), dark: settings.value('darkTheme') });
 releaseChecks();
 appearance();
 hub.yardEnabled = () => settings.value('adminTools');
