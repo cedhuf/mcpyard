@@ -303,3 +303,13 @@ h1,
   max-width: 46rem;
   margin-inline: auto;
 }
+
+/* The analytics note, last line of the home page: a disclosure, not a paragraph anyone came to read. */
+.counted {
+  margin-top: 3rem;
+  color: var(--sl-color-gray-4);
+  font-size: var(--sl-text-xs);
+  line-height: 1.6;
+  text-align: center;
+  text-wrap: balance;
+}
