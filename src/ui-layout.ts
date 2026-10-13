@@ -224,6 +224,12 @@ document.addEventListener('submit', (e) => {
   };
   ask.showModal();
 });
+document.addEventListener('change', (e) => {
+  const pick = e.target.closest('[data-pick]');
+  if (!pick) return;
+  pick.querySelector('[data-pick-label]').textContent = e.target.closest('label').textContent.trim();
+  pick.querySelector('[popover]').hidePopover();
+});
 document.addEventListener('click', (e) => {
   const copy = e.target.closest('[data-copy]');
   if (copy) {

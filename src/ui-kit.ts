@@ -112,6 +112,21 @@ export function segRadio(name: string, options: { value: string; label: string }
   return html`<div class="join" role="radiogroup" aria-label="${label}">${options.map((o) => html`<input class="join-item btn btn-sm" type="radio" name="${name}" value="${o.value}" aria-label="${o.label}" ${o.value === current ? 'checked' : ''} />`)}</div>`;
 }
 
+/**
+ * A select drawn as a daisyUI dropdown: radios in a popover menu, so the form posts the value as usual. The script
+ * only updates the button's label and closes the menu.
+ */
+export function picker(name: string, options: { value: string; label: string }[], current: string, label: string, width = 'w-40'): Fragment {
+  const id = `pick-${name}`;
+  const selected = options.find((o) => o.value === current) ?? options[0];
+  return html`<div data-pick>
+    <button type="button" class="select select-sm ${width} text-start" popovertarget="${id}" style="anchor-name:--${id}" aria-label="${label}"><span class="truncate" data-pick-label>${selected?.label}</span></button>
+    <ul class="dropdown dropdown-end menu ${width} rounded-box border border-base-300 bg-base-100 text-base-content p-1 shadow-lg [position-try-fallbacks:flip-block]" popover id="${id}" style="position-anchor:--${id}" role="radiogroup" aria-label="${label}">${options.map(
+      (o) => html`<li><label class="has-checked:bg-neutral has-checked:text-neutral-content has-focus-visible:outline-2"><input class="sr-only" type="radio" name="${name}" value="${o.value}" ${o === selected ? 'checked' : ''} />${o.label}</label></li>`,
+    )}</ul>
+  </div>`;
+}
+
 /** A GET search box that keeps the other query parameters. */
 export function search(action: string, value: string, placeholder: string, keep: Record<string, string> = {}): Fragment {
   return html`<form method="get" action="${action}" class="max-sm:order-last max-sm:w-full" role="search">

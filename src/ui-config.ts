@@ -7,7 +7,7 @@ import { YARD_TOOLS } from './yard.ts';
 import { THEME_MODES, THEME_NAMES, type SettingKey, type Settings } from './settings.ts';
 import { plural } from './ui-servers.ts';
 import { release } from './release.ts';
-import { box, checkbox, field, fields, linkButton, note, pageHead, section, segRadio, setting, tag } from './ui-kit.ts';
+import { box, checkbox, field, fields, linkButton, note, pageHead, picker, section, segRadio, setting, tag } from './ui-kit.ts';
 import { icon, locked, log, notFound, page, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
 import { logsBlock, logsForServer } from './ui-logs.ts';
 import { rowOf, serverHead, serverOverview } from './ui-servers.ts';
@@ -147,7 +147,7 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
             'Check registries every',
             hours?.source === 'env'
               ? lockedValue(period(hours.value), hours.env)
-              : html`<select class="select select-sm w-32" name="versionCheckHours" aria-label="Time between checks">${[...new Set([...PERIODS, hours?.value ?? 6])].map((h) => html`<option value="${h}" ${h === (hours?.value ?? 6) ? 'selected' : ''}>${period(h)}</option>`)}</select>`,
+              : picker('versionCheckHours', [...new Set([...PERIODS, hours?.value ?? 6])].map((h) => ({ value: String(h), label: period(h) })), String(hours?.value ?? 6), 'Time between checks', 'w-32'),
           )}
             ${setting(
               'Update automatically',
@@ -180,7 +180,7 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
             'Theme',
             theme?.source === 'env'
               ? lockedValue(themeLabel(theme.value), theme.env)
-              : html`<select class="select select-sm w-40" name="theme" aria-label="Theme">${THEME_NAMES.map((t) => html`<option value="${t}" ${t === theme?.value ? 'selected' : ''}>${themeLabel(t)}</option>`)}</select>`,
+              : picker('theme', THEME_NAMES.map((t) => ({ value: t, label: themeLabel(t) })), theme?.value ?? 'default', 'Theme'),
           )}
             ${setting(
             'Mode',
@@ -324,7 +324,7 @@ function serverPage(hub: Hub, name: string | undefined, raw: RawServer, file: Co
               ${field('Command', input('command', text(raw.command), '/usr/local/bin/my-server'), { kinds: 'command' })}
               ${field('Working directory', input('cwd', text(raw.cwd)), { kinds: 'command' })}
               ${field('URL', input('url', text(raw.url), 'https://example.lan/mcp'), { kinds: 'url' })}
-              ${field('Transport', html`<select class="select select-sm" name="transport"><option value="streamable-http">Streamable HTTP</option><option value="sse" ${raw.transport === 'sse' ? 'selected' : ''}>SSE (legacy)</option></select>`, { kinds: 'url' })}
+              ${field('Transport', picker('transport', [{ value: 'streamable-http', label: 'Streamable HTTP' }, { value: 'sse', label: 'SSE (legacy)' }], raw.transport === 'sse' ? 'sse' : 'streamable-http', 'Transport', 'w-48'), { kinds: 'url' })}
             `),
           )}
           ${section(
