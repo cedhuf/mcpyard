@@ -126,6 +126,10 @@ Where to go next:
 | let an agent watch, restart and update servers | [Admin endpoint](https://cedhuf.github.io/mcpyard/admin.html) |
 | see every environment variable | [Environment variables](https://cedhuf.github.io/mcpyard/configuration.html#environment-variables) |
 
+## Contributing
+
+[ARCHITECTURE.md](ARCHITECTURE.md) explains how the hub is built and why.
+
 ## License
 
 [MIT](LICENSE)
