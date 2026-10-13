@@ -4,22 +4,42 @@ title: Web UI and sign-in
 
 # Web UI and sign-in
 
-The web UI is served at the root of the hub. It shows each server's state, tools and versions,
-restarts servers, updates and rolls back packages, reloads the server file, creates, edits,
-disables and deletes keys, and shows the hub's logs. It refreshes itself every few seconds.
+The web UI is served at the root of the hub. It opens on a dashboard, shows each server's state,
+tools and versions, restarts servers, updates and rolls back packages, reloads the server file,
+creates, edits, disables and deletes keys, and shows the hub's logs. It refreshes itself every few
+seconds.
 
-The top bar holds the three sections (**Servers**, **Keys**, **Logs**), a search field that searches
-the section you are in, and the account menu with **Settings**, the version and **Sign out**. Every
-page starts with breadcrumbs back to the home page.
+The top bar holds the sections (**Servers**, **Keys**, **Logs**), a search field and the account
+menu with **Settings** and **Sign out**. The search filters the section you are in as you type; on
+the dashboard it searches the servers. The **MCP Yard** title and the house at the start of every
+page's breadcrumbs lead back to the dashboard, and the footer shows the running version, with a
+badge when a newer release is out.
+
+## Dashboard
+
+The home page sums up the yard: healthy servers, tools exposed, MCP calls of the last 24 hours with
+their failures and median duration, and active keys. The hub's own clock sits next to the title. Below:
+
+- **Health check**: **Run now** pings every running server over MCP and shows who answers, and how
+  fast.
+- **Updates**: how many hub-owned packages run their latest version, the ones that do not, **Check
+  now** to ask the registries at once, and **Update all** to update every one of them, each keeping
+  the old version serving until the new one answers.
+- **Security check**: sign-in on, HTTPS address, keys that can administer the hub, keys idle for 30
+  days, keys without limits, packages allowed to run install scripts, the hub's version and whether
+  the server file is writable from the UI.
+- **Recent activity** and **Most used tools**, from the logs.
+
+**Reload server file** re-reads the server file, as on the servers page.
 
 <picture>
-  <source srcset="assets/servers-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/servers-light.png" alt="The servers page of the web UI">
+  <source srcset="assets/dashboard-dark.png" media="(prefers-color-scheme: dark)">
+  <img src="assets/dashboard-light.png" alt="The dashboard: counters, health check, updates and security check">
 </picture>
 
 ## Servers
 
-The servers page has two layouts, switched with the buttons at the right of the toolbar and
+The servers page, at `/servers`, has two layouts, switched with the buttons at the right of the toolbar and
 remembered in a cookie: **cards**, one per server, and a **list** with one row per server. Tabs
 filter the servers by state (**All**, **Online**, **Failed**, **Disabled**) and the search field in
 the top bar matches names and packages. Each server has a switch and a **⋯** menu to restart, update, roll back
@@ -28,6 +48,11 @@ or remove it.
 <picture>
   <source srcset="assets/servers-list-dark.png" media="(prefers-color-scheme: dark)">
   <img src="assets/servers-list-light.png" alt="The servers page in list layout">
+</picture>
+
+<picture>
+  <source srcset="assets/servers-dark.png" media="(prefers-color-scheme: dark)">
+  <img src="assets/servers-light.png" alt="The servers page in cards layout">
 </picture>
 
 Click a server to open its own page, with three tabs: **Overview** (state, versions, its error or
@@ -93,8 +118,8 @@ soon as it is made; there is no save button.
 - **Appearance**: follow the system's light or dark mode, or force one, and pick the light and dark
   themes: MCP Yard's own `yard` and `yard-night`, drawn from the logo, by default, or any
   [daisyUI theme](https://daisyui.com/docs/themes/).
-- **About**: the running version and the latest release on GitHub. The account menu also shows the
-  version, and a dot on the avatar links to the release notes when a newer one exists. The hub never updates
+- **About**: the running version and the latest release on GitHub. The footer also shows the
+  version, and links to the release notes when a newer one exists. The hub never updates
   itself; turn the check off here or with `MCPYARD_UPDATE_CHECK=false`.
 - **Environment**: every startup variable with its value, behind a padlock. Secrets are masked.
 

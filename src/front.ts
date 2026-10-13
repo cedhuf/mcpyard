@@ -25,6 +25,15 @@ export type PackageStatus = {
 
 export type ReloadResult = { added: string[]; removed: string[]; changed: string[] };
 
+export type Health = { server: string; ok: boolean; ms?: number; error?: string };
+export type HealthReport = { at: string; results: Health[] };
+
+/** A newer registry version a hub-owned package can move to, if any. */
+export function newerVersion(pkg: PackageStatus | undefined): string | undefined {
+  const latest = pkg?.latest?.version;
+  return pkg && !pkg.pinned && latest && pkg.installed && latest !== pkg.installed ? latest : undefined;
+}
+
 export class Hub {
   readonly upstreams = new Map<string, Upstream>();
   private routes = new Map<string, Route>();
@@ -116,6 +125,37 @@ export class Hub {
   /** Tells connected clients to list their tools again, after something outside the upstreams changed them. */
   notifyToolsChanged(): void {
     this.handler.notify.toolsChanged();
+  }
+
+  lastHealth?: HealthReport;
+
+  /** Pings every running server and keeps the report for the dashboard. Switched-off servers are left out. */
+  async healthCheck(): Promise<HealthReport> {
+    const names = [...this.upstreams.keys()].filter((name) => this.configs[name]!.enabled && !this.disabled.has(name));
+    const results = await Promise.all(
+      names.map(async (server): Promise<Health> => {
+        try {
+          return { server, ok: true, ms: await this.upstreams.get(server)!.ping() };
+        } catch (e) {
+          return { server, ok: false, error: (e as Error).message };
+        }
+      }),
+    );
+    this.lastHealth = { at: new Date().toISOString(), results };
+    return this.lastHealth;
+  }
+
+  /** Asks the registries now instead of waiting for the next periodic check. */
+  async checkUpdates(): Promise<void> {
+    const specs = Object.values(this.configs).flatMap((c) => (c.enabled && c.package ? [c.package] : []));
+    await Promise.allSettled(specs.map((spec) => this.packages?.latest(spec, 0)));
+  }
+
+  /** Starts the update of every hub-owned package that has a newer version; returns their names. */
+  updateAll(): string[] {
+    const due = Object.entries(this.packageStatus()).filter(([, pkg]) => newerVersion(pkg) && !pkg.updating);
+    for (const [name] of due) this.update(name).catch(() => {});
+    return due.map(([name]) => name);
   }
 
   /** Applies a new check period without a restart. */

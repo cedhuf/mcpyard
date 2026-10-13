@@ -87,7 +87,7 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
     }
     log(c, existing ? 'server_updated' : 'server_added', { server: name });
     await hub.reload();
-    return c.redirect(`/?saved=${encodeURIComponent(name)}`, 303);
+    return c.redirect(`/servers?saved=${encodeURIComponent(name)}`, 303);
   };
 
   app.post('/servers', guard, (c) => save(c, undefined));
@@ -105,7 +105,7 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
     configFile.save(name, undefined);
     log(c, 'server_deleted', { server: name });
     await hub.reload();
-    return c.redirect('/', 303);
+    return c.redirect('/servers', 303);
   });
 }
 
@@ -255,7 +255,7 @@ function serverPage(hub: Hub, name: string | undefined, raw: RawServer, file: Co
     ['url', 'Remote URL'],
   ] as const;
   const row = name ? rowOf(hub, name) : undefined;
-  return html`${row ? serverHead(row, !readOnly, 'settings', logsForServer(row.name).length) : pageHead('New server', { crumbs: [{ label: 'Servers', href: '/' }, { label: 'New server' }], sub: 'It is added to the server file and starts at once.' })}
+  return html`${row ? serverHead(row, !readOnly, 'settings', logsForServer(row.name).length) : pageHead('New server', { crumbs: [{ label: 'Servers', href: '/servers' }, { label: 'New server' }], sub: 'It is added to the server file and starts at once.' })}
     <div class="grid gap-4">
     ${readOnly ? note(`Read-only: ${readOnly}. Mount the server file read-write to edit servers here, or edit it by hand and reload.`, 'warning') : ''}
     ${error ? note(html`Not saved: <span class="font-mono whitespace-pre-wrap">${error}</span>`, 'error') : ''}
@@ -315,7 +315,7 @@ function serverPage(hub: Hub, name: string | undefined, raw: RawServer, file: Co
         `)}
         <div class="savebar sticky bottom-3 z-20 flex flex-wrap items-center justify-end gap-2 rounded-box border border-base-300 bg-base-100/85 py-2.5 pl-5 pr-3 shadow-sm">
           <span class="flex-1 text-[13px] text-base-content/50">${readOnly ? 'The server file is read-only.' : name ? 'Saving restarts this server only.' : 'The server starts as soon as it is added.'}</span>
-          ${linkButton(name ? `/servers/${name}` : '/', readOnly ? 'Back' : 'Cancel', { tone: 'ghost' })}
+          ${linkButton(name ? `/servers/${name}` : '/servers', readOnly ? 'Back' : 'Cancel', { tone: 'ghost' })}
           ${readOnly ? '' : html`<button class="btn btn-sm btn-primary">${name ? 'Save and restart' : 'Add server'}</button>`}
         </div>
       </fieldset>

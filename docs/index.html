@@ -3,7 +3,7 @@ layout: default
 layout_class: home
 ---
 <section class="hero">
-  <img class="hero-logo" src="{{ '/assets/icon.png' | relative_url }}" alt="MCP Yard: a glass greenhouse behind a locked gate, with a golden key" width="220" height="220">
+  <img class="hero-logo" src="{{ '/assets/icon.png' | relative_url }}" alt="MCP Yard: a little server holding a golden key, in a fenced yard" width="220" height="220">
   <h1>One MCP endpoint.<br><span>Every server behind it.</span></h1>
   <p class="lead">MCP Yard is a small, self-hosted MCP hub. It installs and runs your MCP servers, merges their
     tools behind a single <code>/mcp</code> endpoint, and gives each client its own key with exactly the
@@ -74,10 +74,10 @@ docker run -d -p 3000:3000 -v ./mcpyard.yaml:/config/mcpyard.yaml \
 
 <section class="shot">
   <h2>See everything at a glance</h2>
-  <p>Server states, tools, installed and latest versions, one-click updates and rollbacks, and the keys of every client.</p>
+  <p>Server health, updates waiting, a security check and the latest activity on one dashboard, with every server, key and log one click away.</p>
   <picture>
-    <source srcset="{{ '/assets/servers-dark.png' | relative_url }}" media="(prefers-color-scheme: dark)">
-    <img src="{{ '/assets/servers-light.png' | relative_url }}" alt="The servers page of the MCP Yard web UI" width="1100" loading="lazy">
+    <source srcset="{{ '/assets/dashboard-dark.png' | relative_url }}" media="(prefers-color-scheme: dark)">
+    <img src="{{ '/assets/dashboard-light.png' | relative_url }}" alt="The MCP Yard dashboard: server health, updates and security check" width="1100" loading="lazy">
   </picture>
 </section>
 

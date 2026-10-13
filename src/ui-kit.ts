@@ -12,26 +12,27 @@ export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'in
 export type Crumb = { label: Content; href?: string };
 
 /** The top of every page: breadcrumbs from the home page, the title, a line under it, and the page's actions. */
-export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[] } = {}): Fragment {
+export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[]; eyebrow?: Content } = {}): Fragment {
   return html`<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-6">
     <div class="min-w-0">
       ${breadcrumbs(options.crumbs ?? [{ label: title }])}
+      ${options.eyebrow ? html`<p class="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">${options.eyebrow}</p>` : ''}
       <h1 class="flex flex-wrap items-center gap-3 font-display text-3xl font-semibold">${title}</h1>
       ${options.sub ? html`<p class="mt-1 text-base-content/60">${options.sub}</p>` : ''}
     </div>
-    ${options.actions ? html`<div class="flex flex-wrap items-center gap-2">${options.actions}</div>` : ''}
+    ${options.actions ? html`<div class="flex flex-wrap items-center gap-2 max-sm:w-full">${options.actions}</div>` : ''}
   </header>`;
 }
 
 export function breadcrumbs(items: Crumb[]): Fragment {
-  const home = html`<li><a href="/" aria-label="Home">${icon('home', 'sm')}</a></li>`;
+  const home = html`<li><a href="/" aria-label="Dashboard" title="Dashboard">${icon('home', 'sm')}</a></li>`;
   return html`<nav class="breadcrumbs text-sm text-base-content/60 py-0 mb-1" aria-label="Breadcrumb"><ul>${home}${items.map((c) => html`<li>${c.href ? html`<a href="${c.href}">${c.label}</a>` : html`<span class="text-base-content" aria-current="page">${c.label}</span>`}</li>`)}</ul></nav>`;
 }
 
 /** A daisyUI card with a border. */
 export function box(content: Content, options: { title?: Content; aside?: Content; pad?: boolean } = {}): Fragment {
   return html`<section class="card card-border border-base-300 bg-base-100 min-w-0">
-    ${options.title ? html`<div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-base-300"><h2 class="card-title font-display text-lg font-medium">${options.title}</h2>${options.aside ?? ''}</div>` : ''}
+    ${options.title ? html`<div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-5 py-3 border-b border-base-300"><h2 class="card-title font-display text-lg font-medium whitespace-nowrap">${options.title}</h2>${options.aside ?? ''}</div>` : ''}
     ${options.pad ? html`<div class="card-body p-5">${content}</div>` : content}
   </section>`;
 }
@@ -188,9 +189,16 @@ export function checkbox(name: string, value: string, label: Content, checked: b
   return html`<label class="label text-base-content cursor-pointer"><input type="checkbox" class="${kind === 'toggle' ? 'toggle toggle-sm' : 'checkbox checkbox-sm'}" name="${name}" value="${value}" ${checked ? 'checked' : ''} />${label}</label>`;
 }
 
-/** daisyUI stats. */
-export function stats(items: { label: string; value: Content; tone?: Tone }[]): Fragment {
-  return html`<div class="stats grid grid-flow-row grid-cols-2 sm:grid-cols-4 w-full border border-base-300 bg-base-100">${items.map((s) => html`<div class="stat py-2.5"><div class="stat-title">${s.label}</div><div class="stat-value text-xl ${s.tone === 'error' ? 'text-error' : ''}">${s.value}</div></div>`)}</div>`;
+/** daisyUI stats: one figure each, with an optional icon and a line under it. */
+export function stats(items: { label: string; value: Content; tone?: Tone; desc?: Content; icon?: string; tint?: string }[], options: { large?: boolean } = {}): Fragment {
+  return html`<div class="stats grid grid-flow-row grid-cols-2 lg:grid-cols-4 w-full border border-base-300 bg-base-100">${items.map(
+    (s) => html`<div class="stat ${options.large ? 'py-4' : 'py-2.5'}">
+      ${s.icon ? html`<div class="stat-figure ${s.tint ?? 'text-base-content/40'}">${icon(s.icon, 'md')}</div>` : ''}
+      <div class="stat-title">${s.label}</div>
+      <div class="stat-value ${options.large ? 'font-display text-3xl' : 'text-xl'} ${s.tone === 'error' ? 'text-error' : ''}">${s.value}</div>
+      ${s.desc ? html`<div class="stat-desc whitespace-normal">${s.desc}</div>` : ''}
+    </div>`,
+  )}</div>`;
 }
 
 type ButtonOptions = { tone?: 'primary' | 'ghost' | 'outline' | 'danger'; icon?: string; title?: string };

@@ -58,6 +58,20 @@ export class Upstream {
     await client?.close();
   }
 
+  /** Round trip of an MCP ping, in milliseconds. */
+  async ping(timeoutMs = 5000): Promise<number> {
+    if (!this.client || this.state !== 'ready') throw new Error(this.lastError ?? `not ready (${this.state})`);
+    const started = Date.now();
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error(`no answer within ${timeoutMs / 1000}s`)), timeoutMs)));
+    try {
+      await Promise.race([this.client.ping(), timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+    return Date.now() - started;
+  }
+
   callTool(name: string, args: Record<string, unknown> | undefined) {
     if (!this.client || this.state !== 'ready') throw new Error(`server ${this.name} is not ready`);
     return this.client.callTool({ name, arguments: args });

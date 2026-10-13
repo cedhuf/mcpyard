@@ -11,6 +11,7 @@ import type { Settings } from './settings.ts';
 import { configRoutes, type EnvRow } from './ui-config.ts';
 import { keyRoutes } from './ui-keys.ts';
 import { logRoutes } from './ui-logs.ts';
+import { dashboardRoutes } from './ui-dashboard.ts';
 import { mascot } from './ui-icons.ts';
 import { note as inlineNote } from './ui-kit.ts';
 import { FILTERS, serversView, type Filter, type FilterState, type View } from './ui-servers.ts';
@@ -132,14 +133,14 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   };
 
   /** Back to the servers page the action came from, keeping its filters. */
-  const back = (c: Context<Env>) => c.redirect(c.req.header('referer')?.match(/^https?:\/\/[^/]+(\/(?:\?[^#]*)?)$/)?.[1] ?? '/', 303);
+  const back = (c: Context<Env>) => c.redirect(c.req.header('referer')?.match(/^https?:\/\/[^/]+(\/[^#]*)/)?.[1] ?? '/servers', 303);
 
   const filter = (c: Context<Env>): Filter => {
     const state = c.req.query('state');
     return { state: FILTERS.includes(state as FilterState) ? (state as FilterState) : 'all', q: (c.req.query('q') ?? '').trim() };
   };
 
-  app.get('/', guard, (c) => {
+  app.get('/servers', guard, (c) => {
     const saved = c.req.query('saved');
     const notice = saved ? toast(html`Saved <strong>${saved}</strong>; it is restarting with its new settings.`) : '';
     return c.html(page(c, 'Servers', html`${serversView(hub, editable(), view(c), filter(c))}${notice}`));
@@ -196,6 +197,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   configRoutes(app, hub, guard, { keysPath, settings: options.settings, configFile: options.configFile, environment: options.environment, base });
   keyRoutes(app, hub, guard, { keysPath, base });
   logRoutes(app, guard);
+  dashboardRoutes(app, hub, guard, { keysPath, signIn: auth.kind === 'oidc', publicUrl: options.publicUrl, settings: options.settings, configFile: options.configFile });
   app.get('*', guard, (c) => notFound(c));
 
   return app;

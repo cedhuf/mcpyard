@@ -68,6 +68,14 @@ test('merges tools under <server>-<tool> and routes calls', async () => {
   await client.close();
 });
 
+test('a health check pings every running server', async () => {
+  const report = await hub.healthCheck();
+  const [result] = report.results;
+  assert.equal(result!.server, 'fix-ture');
+  assert.ok(result!.ok && typeof result!.ms === 'number', 'the fixture answers its ping');
+  assert.equal(hub.lastHealth, report);
+});
+
 test('a used key records when it was last used', async () => {
   const client = await connect(full.token);
   await client.listTools();

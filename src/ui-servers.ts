@@ -1,6 +1,6 @@
 import { html } from 'hono/html';
 import type { ServerConfig } from './config.ts';
-import type { Hub, PackageStatus } from './front.ts';
+import { newerVersion, type Hub, type PackageStatus } from './front.ts';
 import { allowed } from './keys.ts';
 import type { Upstream } from './upstream.ts';
 import { box, cell, chips, hero, ROW, ROW_ANCHOR, ROW_END, type Content, empty, linkButton, list, menu, type MenuEntry, note, onOff, pageHead, postButton, row as item, segLinks, status, tabs, tag, title, toolbar, type Tone } from './ui-kit.ts';
@@ -56,10 +56,6 @@ export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
-function newerVersion(pkg: PackageStatus | undefined): string | undefined {
-  const latest = pkg?.latest?.version;
-  return pkg && !pkg.pinned && latest && pkg.installed && latest !== pkg.installed ? latest : undefined;
-}
 
 function toolCounts(row: Row): { visible: number; total: number } {
   const total = row.upstream.tools.length;
@@ -146,7 +142,7 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
   const q = filter.q.toLowerCase();
   const rows = all.filter((r) => GROUP[filter.state](stateOf(r)) && (!q || r.name.toLowerCase().includes(q) || source(r.config).toLowerCase().includes(q)));
   const updates = all.filter((r) => newerVersion(r.pkg)).length;
-  const link = (state: FilterState) => `/?state=${state}${filter.q ? `&q=${encodeURIComponent(filter.q)}` : ''}`;
+  const link = (state: FilterState) => `/servers?state=${state}${filter.q ? `&q=${encodeURIComponent(filter.q)}` : ''}`;
   return html`<div id="servers" data-refresh>
     ${pageHead('Servers', {
       sub: all.length
@@ -157,11 +153,11 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
     })}
     ${toolbar(html`
       ${chips(FILTERS.map((f) => ({ href: link(f), label: `${f[0]!.toUpperCase()}${f.slice(1)}`, count: count(f), active: filter.state === f })))}
-      ${filter.q ? html`<a class="badge badge-ghost gap-1" href="${filter.state === 'all' ? '/' : `/?state=${filter.state}`}" title="Clear the search">“${filter.q}” ✕</a>` : ''}
+      ${filter.q ? html`<a class="badge badge-ghost gap-1" href="${filter.state === 'all' ? '/servers' : `/servers?state=${filter.state}`}" title="Clear the search">“${filter.q}” ✕</a>` : ''}
       <span class="flex-1"></span>
       ${segLinks('Layout', [
-        { href: '/?view=list', icon: 'list', label: 'List', active: view === 'list' },
-        { href: '/?view=cards', icon: 'grid', label: 'Cards', active: view === 'cards' },
+        { href: '/servers?view=list', icon: 'list', label: 'List', active: view === 'list' },
+        { href: '/servers?view=cards', icon: 'grid', label: 'Cards', active: view === 'cards' },
       ])}
     `)}
     ${!all.length
@@ -171,7 +167,7 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
           editable ? linkButton('/servers/new', 'Add a first server', { tone: 'primary', icon: 'sprout' }) : postButton('/reload', 'Reload', { icon: 'refresh' }),
         )
       : !rows.length
-        ? empty(filter.q ? html`<p>No server matches <strong>${filter.q}</strong>. <a class="link link-primary" href="/">Show all</a></p>` : 'No server matches this filter.')
+        ? empty(filter.q ? html`<p>No server matches <strong>${filter.q}</strong>. <a class="link link-primary" href="/servers">Show all</a></p>` : 'No server matches this filter.')
         : view === 'list'
           ? list(['Name', 'State', { label: 'Kind', hide: true }, { label: 'Version', hide: true }, { label: 'Tools', hide: true }, { label: '', hide: true }], rows.map((r) => listRow(r, editable)))
           : html`<div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))]">${rows.map((r) => tile(r, editable))}</div>`}
@@ -189,7 +185,7 @@ export type ServerTab = 'overview' | 'settings' | 'logs';
 /** The top of every page of one server: name, state, switch, actions and tabs. */
 export function serverHead(row: Row, editable: boolean, active: ServerTab, logCount?: number): Fragment {
   return html`${pageHead(html`<span class="font-mono">${row.name}</span><span class="text-sm font-normal">${stateLabel(row)}</span>`, {
-      crumbs: [{ label: 'Servers', href: '/' }, { label: row.name, href: active === 'overview' ? undefined : `/servers/${row.name}` }, ...(active === 'overview' ? [] : [{ label: active === 'logs' ? 'Logs' : 'Settings' }])],
+      crumbs: [{ label: 'Servers', href: '/servers' }, { label: row.name, href: active === 'overview' ? undefined : `/servers/${row.name}` }, ...(active === 'overview' ? [] : [{ label: active === 'logs' ? 'Logs' : 'Settings' }])],
       sub: html`<span class="font-mono text-xs break-all">${source(row.config)}</span>`,
       actions: controls(row, editable, { settings: false }),
     })}

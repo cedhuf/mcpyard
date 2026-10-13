@@ -32,7 +32,7 @@ function setup(auth: Parameters<typeof ui>[1]['auth']) {
 
 test('servers page lists every server with its state', async () => {
   const { request } = setup({ kind: 'none' });
-  const res = await request('/');
+  const res = await request('/servers');
   assert.equal(res.status, 200);
   const body = await res.text();
   assert.match(body, /<a class="[^"]*after:inset-0[^"]*" href="\/servers\/alpha">alpha<\/a>/);
@@ -46,12 +46,12 @@ test('servers page lists every server with its state', async () => {
 test('the navbar search looks in the current section and keeps its filters', async () => {
   const { request, post } = setup({ kind: 'none' });
   await post('/keys', { name: 'laptop' });
-  assert.match(await (await request('/')).text(), /<form method="get" action="\/"[^>]*role="search"/);
+  assert.match(await (await request('/')).text(), /<form method="get" action="\/servers"[^>]*role="search"/, 'the dashboard searches servers');
   assert.match(await (await request('/logs?kind=calls')).text(), /<form method="get" action="\/logs"[^>]*>\s*<input type="hidden" name="kind" value="calls"/);
   const keys = await (await request('/keys?q=nothing-like-this')).text();
   assert.match(keys, /<form method="get" action="\/keys"/);
   assert.match(keys, /No key matches <strong>nothing-like-this<\/strong>/);
-  assert.ok(!(await (await request('/?q=bet')).text()).includes('href="/servers/alpha"'), 'the servers search filters');
+  assert.ok(!(await (await request('/servers?q=bet')).text()).includes('href="/servers/alpha"'), 'the servers search filters');
 });
 
 test('unknown pages get the mascot, and the font and mascot are served', async () => {
@@ -65,11 +65,23 @@ test('unknown pages get the mascot, and the font and mascot are served', async (
   assert.equal((await request('/icon.png')).status, 200);
 });
 
+test('the dashboard sums up the yard and runs checks', async () => {
+  const { request, post } = setup({ kind: 'none' });
+  const page = await (await request('/')).text();
+  for (const text of ['Healthy servers', 'Health check', 'Updates', 'Security check', 'Web UI sign-in', 'data-clock']) assert.ok(page.includes(text), text);
+  assert.match(page, /Sign-in is off: anyone reaching the port manages the hub/);
+  const health = await post('/dashboard/health', {});
+  assert.equal(health.headers.get('location'), '/?done=health');
+  assert.ok(hub.lastHealth && hub.lastHealth.results.every((r) => !r.ok), 'servers that never started do not answer');
+  assert.equal((await post('/dashboard/update-all', {})).headers.get('location'), '/?done=update&n=0');
+  assert.equal((await post('/dashboard/reload', {})).status, 400, 'no server file to reload');
+});
+
 test('each server has its own page with tabs and breadcrumbs', async () => {
   const { request } = setup({ kind: 'none' });
   note('hello from alpha', { server: 'alpha' });
   const overview = await (await request('/servers/alpha')).text();
-  assert.match(overview, /class="breadcrumbs[\s\S]*href="\/">Servers<\/a>[\s\S]*aria-current="page">alpha</);
+  assert.match(overview, /class="breadcrumbs[\s\S]*href="\/servers">Servers<\/a>[\s\S]*aria-current="page">alpha</);
   assert.match(overview, /href="\/servers\/alpha\/logs"[^>]*>Logs<span[^>]*>\d+</);
   const logsTab = await (await request('/servers/alpha/logs')).text();
   assert.ok(logsTab.includes('hello from alpha'));
@@ -80,17 +92,17 @@ test('a server is switched off from the UI, kept off across restarts, and filter
   const { dir, post, request } = setup({ kind: 'none' });
   const state = join(dir, 'state.json');
   hub.useState(state);
-  const res = await post('/servers/alpha/disable', {}, { origin: PUBLIC, referer: `${PUBLIC}/?state=online` });
+  const res = await post('/servers/alpha/disable', {}, { origin: PUBLIC, referer: `${PUBLIC}/servers?state=online` });
   assert.equal(res.status, 303);
-  assert.equal(res.headers.get('location'), '/?state=online');
+  assert.equal(res.headers.get('location'), '/servers?state=online');
   assert.ok(hub.isDisabled('alpha'));
   assert.equal(hub.upstreams.get('alpha')!.state, 'stopped');
   assert.deepEqual(JSON.parse(readFileSync(state, 'utf8')), { disabled: ['alpha'] });
 
-  const off = await (await request('/?state=disabled')).text();
+  const off = await (await request('/servers?state=disabled')).text();
   assert.match(off, /action="\/servers\/alpha\/enable"/);
   assert.ok(!off.includes('>beta<'), 'the filter hides the other servers');
-  assert.match(await (await request('/?q=bet')).text(), />beta</);
+  assert.match(await (await request('/servers?q=bet')).text(), />beta</);
 
   const again = new Hub(parseConfig('servers:\n  alpha: { command: /bin/true }'));
   again.useState(state);
@@ -113,7 +125,7 @@ test('the logs page lists calls, actions and output, and filters them', async ()
 
   const calls = await (await request('/logs?kind=calls')).text();
   assert.ok(calls.includes('alpha-search') && !calls.includes('listening on stdio'), 'the calls tab shows only MCP calls');
-  assert.match(calls, /stat-title">Failed<\/div><div class="stat-value[^"]*text-error">1</);
+  assert.match(calls, /stat-title">Failed<\/div>\s*<div class="stat-value[^"]*text-error">1</);
 
   const errors = await (await request('/logs?kind=errors')).text();
   assert.ok(errors.includes('beta-send') && !errors.includes('alpha-search'));
@@ -248,7 +260,7 @@ test('OIDC login with PKCE opens a session', async () => {
   const page = await request('/keys', { headers: { cookie: session } });
   assert.equal(page.status, 200);
   assert.match(await page.text(), /<li class="menu-title truncate">admin<\/li>/);
-  assert.match(await (await request('/keys', { headers: { cookie: session } })).text(), /<img class="[^"]*" src="https:\/\/avatars\.example\.test\/u1\.png"/);
+  assert.match(await (await request('/keys', { headers: { cookie: session } })).text(), /<img src="https:\/\/avatars\.example\.test\/u1\.png"/);
   assert.match(page.headers.get('content-security-policy')!, /img-src 'self' data: https:\/\/avatars\.example\.test;/, 'the avatar host is allowed, nothing else');
 });
 

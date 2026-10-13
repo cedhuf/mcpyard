@@ -100,7 +100,6 @@ servers you touched restart. See [Reloading](configuration.html#reloading).
 
 ## Upgrading
 
-The account menu, under the avatar at the top right, shows the running version; a dot on the avatar
-tells you when a newer release exists. Pull the new image
+The footer of every page shows the running version, with a badge when a newer release exists. Pull the new image
 and recreate the container. Releases follow semantic versioning; notes are on the
 [releases page](https://github.com/cedhuf/mcpyard/releases).
