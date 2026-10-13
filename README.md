@@ -1,4 +1,4 @@
-<p align="center"><img src="static/icon.png" alt="MCP Yard logo: a little server holding a golden key, in a fenced yard" width="200"></p>
+<p align="center"><img src="docs/public/og.png" alt="MCP Yard: one MCP endpoint, every server behind it. The mascot, a little server holding a golden key in a fenced yard, celebrates."></p>
 
 # MCP Yard
 

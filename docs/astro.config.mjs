@@ -24,6 +24,7 @@ export default defineConfig({
       customCss: ['@fontsource-variable/fredoka', './src/styles/custom.css'],
       // Self-hosted Umami: no cookie and no personal data, so no consent banner.
       head: [
+        { tag: 'meta', attrs: { property: 'og:image', content: 'https://cedhuf.github.io/mcpyard/og.png' } },
         {
           tag: 'script',
           attrs: { defer: true, src: 'https://audience.thehuf.uk/script.js', 'data-website-id': '6f3d2ca5-ddc2-40da-9ed1-60195b4112f2' },
