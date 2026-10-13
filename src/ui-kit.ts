@@ -1,5 +1,6 @@
 import { html } from 'hono/html';
-import { icon, type Fragment } from './ui-layout.ts';
+import { icon } from './ui-icons.ts';
+import type { Fragment } from './ui-layout.ts';
 
 /**
  * The building blocks every page is made of: daisyUI components laid out with Tailwind utilities.
@@ -10,10 +11,11 @@ export type Content = Fragment | string | (Fragment | string)[];
 export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'info';
 export type Crumb = { label: Content; href?: string };
 
+/** The top of every page: breadcrumbs from the home page, the title, a line under it, and the page's actions. */
 export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[] } = {}): Fragment {
   return html`<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-6">
     <div class="min-w-0">
-      ${options.crumbs ? breadcrumbs(options.crumbs) : ''}
+      ${breadcrumbs(options.crumbs ?? [{ label: title }])}
       <h1 class="flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">${title}</h1>
       ${options.sub ? html`<p class="mt-1 text-base-content/60">${options.sub}</p>` : ''}
     </div>
@@ -22,40 +24,46 @@ export function pageHead(title: Content, options: { sub?: Content; actions?: Con
 }
 
 export function breadcrumbs(items: Crumb[]): Fragment {
-  return html`<nav class="breadcrumbs text-sm text-base-content/60 py-0 mb-1" aria-label="Breadcrumb"><ul>${items.map((c) => html`<li>${c.href ? html`<a href="${c.href}">${c.label}</a>` : html`<span class="text-base-content" aria-current="page">${c.label}</span>`}</li>`)}</ul></nav>`;
+  const home = html`<li><a href="/" aria-label="Home">${icon('home', 'sm')}</a></li>`;
+  return html`<nav class="breadcrumbs text-sm text-base-content/60 py-0 mb-1" aria-label="Breadcrumb"><ul>${home}${items.map((c) => html`<li>${c.href ? html`<a href="${c.href}">${c.label}</a>` : html`<span class="text-base-content" aria-current="page">${c.label}</span>`}</li>`)}</ul></nav>`;
 }
 
 /** A daisyUI card with a border. */
 export function box(content: Content, options: { title?: Content; aside?: Content; pad?: boolean } = {}): Fragment {
   return html`<section class="card card-border border-base-300 bg-base-100 min-w-0">
-    ${options.title ? html`<div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-base-300"><h2 class="font-semibold flex items-center gap-2">${options.title}</h2>${options.aside ?? ''}</div>` : ''}
+    ${options.title ? html`<div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-base-300"><h2 class="card-title text-base">${options.title}</h2>${options.aside ?? ''}</div>` : ''}
     ${options.pad ? html`<div class="card-body p-5">${content}</div>` : content}
   </section>`;
 }
 
 type Heading = string | { label: string; hide?: boolean };
 
-/** A daisyUI table in a card. Hidden columns disappear below the md breakpoint. */
+/** A daisyUI table in a card. Hidden columns disappear below the lg breakpoint. */
 export function list(headings: Heading[], rows: Fragment[]): Fragment {
-  return html`<div class="card card-border border-base-300 bg-base-100 overflow-hidden"><table class="table">
-    <thead><tr class="text-base-content/60">${headings.map((h) => (typeof h === 'string' ? html`<th>${h}</th>` : html`<th class="${h.hide ? 'max-md:hidden' : ''}">${h.label}</th>`))}<th class="w-px"></th></tr></thead>
+  return html`<div class="card card-border border-base-300 bg-base-100 overflow-x-auto"><table class="table">
+    <thead><tr class="text-base-content/60">${headings.map((h) => (typeof h === 'string' ? html`<th>${h}</th>` : html`<th class="${h.hide ? 'max-lg:hidden' : ''}">${h.label}</th>`))}<th class="w-px"></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
 
+/** A row whose title link covers it all, while the controls at its end stay clickable on top. */
+export const ROW = 'relative hover:bg-base-200/50 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-primary has-[a:focus-visible]:-outline-offset-2';
+export const ROW_ANCHOR = "outline-none after:absolute after:inset-0 after:content-['']";
+export const ROW_END = 'relative z-1';
+
 /** A table row; the title cell's link covers the whole row while the controls stay on top. */
 export function row(cells: Content, options: { end?: Content; off?: boolean } = {}): Fragment {
-  return html`<tr class="row-link ${options.off ? 'text-base-content/50' : ''}">${cells}<td class="w-px"><div class="row-end flex items-center justify-end gap-1">${options.end ?? ''}</div></td></tr>`;
+  return html`<tr class="${ROW} ${options.off ? 'text-base-content/50' : ''}">${cells}<td class="w-px"><div class="${ROW_END} flex items-center justify-end gap-1">${options.end ?? ''}</div></td></tr>`;
 }
 
 /** The first cell of a row: a name, linked when `href` is set, and a quieter second line. */
 export function title(name: Content, sub?: Content, options: { mono?: boolean; href?: string } = {}): Fragment {
-  const label = options.href ? html`<a class="row-anchor" href="${options.href}">${name}</a>` : name;
+  const label = options.href ? html`<a class="${ROW_ANCHOR}" href="${options.href}">${name}</a>` : name;
   return html`<td class="max-w-0 w-[40%]"><div class="font-semibold truncate ${options.mono ? 'font-mono' : ''}">${label}</div>${sub ? html`<div class="text-xs text-base-content/50 truncate">${sub}</div>` : ''}</td>`;
 }
 
 export function cell(content: Content, options: { hide?: boolean } = {}): Fragment {
-  return html`<td class="${options.hide ? 'max-md:hidden' : ''} text-base-content/70 whitespace-nowrap">${content}</td>`;
+  return html`<td class="${options.hide ? 'max-lg:hidden' : ''} text-base-content/70 whitespace-nowrap">${content}</td>`;
 }
 
 export function status(tone: Tone, label: string, options: { busy?: boolean } = {}): Fragment {
@@ -70,7 +78,7 @@ export function tag(text: Content, options: { mono?: boolean; tone?: Tone; icon?
 /** A daisyUI alert: an error, an available update, a warning. */
 export function note(content: Content, tone: 'error' | 'info' | 'warning' = 'info', action?: Content): Fragment {
   const name = tone === 'error' ? 'alert' : tone === 'warning' ? 'lock' : 'up';
-  return html`<div class="alert alert-soft alert-${tone} text-sm" role="${tone === 'error' ? 'alert' : 'status'}">${icon(name, 'sm')}<div class="min-w-0 break-words">${content}</div>${action ?? ''}</div>`;
+  return html`<div class="alert alert-soft alert-${tone} alert-vertical sm:alert-horizontal text-sm" role="${tone === 'error' ? 'alert' : 'status'}">${icon(name, 'sm')}<div class="min-w-0 break-words">${content}</div>${action ?? ''}</div>`;
 }
 
 type TabItem = { href: string; label: string; count?: number; active: boolean };
@@ -117,27 +125,39 @@ export function onOff(action: string, on: boolean, label: string, locked?: strin
   </form>`;
 }
 
-type MenuItem = Fragment | '' | false | undefined;
+export type MenuEntry = {
+  label: string;
+  icon: string;
+  /** A link, or else a POST to `post`, with an optional `name=value` and a confirmation. */
+  href?: string;
+  post?: string;
+  value?: [name: string, value: string];
+  confirm?: string;
+  danger?: boolean;
+  badge?: string;
+};
 
-/** A daisyUI dropdown with a menu; a details element, so it needs no script. */
-export function menu(label: string, items: MenuItem[]): Fragment {
-  return html`<details class="dropdown dropdown-end">
-    <summary class="btn btn-ghost btn-sm btn-square" aria-label="${label}">${icon('dots')}</summary>
-    <ul class="dropdown-content menu z-40 mt-1 w-56 rounded-box border border-base-300 bg-base-100 p-1 shadow-lg">${items.filter(Boolean)}</ul>
-  </details>`;
-}
-
-export function menuLink(href: string, label: Content, iconName: string): Fragment {
-  return html`<li><a href="${href}">${icon(iconName, 'sm')}${label}</a></li>`;
-}
-
-export function menuItem(action: string, label: Content, iconName: string, options: { fields?: Record<string, string>; confirm?: string; danger?: boolean } = {}): Fragment {
-  return html`<li><form method="post" action="${action}" ${options.confirm ? html`data-confirm="${options.confirm}"` : ''}>${hidden(options.fields)}<button class="${options.danger ? 'text-error' : ''}">${icon(iconName, 'sm')}${label}</button></form></li>`;
+/**
+ * A daisyUI dropdown menu on the popover API: it sits in the top layer, so no table edge clips it and
+ * no row covers it, and it closes on an outside click without any script. Its POST entries share one
+ * form, each button naming its own action.
+ */
+export function menu(name: string, label: string, entries: (MenuEntry | false | undefined)[], options: { title?: Content; trigger?: Content } = {}): Fragment {
+  const id = `menu-${name}`;
+  const item = (e: MenuEntry) => {
+    const body = html`${icon(e.icon, 'sm')}<span class="flex-1">${e.label}</span>${e.badge ? html`<span class="badge badge-sm badge-primary">${e.badge}</span>` : ''}`;
+    if (e.href) return html`<li><a href="${e.href}">${body}</a></li>`;
+    return html`<li><button formaction="${e.post}" class="${e.danger ? 'text-error' : ''}" ${e.value ? html`name="${e.value[0]}" value="${e.value[1]}"` : ''} ${e.confirm ? html`data-confirm="${e.confirm}"` : ''}>${body}</button></li>`;
+  };
+  return html`<form method="post" class="contents">
+    <button type="button" class="btn btn-ghost ${options.trigger ? 'btn-circle' : 'btn-sm btn-square'}" popovertarget="${id}" style="anchor-name:--${id}" aria-label="${label}">${options.trigger ?? icon('dots')}</button>
+    <ul class="dropdown dropdown-end menu w-60 rounded-box border border-base-300 bg-base-100 text-base-content p-1 shadow-lg [position-try-fallbacks:flip-block]" popover id="${id}" style="position-anchor:--${id}">${options.title ? html`<li class="menu-title truncate">${options.title}</li>` : ''}${entries.filter((e): e is MenuEntry => !!e).map(item)}</ul>
+  </form>`;
 }
 
 /** One block of a long form or page: its title and explanation on the left, the content on the right. */
-export function section(heading: Content, description: Content, content: Content, options: { kinds?: string; tone?: 'warning' } = {}): Fragment {
-  return html`<section class="grid md:grid-cols-[minmax(180px,280px)_1fr] gap-x-10 gap-y-3 p-5 md:p-6 border-base-300 [&+&]:border-t ${options.tone === 'warning' ? 'bg-warning/5' : ''}" ${options.kinds ? html`data-kinds="${options.kinds}"` : ''}>
+export function section(heading: Content, description: Content, content: Content, options: { kinds?: string; tone?: 'warning'; id?: string } = {}): Fragment {
+  return html`<section ${options.id ? html`id="${options.id}"` : ''} class="grid md:grid-cols-[minmax(180px,280px)_1fr] gap-x-10 gap-y-3 p-5 md:p-6 border-base-300 [&+&]:border-t ${options.tone === 'warning' ? 'bg-warning/5' : ''}" ${options.kinds ? html`data-kinds="${options.kinds}"` : ''}>
     <div><h2 class="font-semibold flex items-center gap-2">${heading}</h2>${description ? html`<p class="mt-1 text-[13px] text-base-content/60">${description}</p>` : ''}</div>
     <div class="min-w-0">${content}</div>
   </section>`;
@@ -176,12 +196,17 @@ export function stats(items: { label: string; value: Content; tone?: Tone }[]): 
 type ButtonOptions = { tone?: 'primary' | 'ghost' | 'outline' | 'danger'; icon?: string; title?: string };
 
 function buttonClass(options: ButtonOptions): string {
-  const tone = { primary: 'btn-primary', ghost: 'btn-ghost', outline: 'btn-outline border-base-300', danger: 'btn-ghost text-error' }[options.tone ?? 'outline'];
+  const tone = { primary: 'btn-primary', ghost: 'btn-ghost', outline: '', danger: 'btn-ghost text-error' }[options.tone ?? 'outline'];
   return `btn btn-sm ${tone}`;
 }
 
-export function linkButton(href: string, label: Content, options: ButtonOptions & { dialog?: string } = {}): Fragment {
-  return html`<a class="${buttonClass(options)}" href="${href}" ${options.dialog ? html`data-dialog="${options.dialog}"` : ''} ${options.title ? html`title="${options.title}"` : ''}>${options.icon ? icon(options.icon, 'sm') : ''}${label}</a>`;
+export function linkButton(href: string, label: Content, options: ButtonOptions = {}): Fragment {
+  return html`<a class="${buttonClass(options)}" href="${href}" ${options.title ? html`title="${options.title}"` : ''}>${options.icon ? icon(options.icon, 'sm') : ''}${label}</a>`;
+}
+
+/** A button that opens a daisyUI modal, through an invoker command: no script. */
+export function dialogButton(dialog: string, label: Content, options: ButtonOptions = {}): Fragment {
+  return html`<button type="button" class="${buttonClass(options)}" command="show-modal" commandfor="${dialog}">${options.icon ? icon(options.icon, 'sm') : ''}${label}</button>`;
 }
 
 /** A button that POSTs, with hidden fields and an optional confirmation. */

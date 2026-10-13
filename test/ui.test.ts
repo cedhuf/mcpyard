@@ -35,12 +35,22 @@ test('servers page lists every server with its state', async () => {
   const res = await request('/');
   assert.equal(res.status, 200);
   const body = await res.text();
-  assert.match(body, /<a class="row-anchor[^"]*" href="\/servers\/alpha">alpha<\/a>/);
+  assert.match(body, /<a class="[^"]*after:inset-0[^"]*" href="\/servers\/alpha">alpha<\/a>/);
   assert.match(body, /http:\/\/beta\.test\/mcp/);
   const csp = res.headers.get('content-security-policy')!;
   const nonce = csp.match(/script-src 'nonce-([^']+)'/)![1];
   assert.ok(body.includes(`<script nonce="${nonce}">`), 'the only script carries the nonce');
   assert.ok(!/ on[a-z]+="/.test(body), 'no inline event handlers');
+});
+
+test('the navbar search looks in the current section and keeps its filters', async () => {
+  const { request } = setup({ kind: 'none' });
+  assert.match(await (await request('/')).text(), /<form method="get" action="\/"[^>]*role="search"/);
+  assert.match(await (await request('/logs?kind=calls')).text(), /<form method="get" action="\/logs"[^>]*>\s*<input type="hidden" name="kind" value="calls"/);
+  const keys = await (await request('/keys?q=nothing-like-this')).text();
+  assert.match(keys, /<form method="get" action="\/keys"/);
+  assert.match(keys, /No key matches <strong>nothing-like-this<\/strong>/);
+  assert.ok(!(await (await request('/?q=bet')).text()).includes('href="/servers/alpha"'), 'the servers search filters');
 });
 
 test('each server has its own page with tabs and breadcrumbs', async () => {
@@ -225,7 +235,7 @@ test('OIDC login with PKCE opens a session', async () => {
   const session = callback.headers.get('set-cookie')!.match(/mcpyard_session=[^;]+/)![0];
   const page = await request('/keys', { headers: { cookie: session } });
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /truncate font-medium">admin<\/span>/);
+  assert.match(await page.text(), /<li class="menu-title truncate">admin<\/li>/);
   assert.match(await (await request('/keys', { headers: { cookie: session } })).text(), /<img class="[^"]*" src="https:\/\/avatars\.example\.test\/u1\.png"/);
   assert.match(page.headers.get('content-security-policy')!, /img-src 'self' data: https:\/\/avatars\.example\.test;/, 'the avatar host is allowed, nothing else');
 });

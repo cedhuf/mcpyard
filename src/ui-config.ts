@@ -176,6 +176,7 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
                 : html`<span class="text-base-content/50">${updates?.value ? (about.error ?? 'not checked yet') : 'not checked'}</span>`,
             )}
             ${setting('Check for new releases', updates?.source === 'env' ? lockedValue(updates.value ? 'on' : 'off', updates.env) : toggle('updateCheck', 'Check for new releases', updates?.value), 'Asks GitHub every few hours. MCP Yard never updates itself.')}`,
+          { id: 'about' },
         )}
         ${section(
           'Environment',

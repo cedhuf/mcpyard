@@ -8,6 +8,10 @@ The web UI is served at the root of the hub. It shows each server's state, tools
 restarts servers, updates and rolls back packages, reloads the server file, creates, edits,
 disables and deletes keys, and shows the hub's logs. It refreshes itself every few seconds.
 
+The top bar holds the three sections (**Servers**, **Keys**, **Logs**), a search field that searches
+the section you are in, and the account menu with **Settings**, the version and **Sign out**. Every
+page starts with breadcrumbs back to the home page.
+
 <picture>
   <source srcset="assets/servers-dark.png" media="(prefers-color-scheme: dark)">
   <img src="assets/servers-light.png" alt="The servers page of the web UI">
@@ -17,8 +21,8 @@ disables and deletes keys, and shows the hub's logs. It refreshes itself every f
 
 The servers page has two layouts, switched with the buttons at the right of the toolbar and
 remembered in a cookie: **cards**, one per server, and a **list** with one row per server. Tabs
-filter the servers by state (**All**, **Online**, **Failed**, **Disabled**) and the search box
-matches names and packages. Each server has a switch and a **⋯** menu to restart, update, roll back
+filter the servers by state (**All**, **Online**, **Failed**, **Disabled**) and the search field in
+the top bar matches names and packages. Each server has a switch and a **⋯** menu to restart, update, roll back
 or remove it.
 
 <picture>
@@ -68,7 +72,8 @@ The **Logs** page shows the last 2000 log lines since the hub started, newest fi
 - **Output**: what the servers write on stderr, their state changes, and the hub's own messages.
 - **Errors**: everything that failed, whatever its kind.
 
-Click a server name to see only its lines; the search box matches tools, keys and messages. The
+Click a server name to see only its lines; on this page the search field in the top bar matches
+tools, keys and messages. The
 same lines go to the container's output, so `docker logs` and your log shipper see them too; the
 page keeps nothing on disk.
 
@@ -86,8 +91,8 @@ soon as it is made; there is no save button.
 - **Updates**: how often registries are checked.
 - **Appearance**: follow the system's light or dark mode, or force one, and pick the light and dark
   [daisyUI themes](https://daisyui.com/docs/themes/) (`winter` and `dim` by default).
-- **About MCP Yard**: the running version and the latest release on GitHub. The sidebar also shows
-  the version, with a link to the release notes when a newer one exists. The hub never updates
+- **About**: the running version and the latest release on GitHub. The account menu also shows the
+  version, and a dot on the avatar links to the release notes when a newer one exists. The hub never updates
   itself; turn the check off here or with `MCPYARD_UPDATE_CHECK=false`.
 - **Environment**: every startup variable with its value, behind a padlock. Secrets are masked.
 
@@ -119,8 +124,8 @@ In your provider, register a client with:
 - **Scopes**: `openid profile email`, plus `groups` when you use `OIDC_ALLOWED_GROUPS`
 - **Client authentication**: client secret (basic or post), or a public client with no secret
 
-The sidebar shows your name and, when the provider sends a `picture` claim (PocketID does), your
-avatar; the page then allows images from that host only. Sessions last 12 hours in a signed,
+The account menu at the top right shows your name and, when the provider sends a `picture` claim
+(PocketID does), your avatar; the page then allows images from that host only. Sessions last 12 hours in a signed,
 HTTP-only cookie. The signing key is generated in
 `$MCPYARD_DATA_DIR/session.key`; delete it and restart to sign everyone out.
 

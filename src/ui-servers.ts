@@ -3,7 +3,7 @@ import type { ServerConfig } from './config.ts';
 import type { Hub, PackageStatus } from './front.ts';
 import { allowed } from './keys.ts';
 import type { Upstream } from './upstream.ts';
-import { box, cell, chips, type Content, empty, linkButton, list, menu, menuItem, menuLink, note, onOff, pageHead, postButton, row as item, search, segLinks, status, tabs, tag, title, toolbar, type Tone } from './ui-kit.ts';
+import { box, cell, chips, ROW, ROW_ANCHOR, ROW_END, type Content, empty, linkButton, list, menu, type MenuEntry, note, onOff, pageHead, postButton, row as item, segLinks, status, tabs, tag, title, toolbar, type Tone } from './ui-kit.ts';
 import { icon, type Fragment } from './ui-layout.ts';
 
 export type View = 'cards' | 'list';
@@ -80,20 +80,21 @@ function enableSwitch(row: Row): Fragment {
   return onOff(`/servers/${row.name}/${on ? 'disable' : 'enable'}`, on, `${on ? 'Switch off' : 'Switch on'} ${row.name}`, row.config.enabled ? undefined : 'Disabled in the server file');
 }
 
-function actionItems(row: Row, editable: boolean, options: { settings?: boolean } = {}): Fragment[] {
+function actions(row: Row, editable: boolean, options: { settings?: boolean } = {}): (MenuEntry | false)[] {
   const pkg = row.pkg;
   const newer = newerVersion(pkg);
+  const base = `/servers/${row.name}`;
   return [
-    options.settings === false ? '' : menuLink(`/servers/${row.name}/edit`, editable ? 'Edit settings' : 'View settings', 'pencil'),
-    row.config.enabled && !row.uiDisabled ? menuItem(`/servers/${row.name}/restart`, 'Restart', 'rotate') : '',
-    newer && !pkg!.updating ? menuItem(`/servers/${row.name}/update`, `Update to ${newer}`, 'up', { fields: { version: newer } }) : '',
-    pkg && !pkg.pinned && !pkg.updating && pkg.previous && pkg.previous !== newer ? menuItem(`/servers/${row.name}/update`, `Roll back to ${pkg.previous}`, 'undo', { fields: { version: pkg.previous } }) : '',
-    editable ? html`${menuItem(`/servers/${row.name}/delete`, 'Remove', 'trash', { confirm: `Remove ${row.name} from the server file? It stops now.`, danger: true })}` : '',
-  ].filter((x): x is Fragment => !!x);
+    options.settings !== false && { href: `${base}/edit`, label: editable ? 'Edit settings' : 'View settings', icon: 'pencil' },
+    row.config.enabled && !row.uiDisabled && { post: `${base}/restart`, label: 'Restart', icon: 'rotate' },
+    !!newer && !pkg!.updating && { post: `${base}/update`, value: ['version', newer], label: `Update to ${newer}`, icon: 'up' },
+    !!pkg?.previous && !pkg.pinned && !pkg.updating && pkg.previous !== newer && { post: `${base}/update`, value: ['version', pkg.previous], label: `Roll back to ${pkg.previous}`, icon: 'undo' },
+    editable && { post: `${base}/delete`, label: 'Remove', icon: 'trash', danger: true, confirm: `Remove ${row.name} from the server file? It stops now.` },
+  ];
 }
 
 function controls(row: Row, editable: boolean, options: { settings?: boolean } = {}): Fragment {
-  return html`${enableSwitch(row)}${menu(`Actions for ${row.name}`, actionItems(row, editable, options))}`;
+  return html`${enableSwitch(row)}${menu(`server-${row.name}`, `Actions for ${row.name}`, actions(row, editable, options))}`;
 }
 
 /** The error or the available update, as one line each. */
@@ -108,7 +109,7 @@ function listRow(row: Row, editable: boolean): Fragment {
   const newer = newerVersion(row.pkg);
   const meta = [transport(row.config), version(row), toolsText(row)].filter(Boolean).join(' · ');
   return item(
-    html`${title(row.name, html`<span class="md:hidden">${meta}</span><span class="max-md:hidden font-mono">${source(row.config)}</span>`, { mono: true, href: `/servers/${row.name}` })}
+    html`${title(row.name, html`<span class="lg:hidden">${meta}</span><span class="max-lg:hidden font-mono">${source(row.config)}</span>`, { mono: true, href: `/servers/${row.name}` })}
       ${cell(stateLabel(row))}
       ${cell(tag(transport(row.config)), { hide: true })}
       ${cell(version(row) ? html`<span class="inline-flex items-center gap-1 font-mono">${version(row)}${row.pkg?.pinned ? icon('pin', 'xs') : ''}</span>` : html`<span class="opacity-40">none</span>`, { hide: true })}
@@ -121,11 +122,11 @@ function listRow(row: Row, editable: boolean): Fragment {
 function tile(row: Row, editable: boolean): Fragment {
   const newer = newerVersion(row.pkg);
   const off = stateOf(row) === 'disabled';
-  return html`<article class="row-link card card-border border-base-300 bg-base-100 hover:border-base-content/20 transition-colors">
+  return html`<article class="${ROW} card card-border border-base-300 bg-base-100 hover:border-base-content/20 transition-colors">
     <div class="card-body p-4 gap-2">
       <div class="flex items-center gap-2">
-        <a class="row-anchor flex-1 min-w-0 truncate font-mono font-semibold ${off ? 'opacity-50' : ''}" href="/servers/${row.name}">${row.name}</a>
-        <div class="row-end flex items-center gap-1">${controls(row, editable)}</div>
+        <a class="${ROW_ANCHOR} flex-1 min-w-0 truncate font-mono font-semibold ${off ? 'opacity-50' : ''}" href="/servers/${row.name}">${row.name}</a>
+        <div class="${ROW_END} flex items-center gap-1">${controls(row, editable)}</div>
       </div>
       <p class="font-mono text-xs text-base-content/50 truncate" title="${source(row.config)}">${source(row.config)}</p>
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-base-content/70">
@@ -154,7 +155,7 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
     })}
     ${toolbar(html`
       ${chips(FILTERS.map((f) => ({ href: link(f), label: `${f[0]!.toUpperCase()}${f.slice(1)}`, count: count(f), active: filter.state === f })))}
-      ${search('/', filter.q, 'Search servers', filter.state !== 'all' ? { state: filter.state } : {})}
+      ${filter.q ? html`<a class="badge badge-ghost gap-1" href="${filter.state === 'all' ? '/' : `/?state=${filter.state}`}" title="Clear the search">“${filter.q}” ✕</a>` : ''}
       <span class="flex-1"></span>
       ${segLinks('Layout', [
         { href: '/?view=list', icon: 'list', label: 'List', active: view === 'list' },
@@ -164,7 +165,7 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
     ${!all.length
       ? empty(editable ? html`<p>No servers yet. <a class="link link-primary" href="/servers/new">Add the first one</a>.</p>` : 'No servers yet. Declare them in the server file and reload.')
       : !rows.length
-        ? empty('No server matches this filter.')
+        ? empty(filter.q ? html`<p>No server matches <strong>${filter.q}</strong>. <a class="link link-primary" href="/">Show all</a></p>` : 'No server matches this filter.')
         : view === 'list'
           ? list(['Name', 'State', { label: 'Kind', hide: true }, { label: 'Version', hide: true }, { label: 'Tools', hide: true }, { label: '', hide: true }], rows.map((r) => listRow(r, editable)))
           : html`<div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))]">${rows.map((r) => tile(r, editable))}</div>`}

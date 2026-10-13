@@ -2,14 +2,14 @@ import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import type { Hub } from './front.ts';
 import { isAdmin, loadKeys, newKey, saveKeys, type Key } from './keys.ts';
-import { box, cell, checkbox, empty, field, fields, linkButton, list, menu, menuItem, menuLink, onOff, pageHead, row, tag, title } from './ui-kit.ts';
+import { box, cell, checkbox, dialogButton, empty, field, fields, linkButton, list, menu, onOff, pageHead, row, tag, title } from './ui-kit.ts';
 import { plural } from './ui-servers.ts';
 import { icon, log, page, toast, type Env, type Fragment } from './ui-layout.ts';
 
 export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: { keysPath: string; base: (c: Context) => string }): void {
   const { keysPath } = options;
 
-  app.get('/keys', guard, (c) => c.html(page(c, 'Keys', keysView(hub, loadKeys(keysPath)))));
+  app.get('/keys', guard, (c) => c.html(page(c, 'Keys', keysView(hub, loadKeys(keysPath), (c.req.query('q') ?? '').trim()))));
 
   app.get('/keys/new', guard, (c) => c.html(page(c, 'New key', html`${pageHead('New key', { crumbs: [{ label: 'Keys', href: '/keys' }, { label: 'New key' }] })}${box(keyForm(hub), { pad: true })}`)));
 
@@ -95,7 +95,7 @@ function keyRow(k: Key): Fragment {
   const list = servers(k);
   const reach = list.includes('*') ? 'all servers' : list.length ? list.join(', ') : isAdmin(k) ? 'administration only' : 'no server';
   return row(
-    html`${title(k.name, html`<span class="font-mono">${k.prefix}…</span><span class="md:hidden"> · ${[list.length ? 'tools' : '', isAdmin(k) ? 'admin' : ''].filter(Boolean).join(' + ')}</span>`, { href: `/keys/${k.id}/edit` })}
+    html`${title(k.name, html`<span class="font-mono">${k.prefix}…</span><span class="lg:hidden"> · ${[list.length ? 'tools' : '', isAdmin(k) ? 'admin' : ''].filter(Boolean).join(' + ')}</span>`, { href: `/keys/${k.id}/edit` })}
       ${cell(html`<span class="flex gap-1">${list.length ? tag('tools') : ''}${isAdmin(k) ? tag('admin', { tone: 'warning', icon: 'wrench' }) : ''}</span>`, { hide: true })}
       ${cell(html`<span class="block max-w-48 truncate" title="${reach}">${reach}</span>`, { hide: true })}
       ${cell(html`<span class="block max-w-48 truncate font-mono text-xs" title="${filter}">${filter}</span>`, { hide: true })}
@@ -103,22 +103,25 @@ function keyRow(k: Key): Fragment {
     {
       off: !k.enabled,
       end: html`${onOff(`/keys/${k.id}/${k.enabled ? 'disable' : 'enable'}`, k.enabled, `${k.enabled ? 'Disable' : 'Enable'} key ${k.name}`)}
-        ${menu(`Actions for ${k.name}`, [
-          menuLink(`/keys/${k.id}/edit`, 'Edit', 'pencil'),
-          menuItem(`/keys/${k.id}/delete`, 'Delete', 'trash', { danger: true, confirm: `Delete key ${k.name}? Clients using it lose access.` }),
+        ${menu(`key-${k.id}`, `Actions for ${k.name}`, [
+          { href: `/keys/${k.id}/edit`, label: 'Edit', icon: 'pencil' },
+          { post: `/keys/${k.id}/delete`, label: 'Delete', icon: 'trash', danger: true, confirm: `Delete key ${k.name}? Clients using it lose access.` },
         ])}`,
     },
   );
 }
 
-function keysView(hub: Hub, keys: Key[]): Fragment {
-  const off = keys.filter((k) => !k.enabled).length;
-  const admins = keys.filter((k) => k.enabled && isAdmin(k)).length;
+function keysView(hub: Hub, all: Key[], q = ''): Fragment {
+  const needle = q.toLowerCase();
+  const keys = all.filter((k) => !needle || [k.name, k.prefix, ...k.scope.servers].some((v) => v.toLowerCase().includes(needle)));
+  const off = all.filter((k) => !k.enabled).length;
+  const admins = all.filter((k) => k.enabled && isAdmin(k)).length;
   return html`${pageHead('Keys', {
-      sub: html`${plural(keys.length, 'key')}${admins ? `, ${admins} with administration` : ''}${off ? `, ${off} off` : ''}. Every client connects to <span class="font-mono">/mcp</span> with its own key.`,
-      actions: linkButton('/keys/new', 'New key', { tone: 'primary', icon: 'plus', dialog: 'new-key' }),
+      sub: html`${plural(all.length, 'key')}${admins ? `, ${admins} with administration` : ''}${off ? `, ${off} off` : ''}. Every client connects to <span class="font-mono">/mcp</span> with its own key.`,
+      actions: dialogButton('new-key', 'New key', { tone: 'primary', icon: 'plus' }),
     })}
-    ${keys.length ? list(['Name', { label: 'Access', hide: true }, { label: 'Servers', hide: true }, { label: 'Tools', hide: true }, { label: 'Last used', hide: true }], keys.map(keyRow)) : empty('No keys yet. Create one for each client.')}
+    ${q ? html`<div class="mb-3"><a class="badge badge-ghost gap-1" href="/keys" title="Clear the search">“${q}” ✕</a></div>` : ''}
+    ${!keys.length && q ? empty(html`<p>No key matches <strong>${q}</strong>.</p>`) : keys.length ? list(['Name', { label: 'Access', hide: true }, { label: 'Servers', hide: true }, { label: 'Tools', hide: true }, { label: 'Last used', hide: true }], keys.map(keyRow)) : empty('No keys yet. Create one for each client.')}
     <dialog id="new-key" class="modal">
       <div class="modal-box max-w-2xl">
         <h3 class="text-lg font-semibold mb-4">New key</h3>

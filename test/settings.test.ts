@@ -54,7 +54,7 @@ test('the settings page locks environment values and turns hub administration of
   assert.match(page, /<span>12 h<\/span><span class="badge[^>]*>[\s\S]{0,800}MCPYARD_VERSION_CHECK_HOURS/);
   assert.match(page, /<form method="post" action="\/settings" data-autosave>/, 'settings save on change');
   assert.ok(!page.includes('name="versionCheckHours"'), 'a locked setting has no input');
-  assert.match(page, /About MCP Yard/);
+  assert.match(page, /<section id="about"/);
   assert.match(page, /name="updateCheck"/);
 
   const yardTools = async () => {

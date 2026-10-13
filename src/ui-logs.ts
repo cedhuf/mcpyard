@@ -1,7 +1,7 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import { logs, type LogEntry } from './logs.ts';
-import { chips, empty, pageHead, search, stats, status, tag, toolbar } from './ui-kit.ts';
+import { chips, empty, pageHead, stats, status, tag, toolbar } from './ui-kit.ts';
 import { page, type Env, type Fragment } from './ui-layout.ts';
 
 const SHOWN = 300;
@@ -112,12 +112,11 @@ function logsView(q: Query): Fragment {
   const all = logs.list();
   const scoped = all.filter((e) => (!q.server || e.server === q.server) && matches(e, q.q));
   const shown = scoped.filter(FILTERS[q.kind].match);
-  const keep: Record<string, string> = { ...(q.kind !== 'all' ? { kind: q.kind } : {}), ...(q.server ? { server: q.server } : {}) };
   return html`<div id="logs" data-refresh>
     ${pageHead('Logs', { sub: `The last ${all.length} lines since the hub started, newest first. The same lines go to the container's output.` })}
     ${toolbar(html`
       ${chips((Object.keys(FILTERS) as FilterName[]).map((k) => ({ href: href(q, { kind: k }), label: FILTERS[k].label, count: scoped.filter(FILTERS[k].match).length, active: q.kind === k })))}
-      ${search('/logs', q.q, 'Search logs', keep)}
+      ${q.q ? html`<a class="badge badge-ghost gap-1" href="${href(q, { q: '' })}" title="Clear the search">“${q.q}” ✕</a>` : ''}
       ${q.server ? html`<a class="badge badge-primary badge-soft gap-1" href="${href(q, { server: '' })}" title="Show every server"><span class="font-mono">${q.server}</span>✕</a>` : ''}
     `)}
     <div class="grid gap-4">
