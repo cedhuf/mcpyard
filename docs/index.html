@@ -3,20 +3,51 @@ layout: default
 layout_class: home
 ---
 <section class="hero">
-  <img class="hero-logo" src="{{ '/assets/icon.png' | relative_url }}" alt="MCP Yard: a little server holding a golden key, in a fenced yard" width="220" height="220">
-  <h1>One MCP endpoint.<br><span>Every server behind it.</span></h1>
-  <p class="lead">MCP Yard is a small, self-hosted MCP hub. It installs and runs your MCP servers, merges their
-    tools behind a single <code>/mcp</code> endpoint, and gives each client its own key with exactly the
-    access it needs.</p>
-  <p class="cta">
-    <a class="button primary" href="{{ '/getting-started.html' | relative_url }}">Get started</a>
-    <a class="button" href="https://github.com/{{ site.repository }}">View on GitHub</a>
-  </p>
-  <div class="snippet">
-{% highlight bash %}
-docker run -d -p 3000:3000 -v ./mcpyard.yaml:/config/mcpyard.yaml \
-  -v mcpyard-data:/data ghcr.io/cedhuf/mcpyard:latest
+  <div class="hero-text">
+    <img class="hero-logo" src="{{ '/assets/icon.png' | relative_url }}" alt="MCP Yard: a little server holding a golden key, in a fenced yard" width="160" height="160">
+    <h1>One MCP endpoint.<br><span>Every server behind it.</span></h1>
+    <p class="lead">MCP Yard is a small, self-hosted MCP hub. It installs and runs your MCP servers, merges their
+      tools behind a single <code>/mcp</code> endpoint, and gives each client its own key with exactly the
+      access it needs.</p>
+    <p class="cta">
+      <a class="button primary" href="{{ '/getting-started.html' | relative_url }}">Get started</a>
+      <a class="button" href="https://github.com/{{ site.repository }}">View on GitHub</a>
+    </p>
+  </div>
+  <div class="window" aria-label="Run MCP Yard">
+    <input type="radio" name="run" id="run-compose" checked aria-label="Docker Compose">
+    <input type="radio" name="run" id="run-docker" aria-label="docker run">
+    <div class="window-bar">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <label for="run-compose">compose.yaml</label>
+      <label for="run-docker">docker run</label>
+    </div>
+    <div class="pane pane-compose">
+{% highlight yaml %}
+services:
+  mcpyard:
+    image: ghcr.io/cedhuf/mcpyard:latest
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      MCPYARD_UI_AUTH: none   # local trial
+    volumes:
+      - ./mcpyard.yaml:/config/mcpyard.yaml
+      - mcpyard-data:/data
+
+volumes:
+  mcpyard-data:
 {% endhighlight %}
+    </div>
+    <div class="pane pane-docker">
+{% highlight bash %}
+docker run -d --name mcpyard \
+  -p 127.0.0.1:3000:3000 \
+  -e MCPYARD_UI_AUTH=none \
+  -v ./mcpyard.yaml:/config/mcpyard.yaml \
+  -v mcpyard-data:/data \
+  ghcr.io/cedhuf/mcpyard:latest
+{% endhighlight %}
+    </div>
   </div>
 </section>
 

@@ -76,14 +76,32 @@ pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 
 
 /* Home */
 .home section { max-width: 1080px; margin: 0 auto; padding: 56px 24px; }
-.hero { text-align: center; padding-top: 40px !important; }
-.hero-logo { display: block; margin: 0 auto -12px; width: 220px; height: auto; }
+.hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 48px; align-items: center; padding-top: 40px !important; }
+.hero-logo { display: block; width: 140px; height: auto; margin: 0 0 -8px -10px; }
 .hero h1, .prose h1, .prose h2, .shot h2, .config h2, .why h2 { font-family: Fredoka, system-ui, sans-serif; font-weight: 600; }
-.hero h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.08; letter-spacing: -0.03em; margin: 18px 0 18px; }
+.hero h1 { font-size: clamp(34px, 4.4vw, 48px); line-height: 1.08; letter-spacing: -0.03em; margin: 12px 0 18px; }
 .hero h1 span { color: var(--accent); }
-.lead { font-size: 19px; color: var(--muted); max-width: 680px; margin: 0 auto; }
-.cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 28px 0 0; }
-.snippet { max-width: 720px; margin: 36px auto 0; text-align: left; min-width: 0; }
+.lead { font-size: 19px; color: var(--muted); max-width: 680px; margin: 0; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; margin: 28px 0 0; }
+.why .cta { justify-content: center; }
+
+/* A macOS-style window with one tab per way to run the hub; radios, no script. */
+.window { position: relative; display: grid; border: 1px solid var(--line); border-radius: var(--radius); background: var(--code-bg); box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.35); overflow: hidden; }
+.window > input { position: absolute; opacity: 0; pointer-events: none; }
+.window-bar { display: flex; align-items: center; gap: 4px; padding: 10px 14px; background: var(--bg-soft); border-bottom: 1px solid var(--line); }
+.dots { display: flex; gap: 7px; margin-right: 14px; }
+.dots i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; }
+.dots i:nth-child(2) { background: #febc2e; }
+.dots i:nth-child(3) { background: #28c840; }
+.window-bar label { padding: 4px 12px; border-radius: var(--field); color: var(--muted); font: 500 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
+.window-bar label:hover { color: var(--fg); }
+#run-compose:checked ~ .window-bar [for=run-compose], #run-docker:checked ~ .window-bar [for=run-docker] { background: var(--neutral); color: var(--neutral-content); }
+#run-compose:focus-visible ~ .window-bar [for=run-compose], #run-docker:focus-visible ~ .window-bar [for=run-docker] { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* Both panes share one cell, so the window keeps the taller one's height. */
+.window-bar { grid-row: 1; }
+.pane { grid-row: 2; grid-column: 1; visibility: hidden; }
+#run-compose:checked ~ .pane-compose, #run-docker:checked ~ .pane-docker { visibility: visible; }
+.window pre { border: 0; border-radius: 0; background: transparent; padding: 18px 20px; font-size: 0.85em; }
 .home section > * { max-width: 100%; }
 
 .flow { display: grid; grid-template-columns: 1fr 40px 1.1fr 40px 1fr; align-items: center; gap: 8px; }
@@ -142,6 +160,7 @@ footer { border-top: 1px solid var(--line); padding: 28px 24px; text-align: cent
 
 @media (max-width: 900px) {
   .features { grid-template-columns: 1fr 1fr; }
+  .hero { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .config { grid-template-columns: 1fr; }
   .flow { grid-template-columns: 1fr; }
   .flow .arrow { width: 2px; height: 24px; margin: 0 auto; }
