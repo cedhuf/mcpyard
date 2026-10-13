@@ -111,12 +111,15 @@ test('servers are added, edited and removed through the file, keeping comments a
   await hub.stop();
 });
 
-test('themes are chosen from daisyUI, applied to pages and baked into the stylesheet', async () => {
-  const { dir, settings, post, request } = setup({ MCPYARD_THEME_DARK: 'night' });
-  assert.throws(() => settings.set('lightTheme', 'neon'), /expected one of/);
-  assert.equal((await post('/settings', { theme: 'dark', lightTheme: 'cupcake' })).status, 200);
-  assert.deepEqual([settings.value('theme'), settings.value('lightTheme'), settings.value('darkTheme')], ['dark', 'cupcake', 'night']);
-  assert.match(await (await request('/settings')).text(), /MCPYARD_THEME_DARK/, 'the environment locks the dark theme');
+test('themes come in light and dark pairs, applied to pages and baked into the stylesheet', async () => {
+  const { dir, settings, post, request } = setup({ MCPYARD_THEME_MODE: 'dark' });
+  assert.throws(() => settings.set('theme', 'cupcake'), /expected one of/);
+  assert.equal((await post('/settings', { theme: 'ocean' })).status, 200);
+  assert.deepEqual([settings.value('mode'), settings.value('theme')], ['dark', 'ocean']);
+  assert.match(await (await request('/settings')).text(), /MCPYARD_THEME_MODE/, 'the environment locks the mode');
+  writeFileSync(join(dir, 'settings.json'), JSON.stringify({ theme: 'dark' }));
+  assert.equal(new Settings(dir, {}).value('theme'), 'default', 'an unknown saved theme falls back to the default');
+  settings.set('theme', 'ocean');
 
   await setAppearance({ mode: 'dark', light: 'cupcake', dark: 'night' });
   const page = await (await request('/')).text();
@@ -125,5 +128,5 @@ test('themes are chosen from daisyUI, applied to pages and baked into the styles
   await setAppearance({ mode: 'system', light: 'winter', dark: 'dim' });
   assert.notEqual((await stylesheet()).version, night);
   assert.match(await (await request('/')).text(), /<html lang="en" >/);
-  assert.ok(new Settings(dir, {}).value('lightTheme') === 'cupcake');
+  assert.equal(new Settings(dir, {}).value('theme'), 'ocean');
 });

@@ -1,7 +1,7 @@
 /**
  * MCP Yard's own daisyUI themes, taken from the logo: the mint of the server, the gold of the key, the
  * wood of the fence, the green of the grass and the dark outline that holds them together. Rounded
- * shapes and a little depth, like the sticker. Every built-in daisyUI theme stays selectable.
+ * shapes and a little depth, like the sticker.
  */
 const SHAPE = `
   --radius-selector: 1rem;

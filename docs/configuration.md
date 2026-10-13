@@ -121,13 +121,12 @@ servers:
 | `OIDC_ALLOWED_GROUPS` | | Comma-separated groups allowed to sign in. |
 | `MCPYARD_UI_AUTH` | `oidc` | `none` turns web UI sign-in off. |
 | `MCPYARD_ADMIN_TOOLS` | `true` | `false` removes the hub's `yard-*` tools from every key. Also on the Settings page. |
-| `MCPYARD_THEME` | `system` | `system`, `light` or `dark`. Also on the Settings page. |
-| `MCPYARD_THEME_LIGHT` | `yard` | MCP Yard's own `yard`, or any [daisyUI theme](https://daisyui.com/docs/themes/), for light mode. |
-| `MCPYARD_THEME_DARK` | `yard-night` | MCP Yard's own `yard-night`, or any daisyUI theme, for dark mode. |
+| `MCPYARD_THEME` | `default` | `default`, `neutral`, `ocean`, `coffee`, `nordic` or `pro`, each with a light and a dark version. Also on the Settings page. |
+| `MCPYARD_THEME_MODE` | `system` | `system`, `light` or `dark`: which version of the theme. Also on the Settings page. |
 | `MCPYARD_UPDATE_CHECK` | `true` | `false` stops asking GitHub whether a newer MCP Yard exists. Also on the Settings page. |
 
 `MCPYARD_ADMIN_TOOLS`, `MCPYARD_UPDATE_CHECK`, `MCPYARD_VERSION_CHECK_HOURS`, the automatic update and health check
-variables and the three theme variables can instead be set on the web UI's
+variables and the two theme variables can instead be set on the web UI's
 **Settings** page, saved in `$MCPYARD_DATA_DIR/settings.json`. When the variable is set, it wins and
 the page shows the setting locked. Everything else on this list is read once at startup.
 

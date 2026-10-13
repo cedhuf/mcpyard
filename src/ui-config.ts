@@ -4,7 +4,7 @@ import type { ConfigFile, RawServer } from './config.ts';
 import type { Hub } from './front.ts';
 import { isAdmin, loadKeys } from './keys.ts';
 import { YARD_TOOLS } from './yard.ts';
-import { THEME_MODES, THEMES, type SettingKey, type Settings } from './settings.ts';
+import { THEME_MODES, THEME_NAMES, THEMES, type SettingKey, type Settings } from './settings.ts';
 import { plural } from './ui-servers.ts';
 import { release } from './release.ts';
 import { box, checkbox, field, fields, linkButton, note, pageHead, section, segRadio, setting, tag } from './ui-kit.ts';
@@ -24,7 +24,7 @@ export type ConfigOptions = {
 };
 
 const NAME = /^[A-Za-z0-9_-]+$/;
-const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'healthCheckMinutes', 'updateCheck', 'autoUpdate', 'autoUpdateTime', 'healthCheck', 'theme', 'lightTheme', 'darkTheme'];
+const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'healthCheckMinutes', 'updateCheck', 'autoUpdate', 'autoUpdateTime', 'healthCheck', 'mode', 'theme'];
 
 export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: ConfigOptions): void {
   const { settings, configFile } = options;
@@ -119,19 +119,12 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
   const updates = settings?.get('updateCheck');
   const autoOn = settings?.get('autoUpdate');
   const autoAt = settings?.get('autoUpdateTime');
-  const mode = settings?.get('theme');
-  const light = settings?.get('lightTheme');
-  const dark = settings?.get('darkTheme');
-  const editable = settings && [admin, hours, healthOn, health, updates, autoOn, autoAt, mode, light, dark].some((s) => s?.source !== 'env');
+  const mode = settings?.get('mode');
+  const theme = settings?.get('theme');
+  const editable = settings && [admin, hours, healthOn, health, updates, autoOn, autoAt, mode, theme].some((s) => s?.source !== 'env');
   const lockedValue = (value: string, env: string) => html`<span class="inline-flex flex-wrap items-center gap-2"><span>${value}</span>${locked(env)}</span>`;
   const toggle = (key: 'adminTools' | 'updateCheck' | 'autoUpdate' | 'healthCheck', label: string, on: boolean | undefined) =>
     html`<input type="hidden" name="${key}" value="false" /><input type="checkbox" class="toggle toggle-sm peer" name="${key}" value="true" aria-label="${label}" ${on ? 'checked' : ''} />`;
-  const themeSelect = (key: 'lightTheme' | 'darkTheme') => {
-    const s = settings?.get(key);
-    return s?.source === 'env'
-      ? lockedValue(s.value, s.env)
-      : html`<select class="select select-sm" name="${key}" aria-label="${key === 'lightTheme' ? 'Light theme' : 'Dark theme'}">${THEMES.map((t) => html`<option value="${t}" ${t === s?.value ? 'selected' : ''}>${t}</option>`)}</select>`;
-  };
   const about = release.status();
   return html`<div id="settings">${pageHead('Settings', {
       sub: 'Every change is saved and applied at once. A padlock means the environment sets the value.',
@@ -182,15 +175,20 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
         )}
         ${section(
           'Appearance',
-          'System follows the device. Both themes are daisyUI themes.',
+          'Each theme comes in a light and a dark version. The mode picks one, or follows the device.',
           html`${setting(
+            'Theme',
+            theme?.source === 'env'
+              ? lockedValue(themeLabel(theme.value), theme.env)
+              : html`<select class="select select-sm w-40" name="theme" aria-label="Theme">${THEME_NAMES.map((t) => html`<option value="${t}" ${t === theme?.value ? 'selected' : ''}>${themeLabel(t)}</option>`)}</select>`,
+            html`<span class="font-mono">${THEMES[theme?.value ?? 'default'].join(' / ')}</span>`,
+          )}
+            ${setting(
             'Mode',
             mode?.source === 'env'
               ? lockedValue(mode.value, mode.env)
-              : segRadio('theme', THEME_MODES.map((m) => ({ value: m, label: `${m[0]!.toUpperCase()}${m.slice(1)}` })), mode?.value ?? 'system', 'Mode'),
-          )}
-            ${setting('Light theme', themeSelect('lightTheme'))}
-            ${setting('Dark theme', themeSelect('darkTheme'))}`,
+              : segRadio('mode', THEME_MODES.map((m) => ({ value: m, label: `${m[0]!.toUpperCase()}${m.slice(1)}` })), mode?.value ?? 'system', 'Mode'),
+          )}`,
         )}
         ${section(
           'About',
@@ -232,6 +230,7 @@ function yardTools(): Fragment {
   </details>`;
 }
 
+const themeLabel = (name: string) => `${name[0]!.toUpperCase()}${name.slice(1)}`;
 const PERIODS = [0, 6, 24, 168, 720];
 const period = (hours: number) =>
   ({ 0: 'Off', 6: '6 hours', 24: '1 day', 168: '1 week', 720: '1 month' })[hours] ?? `${hours} hours`;
