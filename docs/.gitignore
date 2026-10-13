@@ -1,0 +1,7 @@
+dist/
+.astro/
+node_modules/
+# Copied from ../static by the predev and prebuild scripts
+public/favicon.ico
+public/icon.png
+public/apple-touch-icon.png

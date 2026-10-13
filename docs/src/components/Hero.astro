@@ -1,0 +1,66 @@
+---
+/**
+ * The home page hero, replacing Starlight's own: the text on the left and, on the right, a window
+ * with one tab per way to run the hub. The tabs are radios, so they work without a script.
+ *
+ * Registered in `astro.config.mjs` under `components.Hero`.
+ */
+import { Image } from 'astro:assets';
+import { Code, LinkButton } from '@astrojs/starlight/components';
+
+import icon from '../../../static/icon.png';
+
+const { data } = Astro.locals.starlightRoute.entry;
+const { title = data.title, tagline, actions = [] } = data.hero || {};
+
+const compose = `services:
+  mcpyard:
+    image: ghcr.io/cedhuf/mcpyard:latest
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      MCPYARD_UI_AUTH: none   # local trial
+    volumes:
+      - ./mcpyard.yaml:/config/mcpyard.yaml
+      - mcpyard-data:/data
+
+volumes:
+  mcpyard-data:`;
+
+const run = `docker run -d --name mcpyard \\
+  -p 127.0.0.1:3000:3000 \\
+  -e MCPYARD_UI_AUTH=none \\
+  -v ./mcpyard.yaml:/config/mcpyard.yaml \\
+  -v mcpyard-data:/data \\
+  ghcr.io/cedhuf/mcpyard:latest`;
+---
+
+<div class="hero">
+  <div class="hero__copy">
+    <Image src={icon} alt="MCP Yard: a little server holding a golden key, in a fenced yard" width={150} loading="eager" class="hero__logo" />
+    <h1 id="_top" data-page-title set:html={title} />
+    {tagline && <p class="hero__tagline" set:html={tagline} />}
+    {
+      actions.length > 0 && (
+        <div class="hero__actions">
+          {actions.map(({ icon, link: href, text, variant }) => (
+            <LinkButton {href} {variant} icon={icon?.name}>
+              {text}
+            </LinkButton>
+          ))}
+        </div>
+      )
+    }
+  </div>
+
+  <div class="window" role="group" aria-label="Run MCP Yard">
+    <input type="radio" name="run" id="run-compose" checked aria-label="Docker Compose" />
+    <input type="radio" name="run" id="run-docker" aria-label="docker run" />
+    <div class="window__bar">
+      <span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <label for="run-compose">compose.yaml</label>
+      <label for="run-docker">docker run</label>
+    </div>
+    <div class="window__pane window__pane--compose"><Code code={compose} lang="yaml" frame="none" /></div>
+    <div class="window__pane window__pane--docker"><Code code={run} lang="bash" frame="none" /></div>
+  </div>
+</div>

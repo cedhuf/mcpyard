@@ -4,9 +4,3 @@ _local/
 .DS_Store
 node_modules/
 
-# Copied from static/ when the docs are built
-docs/assets/favicon.ico
-docs/assets/favicon-32x32.png
-docs/assets/apple-touch-icon.png
-docs/assets/icon.png
-docs/assets/fredoka.woff2

@@ -2,8 +2,6 @@
 title: Getting started
 ---
 
-# Getting started
-
 Run the hub, declare a server, create a key, connect a client. Five minutes, one container.
 
 ## 1. Write the server file
@@ -46,10 +44,8 @@ Open [http://localhost:3000](http://localhost:3000), check that both servers are
 **Keys** and create one for your client. The token is shown once, with the command to add it to
 Claude Code:
 
-<picture>
-  <source srcset="assets/token-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/token-light.png" alt="A freshly created key with its token and the Claude Code command">
-</picture>
+<img src="assets/token-light.png" alt="A freshly created key with its token and the Claude Code command" class="dark:sl-hidden">
+<img src="assets/token-dark.png" alt="A freshly created key with its token and the Claude Code command" class="light:sl-hidden">
 
 ## 4. Connect a client
 

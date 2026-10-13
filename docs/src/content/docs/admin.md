@@ -2,8 +2,6 @@
 title: Hub administration
 ---
 
-# Hub administration
-
 MCP Yard has tools of its own, to watch and nurse the hub from an agent. They are served in `/mcp`
 like any server's tools, as the `yard` server, but only to keys that are explicitly allowed to
 administer the hub.

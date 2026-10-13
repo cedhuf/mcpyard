@@ -1,0 +1,119 @@
+---
+title: MCP Yard
+description: A small, self-hosted MCP hub. One endpoint, every MCP server behind it, one key per client.
+template: splash
+tableOfContents: false
+editUrl: false
+hero:
+  title: One MCP endpoint.<br><span>Every server behind it.</span>
+  tagline: MCP Yard is a small, self-hosted MCP hub. It installs and runs your MCP servers, merges their tools behind a single <code>/mcp</code> endpoint, and gives each client its own key with exactly the access it needs.
+  actions:
+    - text: Get started
+      link: /mcpyard/getting-started.html
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/cedhuf/mcpyard
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkButton } from '@astrojs/starlight/components';
+
+{/* MDX reads a line indented by four spaces as a code block: keep the HTML below flush or indented by two. */}
+
+<section class="flow not-content" aria-label="How requests flow">
+<div class="flow__col">
+<p class="flow__label">Clients</p>
+<div class="flow__node">Claude Code <small>key: laptop</small></div>
+<div class="flow__node">Home agent <small>key: agent</small></div>
+<div class="flow__node">Any MCP client <small>key: ci</small></div>
+</div>
+<div class="flow__arrow" aria-hidden="true"></div>
+<div class="flow__col">
+<div class="flow__node flow__node--hub">
+<strong>MCP Yard</strong>
+<small>/mcp · one merged tool list</small>
+<small>keys and scopes · audit log</small>
+<small>versions · updates · rollback</small>
+</div>
+</div>
+<div class="flow__arrow" aria-hidden="true"></div>
+<div class="flow__col">
+<p class="flow__label">Servers</p>
+<div class="flow__node">npm package <small>installed by the hub</small></div>
+<div class="flow__node">PyPI package <small>own virtualenv</small></div>
+<div class="flow__node">Remote URL <small>HTTP or SSE</small></div>
+</div>
+</section>
+
+<CardGrid>
+  <Card title="One merged endpoint" icon="puzzle">
+    Clients declare a single server. Tools come back as `<server>-<tool>`, filtered by what the key may see.
+  </Card>
+  <Card title="Known versions" icon="list-format">
+    Packages are installed by the hub, never `npx -y`. Pin a version, or let the hub track it and update in one click.
+  </Card>
+  <Card title="Safe updates" icon="rocket">
+    The new version starts next to the old one and takes over only once it answers. The previous one stays for rollback.
+  </Card>
+  <Card title="Keys with scopes" icon="approve-check">
+    One bearer key per client, limited to servers and tool globs. Tokens are shown once and stored hashed.
+  </Card>
+  <Card title="Behind your identity provider" icon="seti:lock">
+    The web UI signs in with OpenID Connect: PocketID, Authelia, Keycloak. No local password to leak.
+  </Card>
+  <Card title="Small on purpose" icon="star">
+    One YAML file, a few environment variables, one Docker image. No database, no marketplace, no build step.
+  </Card>
+</CardGrid>
+
+<section class="shot">
+
+## See everything at a glance
+
+Server health, updates waiting, a security check and the latest activity on one dashboard, with every server, key and log one click away.
+
+<img src="assets/dashboard-light.png" alt="The MCP Yard dashboard: server health, updates and security check" class="dark:sl-hidden" loading="lazy" />
+<img src="assets/dashboard-dark.png" alt="The MCP Yard dashboard: server health, updates and security check" class="light:sl-hidden" loading="lazy" />
+
+</section>
+
+<section class="split">
+<div>
+
+## Configured by one file
+
+Servers live in a YAML file you can version. Secrets come from the environment and never reach a server that did not ask for them.
+
+[Read the server file reference](configuration.html)
+
+</div>
+<div>
+
+```yaml title="mcpyard.yaml"
+servers:
+  time:
+    package: { pypi: mcp-server-time }
+  memory:
+    package:
+      npm: "@modelcontextprotocol/server-memory"
+      version: "2026.8.31"   # pinned
+  search:
+    url: https://search.example.lan/mcp
+    headers:
+      Authorization: Bearer ${SEARCH_TOKEN}
+    tools: { deny: ["*_delete"] }
+```
+
+</div>
+</section>
+
+<section class="why">
+
+## Why another hub?
+
+Heavier hubs carry a marketplace, smart routing and a database. Light proxies expose one route per server, so every client has to declare every server. MCP Yard sits in between: one merged endpoint, known versions, scoped keys and an OIDC web UI, and nothing more.
+
+<LinkButton href="/mcpyard/getting-started.html" icon="right-arrow">Set it up in five minutes</LinkButton>
+
+</section>

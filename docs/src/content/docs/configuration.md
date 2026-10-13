@@ -2,8 +2,6 @@
 title: Server file
 ---
 
-# Server file
-
 Servers live in one YAML file; runtime settings come from environment variables.
 
 ## A complete example

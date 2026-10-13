@@ -2,8 +2,6 @@
 title: Web UI and sign-in
 ---
 
-# Web UI and sign-in
-
 The web UI is served at the root of the hub. It opens on a dashboard, shows each server's state,
 tools and versions, restarts servers, updates and rolls back packages, reloads the server file,
 creates, edits, disables and deletes keys, and shows the hub's logs. It refreshes itself every few
@@ -34,10 +32,8 @@ their failures and median duration, and active keys. The hub's own clock sits ne
 
 **Reload server file** re-reads the server file, as on the servers page.
 
-<picture>
-  <source srcset="assets/dashboard-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/dashboard-light.png" alt="The dashboard: counters, health check, updates and security check">
-</picture>
+<img src="assets/dashboard-light.png" alt="The dashboard: counters, health check, updates and security check" class="dark:sl-hidden">
+<img src="assets/dashboard-dark.png" alt="The dashboard: counters, health check, updates and security check" class="light:sl-hidden">
 
 ## Servers
 
@@ -48,24 +44,18 @@ the top bar matches names, titles and packages. A server with a `title` in the s
 in place of its name; tools keep the short name. Each server has a switch and a **⋯** menu to restart, update, roll back
 or remove it.
 
-<picture>
-  <source srcset="assets/servers-list-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/servers-list-light.png" alt="The servers page in list layout">
-</picture>
+<img src="assets/servers-list-light.png" alt="The servers page in list layout" class="dark:sl-hidden">
+<img src="assets/servers-list-dark.png" alt="The servers page in list layout" class="light:sl-hidden">
 
-<picture>
-  <source srcset="assets/servers-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/servers-light.png" alt="The servers page in cards layout">
-</picture>
+<img src="assets/servers-light.png" alt="The servers page in cards layout" class="dark:sl-hidden">
+<img src="assets/servers-dark.png" alt="The servers page in cards layout" class="light:sl-hidden">
 
 Click a server to open its own page, with three tabs: **Overview** (state, versions, its error or
 available update, and every tool with its description), **Logs** (that server's lines only) and
 **Settings** (its form).
 
-<picture>
-  <source srcset="assets/server-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/server-light.png" alt="A server's own page, on its Overview tab">
-</picture>
+<img src="assets/server-light.png" alt="A server's own page, on its Overview tab" class="dark:sl-hidden">
+<img src="assets/server-dark.png" alt="A server's own page, on its Overview tab" class="light:sl-hidden">
 
 ## Switching a server off
 
@@ -107,10 +97,8 @@ and your log shipper see them too. MCP calls and actions are also kept in
 `$MCPYARD_DATA_DIR/activity.json`, so the dashboard and this page survive a restart; servers' output
 starts afresh.
 
-<picture>
-  <source srcset="assets/logs-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/logs-light.png" alt="The logs page on the MCP calls tab, with call statistics">
-</picture>
+<img src="assets/logs-light.png" alt="The logs page on the MCP calls tab, with call statistics" class="dark:sl-hidden">
+<img src="assets/logs-dark.png" alt="The logs page on the MCP calls tab, with call statistics" class="light:sl-hidden">
 
 ## Settings
 
@@ -132,10 +120,8 @@ soon as it is made; there is no save button.
 A setting whose environment variable is set shows a padlock and cannot be changed from the page:
 the environment always wins.
 
-<picture>
-  <source srcset="assets/settings-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/settings-light.png" alt="The settings page, with the check period locked by the environment">
-</picture>
+<img src="assets/settings-light.png" alt="The settings page, with the check period locked by the environment" class="dark:sl-hidden">
+<img src="assets/settings-dark.png" alt="The settings page, with the check period locked by the environment" class="light:sl-hidden">
 
 ## Sign-in with OpenID Connect
 

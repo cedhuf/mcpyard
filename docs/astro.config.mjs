@@ -1,0 +1,37 @@
+import starlight from '@astrojs/starlight';
+import { defineConfig } from 'astro/config';
+
+// Published to GitHub Pages under /mcpyard/ by the docs job of release.yml.
+// `format: 'file'` keeps the page URLs ending in .html, which the README and older links use.
+export default defineConfig({
+  site: 'https://cedhuf.github.io',
+  base: '/mcpyard',
+  build: { format: 'file' },
+  trailingSlash: 'never',
+  // The logo is the hub's own file in ../static, not a copy.
+  vite: { server: { fs: { allow: ['..'] } } },
+  integrations: [
+    starlight({
+      title: 'MCP Yard',
+      description: 'A small, self-hosted MCP hub. One endpoint, every MCP server behind it, one key per client.',
+      logo: { src: '../static/apple-touch-icon.png', alt: 'MCP Yard' },
+      favicon: '/favicon.ico',
+      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/cedhuf/mcpyard' }],
+      editLink: { baseUrl: 'https://github.com/cedhuf/mcpyard/edit/main/docs/' },
+      customCss: ['@fontsource-variable/fredoka', './src/styles/custom.css'],
+      components: { Hero: './src/components/Hero.astro' },
+      sidebar: [
+        { label: 'Start', items: ['getting-started', 'deployment'] },
+        { label: 'Configure', items: ['configuration', 'packages', 'keys'] },
+        { label: 'Operate', items: ['web-ui', 'admin'] },
+        {
+          label: 'Project',
+          items: [
+            { label: 'Architecture', link: 'https://github.com/cedhuf/mcpyard/blob/main/ARCHITECTURE.md' },
+            { label: 'Releases', link: 'https://github.com/cedhuf/mcpyard/releases' },
+          ],
+        },
+      ],
+    }),
+  ],
+});

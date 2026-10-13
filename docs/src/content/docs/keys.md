@@ -2,8 +2,6 @@
 title: Keys and scopes
 ---
 
-# Keys and scopes
-
 Every client gets its own bearer key. A key decides which servers and which tools the client sees,
 and the hub refuses calls to anything else.
 
@@ -13,10 +11,8 @@ In the web UI, open **Keys**, name the key after the client (`laptop-claude-code
 its servers and tool filters, and create it. The token is displayed once; only its SHA-256 hash is
 stored, in `$MCPYARD_DATA_DIR/keys.json`.
 
-<picture>
-  <source srcset="assets/keys-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/keys-light.png" alt="The keys page, each key with its access, servers and switch">
-</picture>
+<img src="assets/keys-light.png" alt="The keys page, each key with its access, servers and switch" class="dark:sl-hidden">
+<img src="assets/keys-dark.png" alt="The keys page, each key with its access, servers and switch" class="light:sl-hidden">
 
 Without the web UI, generate one from the container and add the printed entry to `keys.json`:
 

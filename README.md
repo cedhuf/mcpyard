@@ -68,7 +68,7 @@ Open http://localhost:3000, create a key, then point your client at `/mcp`:
 claude mcp add --transport http mcpyard http://localhost:3000/mcp --header "Authorization: Bearer yard_..."
 ```
 
-![The MCP Yard dashboard: server health, updates and security check](docs/assets/dashboard-light.png)
+![The MCP Yard dashboard: server health, updates and security check](docs/public/assets/dashboard-light.png)
 
 ## Docker Compose or Podman
 

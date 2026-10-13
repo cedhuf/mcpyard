@@ -2,8 +2,6 @@
 title: Packages and updates
 ---
 
-# Packages and updates
-
 The hub installs package servers itself, so you always know which version runs, and you choose when it
 changes.
 
@@ -90,7 +88,5 @@ Click **Update** in the web UI. The hub then:
 If any step fails, the old version keeps serving and the error is shown on the server. **Roll back**
 runs the same flow towards the previous version. Older version directories are deleted.
 
-<picture>
-  <source srcset="assets/servers-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/servers-light.png" alt="A hub-owned package with an Update button, next to pinned ones">
-</picture>
+<img src="assets/servers-light.png" alt="A hub-owned package with an Update button, next to pinned ones" class="dark:sl-hidden">
+<img src="assets/servers-dark.png" alt="A hub-owned package with an Update button, next to pinned ones" class="light:sl-hidden">

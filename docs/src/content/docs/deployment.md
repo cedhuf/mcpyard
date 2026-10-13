@@ -2,8 +2,6 @@
 title: Deployment
 ---
 
-# Deployment
-
 mcpyard ships as one image, `ghcr.io/cedhuf/mcpyard`, for `linux/amd64` and `linux/arm64`. Tags are
 the release version (`0.2.0`) and `latest`.
 
