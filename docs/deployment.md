@@ -46,6 +46,7 @@ SEARCH_TOKEN=...
 | `/data/python/`, `/data/cache/` | Python interpreters and package caches. |
 | `/data/settings.json` | Settings saved from the UI's Settings page. |
 | `/data/state.json` | Servers switched off from the UI. |
+| `/data/activity.json` | The last MCP calls and UI actions, so the dashboard and the logs survive a restart. |
 | `/data/session.key` | Signs web UI sessions. |
 
 Keep `/data` on a volume: upgrading the image then reuses every installed package. The image runs as

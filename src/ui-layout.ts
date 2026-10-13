@@ -233,14 +233,21 @@ const clock = document.querySelector('[data-clock]');
 if (clock) {
   const offset = Number(clock.dataset.now) - Date.now();
   const format = new Intl.DateTimeFormat('en-GB', { timeZone: clock.dataset.zone, hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' });
-  setInterval(() => {
-    const parts = Object.fromEntries(format.formatToParts(new Date(Date.now() + offset)).map((p) => [p.type, p.value]));
-    document.querySelectorAll('[data-clock] [data-unit]').forEach((el) => {
+  // Tick on the hub's second boundary, so each digit rolls once, on time.
+  const tick = () => {
+    const now = Date.now() + offset;
+    const parts = Object.fromEntries(format.formatToParts(new Date(now)).map((p) => [p.type, p.value]));
+    clock.querySelectorAll('[data-unit]').forEach((el) => {
       const value = Number(parts[el.dataset.unit]);
+      if (Number(el.textContent) === value) return;
       el.style.setProperty('--value', value); el.textContent = value; el.setAttribute('aria-label', value);
     });
-  }, 1000);
+    setTimeout(tick, 1000 - (now % 1000) + 5);
+  };
+  tick();
 }
+/** Moves the elements marked data-keep from the page into its refreshed copy, so a clock keeps ticking. */
+const keep = (from, to) => from.querySelectorAll('[data-keep]').forEach((el) => to.querySelector('#' + CSS.escape(el.id))?.replaceWith(el));
 let searching;
 document.addEventListener('input', (e) => {
   const form = e.target.closest('form[role=search]');
@@ -255,7 +262,7 @@ document.addEventListener('input', (e) => {
     const area = document.querySelector('[data-refresh]');
     if (!res || !res.ok || !area) return;
     const next = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById(area.id);
-    if (next) { area.replaceWith(next); history.replaceState(null, '', url); }
+    if (next) { keep(area, next); area.replaceWith(next); history.replaceState(null, '', url); }
   }, 200);
 });
 const live = document.querySelector('[data-refresh]');
@@ -266,5 +273,6 @@ if (live) setInterval(async () => {
   if (!res || !res.ok || res.redirected) return;
   const next = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById(live.id);
   if (!next) return;
+  keep(current, next);
   current.replaceWith(next);
 }, 4000);`;

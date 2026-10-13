@@ -74,6 +74,10 @@ test('a health check pings every running server', async () => {
   assert.equal(result!.server, 'fix-ture');
   assert.ok(result!.ok && typeof result!.ms === 'number', 'the fixture answers its ping');
   assert.equal(hub.lastHealth, report);
+
+  hub.lastHealth = { at: report.at, results: [{ server: 'fix-ture', ok: false, error: 'down' }] };
+  await hub.healthCheck();
+  assert.ok(logs.list().some((e) => e.text === 'server_answering' && e.server === 'fix-ture'), 'a server answering again is logged');
 });
 
 test('a used key records when it was last used', async () => {
@@ -118,14 +122,31 @@ test('a key without administration never sees the yard tools', async () => {
 test('an administration-only key manages every server without seeing their tools', async () => {
   const client = await connect(admin.token);
   assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), [
+    'yard-check_updates',
     'yard-disable_server',
     'yard-enable_server',
     'yard-get_server',
+    'yard-health_check',
     'yard-list_servers',
+    'yard-overview',
+    'yard-read_logs',
     'yard-reload_config',
     'yard-restart_server',
+    'yard-update_all',
     'yard-update_server',
   ]);
+  const [ping] = json(await client.callTool({ name: 'yard-health_check' }));
+  assert.equal(ping.server, 'fix-ture');
+  assert.equal(ping.ok, true);
+  assert.deepEqual(json(await client.callTool({ name: 'yard-check_updates' })), [], 'no package server, nothing to update');
+  assert.deepEqual(json(await client.callTool({ name: 'yard-update_all' })), { updating: [] });
+  const summary = json(await client.callTool({ name: 'yard-overview' }));
+  assert.deepEqual(summary.servers.healthy, ['fix-ture']);
+  assert.ok(summary.keyList.some((k: { name: string }) => k.name === 'admin'), 'a key managing every server sees the keys');
+  assert.ok(!JSON.stringify(summary.keyList).includes('hash'), 'never their hashes');
+  const lines = json(await client.callTool({ name: 'yard-read_logs', arguments: { kind: 'calls', limit: 3 } }));
+  assert.ok(lines.length > 0 && lines.length <= 3 && lines.every((l: { kind: string }) => l.kind === 'call'));
+  assert.equal(lines[0].text, 'yard-overview', 'the newest first: a call is logged once it returns');
   const [server] = json(await client.callTool({ name: 'yard-list_servers' }));
   assert.equal(server.name, 'fix-ture');
   assert.equal(server.state, 'ready');

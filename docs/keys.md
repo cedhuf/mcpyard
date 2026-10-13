@@ -72,5 +72,8 @@ Actions from the web UI are logged the same way, with the signed-in user in `by`
 | `server_enabled`, `server_disabled` | A server is switched on or off. |
 | `server_restarted`, `package_update` | A server is restarted or a package updated. |
 | `config_reloaded`, `settings_saved` | The server file is reloaded, or the settings saved. |
+| `health_check`, `updates_checked`, `update_all` | The dashboard runs a health check, asks the registries, or updates everything. |
+| `server_answering`, `server_not_answering` | The periodic health check sees a server stop or start answering again. |
+
 Ship the container logs wherever you keep logs. The web UI's [Logs](web-ui.html#logs) page shows the
 recent ones, with a tab for MCP calls.

@@ -9,6 +9,7 @@ export const THEME_MODES = ['system', 'light', 'dark'] as const;
 const DEFINITIONS = {
   adminTools: { env: 'MCPYARD_ADMIN_TOOLS', type: 'boolean', default: true },
   versionCheckHours: { env: 'MCPYARD_VERSION_CHECK_HOURS', type: 'number', default: 6, min: 1, max: 24 * 7 },
+  healthCheckMinutes: { env: 'MCPYARD_HEALTH_CHECK_MINUTES', type: 'number', default: 5, min: 0, max: 24 * 60 },
   updateCheck: { env: 'MCPYARD_UPDATE_CHECK', type: 'boolean', default: true },
   theme: { env: 'MCPYARD_THEME', type: 'choice', options: THEME_MODES, default: 'system' },
   lightTheme: { env: 'MCPYARD_THEME_LIGHT', type: 'choice', options: THEMES, default: 'yard' },
@@ -19,6 +20,7 @@ export type SettingKey = keyof typeof DEFINITIONS;
 type Values = {
   adminTools: boolean;
   versionCheckHours: number;
+  healthCheckMinutes: number;
   updateCheck: boolean;
   theme: (typeof THEME_MODES)[number];
   lightTheme: (typeof THEMES)[number];

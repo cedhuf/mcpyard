@@ -2,12 +2,13 @@ import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import type { ConfigFile } from './config.ts';
 import { newerVersion, type Hub } from './front.ts';
-import { allowed, isAdmin, loadKeys, type Key } from './keys.ts';
+import { isAdmin, loadKeys, type Key } from './keys.ts';
+import { overview, type SecurityCheck } from './insights.ts';
 import { logs, type LogEntry } from './logs.ts';
 import { release } from './release.ts';
 import type { Settings } from './settings.ts';
 import { icon } from './ui-icons.ts';
-import { box, linkButton, pageHead, postButton, stats, status, tag, type Content } from './ui-kit.ts';
+import { box, linkButton, pageHead, postButton, stats, status, tag } from './ui-kit.ts';
 import { log, page, toast, type Env, type Fragment } from './ui-layout.ts';
 import { plural } from './ui-servers.ts';
 
@@ -18,6 +19,7 @@ const IDLE_DAYS = 30;
 const ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export function dashboardRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: DashboardOptions): void {
+  hub.security = () => securityChecks(hub, loadKeys(options.keysPath), options);
   app.get('/', guard, (c) => c.html(page(c, 'Dashboard', html`${dashboard(c, hub, options)}${notice(c)}`)));
 
   app.post('/dashboard/health', guard, async (c) => {
@@ -72,7 +74,7 @@ function clock(): Fragment {
   const now = new Date();
   const { hour, minute, second } = clockParts(now);
   const digit = (unit: string, value: number) => html`<span data-unit="${unit}" style="--value:${value};--digits:2" aria-live="polite" aria-label="${value}">${value}</span>`;
-  return html`<div class="card card-border border-base-300 bg-base-100">
+  return html`<div id="hub-clock" data-keep class="card card-border border-base-300 bg-base-100">
     <div class="card-body gap-1 px-5 py-3">
       <span class="flex items-center gap-1.5 text-xs text-base-content/60">${icon('clock', 'xs')}Hub time · ${ZONE}</span>
       <span class="countdown font-mono text-3xl tabular-nums" data-clock data-now="${now.getTime()}" data-zone="${ZONE}">${digit('hour', hour)}:${digit('minute', minute)}:${digit('second', second)}</span>
@@ -88,15 +90,10 @@ function ago(iso: string): string {
   return `${Math.round(minutes / 1440)} days ago`;
 }
 
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)] ?? 0;
-}
 
-type Check = { ok: boolean; title: string; detail: Content; label: string };
 
 /** What a careful admin would look at: who can get in, over what, with which rights. */
-function securityChecks(hub: Hub, keys: Key[], options: DashboardOptions): Check[] {
+function securityChecks(hub: Hub, keys: Key[], options: DashboardOptions): SecurityCheck[] {
   const enabled = keys.filter((k) => k.enabled);
   const admins = enabled.filter(isAdmin);
   const adminTools = options.settings?.value('adminTools') ?? true;
@@ -128,18 +125,13 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
   const packages = hub.packageStatus();
   const names = [...hub.upstreams.keys()];
   const off = (name: string) => !hub.configs[name]!.enabled || hub.isDisabled(name);
-  const running = names.filter((n) => !off(n));
-  const healthy = running.filter((n) => hub.upstreams.get(n)!.state === 'ready');
-  const care = running.filter((n) => ['failed', 'degraded'].includes(hub.upstreams.get(n)!.state));
-  const tools = running.reduce((sum, n) => sum + hub.upstreams.get(n)!.tools.filter((t) => allowed(t.name, hub.configs[n]!.tools)).length, 0);
-  const updates = Object.entries(packages).filter(([, p]) => newerVersion(p));
-  const owned = Object.values(packages).filter((p) => !p.pinned);
-  const upToDate = owned.length ? Math.round(((owned.length - updates.length) / owned.length) * 100) : 100;
   const keys = loadKeys(options.keysPath);
-  const activeKeys = keys.filter((k) => k.enabled);
+  const ov = overview(hub, keys);
+  const care = ov.servers.needCare;
+  const updates = Object.entries(packages).filter(([, p]) => newerVersion(p));
+  const upToDate = ov.updates.hubOwned ? Math.round((ov.updates.upToDate / ov.updates.hubOwned) * 100) : 100;
   const recent = logs.list().filter((e) => Date.now() - Date.parse(e.time) < DAY);
-  const calls = recent.filter((e) => e.kind === 'call');
-  const failedCalls = calls.filter((e) => e.error).length;
+  const calls = ov.calls24h;
   const checks = securityChecks(hub, keys, options);
   const passed = checks.filter((k) => k.ok).length;
 
@@ -161,23 +153,23 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
     <div class="grid gap-4">
       ${stats(
         [
-          { label: 'Healthy servers', value: `${healthy.length}/${running.length}`, desc: care.length ? html`<span class="text-error">${care.length} ${care.length === 1 ? 'needs' : 'need'} care</span>` : `${names.length - running.length} switched off`, icon: 'server', tint: 'text-primary' },
-          { label: 'Tools exposed', value: String(tools), desc: `across ${plural(running.length, 'running server')}`, icon: 'wrench', tint: 'text-accent' },
-          { label: 'MCP calls, 24 h', value: String(calls.length), desc: calls.length ? html`${failedCalls ? html`<span class="text-error">${failedCalls} failed</span>` : 'none failed'} · median ${median(calls.map((e) => Number(e.fields?.ms ?? 0)))} ms` : 'no calls yet', icon: 'pulse', tint: 'text-info' },
-          { label: 'Active keys', value: String(activeKeys.length), desc: `${activeKeys.filter(isAdmin).length} with administration`, icon: 'key', tint: 'text-secondary' },
+          { label: 'Healthy servers', value: `${ov.servers.healthy.length}/${ov.servers.running}`, desc: care.length ? html`<span class="text-error">${care.length} ${care.length === 1 ? 'needs' : 'need'} care</span>` : `${ov.servers.switchedOff.length} switched off`, icon: 'server', tint: 'text-primary' },
+          { label: 'Tools exposed', value: String(ov.tools), desc: `across ${plural(ov.servers.running, 'running server')}`, icon: 'wrench', tint: 'text-accent' },
+          { label: 'MCP calls, 24 h', value: String(calls.count), desc: calls.count ? html`${calls.failed ? html`<span class="text-error">${calls.failed} failed</span>` : 'none failed'} · median ${calls.medianMs} ms` : 'no calls yet', icon: 'pulse', tint: 'text-info' },
+          { label: 'Active keys', value: String(ov.keys.active), desc: `${ov.keys.admin} with administration`, icon: 'key', tint: 'text-secondary' },
         ],
         { large: true },
       )}
 
       <div class="grid gap-4 lg:grid-cols-3">
         <div class="lg:col-span-2">${healthCard(hub, names, off)}</div>
-        ${updatesCard(updates, packages, upToDate, owned.length)}
+        ${updatesCard(updates, packages, upToDate, ov.updates.hubOwned)}
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
         ${securityCard(checks, passed)}
         ${activityCard(recent)}
-        ${toolsCard(calls)}
+        ${toolsCard(calls.top)}
       </div>
     </div>
   </div>`;
@@ -205,7 +197,7 @@ function healthCard(hub: Hub, names: string[], off: (name: string) => boolean): 
       : html`<p class="p-5 text-base-content/60">No servers to check yet. <a class="link link-primary" href="/servers/new">Add one</a>.</p>`,
     {
       title: html`<span class="text-primary">${icon('pulse')}</span>Health check`,
-      aside: html`<div class="flex items-center gap-3"><span class="text-xs text-base-content/50">${report ? `Last run ${ago(report.at)}` : 'Not run yet'}</span>${postButton('/dashboard/health', 'Run now', { icon: 'refresh' })}</div>`,
+      aside: html`<div class="flex items-center gap-3"><span class="text-xs text-base-content/50">${report ? `Last run ${ago(report.at)}` : 'Not run yet'} · ${hub.healthEveryMinutes ? `every ${hub.healthEveryMinutes} min` : html`<a class="link link-hover" href="/settings">automatic check off</a>`}</span>${postButton('/dashboard/health', 'Run now', { icon: 'refresh' })}</div>`,
     },
   );
 }
@@ -243,7 +235,7 @@ function updatesCard(updates: [string, ReturnType<Hub['packageStatus']>[string]]
   </section>`;
 }
 
-function securityCard(checks: Check[], passed: number): Fragment {
+function securityCard(checks: SecurityCheck[], passed: number): Fragment {
   return box(
     html`<ul class="list">${checks.map(
       (k) => html`<li class="list-row items-center">
@@ -300,15 +292,12 @@ function activityCard(recent: LogEntry[]): Fragment {
   );
 }
 
-function toolsCard(calls: LogEntry[]): Fragment {
-  const byTool = new Map<string, number>();
-  for (const e of calls) byTool.set(e.text, (byTool.get(e.text) ?? 0) + 1);
-  const top = [...byTool].sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const max = top[0]?.[1] ?? 1;
+function toolsCard(top: { tool: string; count: number }[]): Fragment {
+  const max = top[0]?.count ?? 1;
   return box(
     top.length
       ? html`<ul class="grid gap-3 px-5 py-4">${top.map(
-          ([tool, n]) => html`<li class="grid gap-1">
+          ({ tool, count: n }) => html`<li class="grid gap-1">
             <div class="flex justify-between gap-3 text-sm"><span class="font-mono truncate">${tool}</span><span class="font-semibold tabular-nums">${n}</span></div>
             <progress class="progress progress-primary w-full" value="${n}" max="${max}"></progress>
           </li>`,

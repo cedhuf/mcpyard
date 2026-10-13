@@ -30,13 +30,23 @@ no server tools and manages every server.
 
 | Tool | Does |
 | --- | --- |
+| `yard-overview` | The dashboard in one call: servers healthy or needing care, tools, calls of the last 24 hours, updates ready, the last health check; plus the keys and the security check for a key that manages every server. |
+| `yard-read_logs` | The logs, newest first: MCP calls, web UI actions, servers output and errors, filtered by kind, server and text. |
 | `yard-list_servers` | State, last error, tool count and package versions of every managed server. |
 | `yard-get_server` | One server in detail, with each tool and whether the configuration exposes it. |
 | `yard-restart_server` | Restarts a server, waits up to 30 seconds for it to settle, returns its status. |
 | `yard-disable_server` | Switches a server off, like the switch in the web UI: stopped, tools hidden, kept across restarts. |
 | `yard-enable_server` | Switches it back on and waits up to 30 seconds for it to settle. |
+| `yard-health_check` | Pings every managed server over MCP; returns who answers, how fast, or the error. |
+| `yard-check_updates` | Asks the registries now; returns the managed servers with an update ready. |
+| `yard-update_all` | Updates every managed hub-owned package that has a newer version. |
 | `yard-update_server` | Updates a hub-owned package to a version, or the latest; pass the previous version to roll back. |
 | `yard-reload_config` | Re-reads the server file and applies it; returns the added, removed and restarted servers. |
+
+A key that manages only some servers sees only their lines in `yard-read_logs` and their figures in
+`yard-overview`; the keys, the security check and the hub's own lines are for keys that manage
+every server. Keys are listed with their name, prefix, scope and last use, never their token or
+hash.
 
 A `yard-list_servers` entry looks like this:
 
@@ -69,7 +79,7 @@ their version in the file and reload instead.
 The key's tool filter applies to the yard tools like to any other:
 
 - `{ "allow": ["yard-list_*", "yard-get_*"] }` with no servers gives a read-only monitoring key.
-- `{ "deny": ["yard-update_server"] }` keeps everything but package updates.
+- `{ "deny": ["yard-update_*"] }` keeps everything but package updates, one by one or all at once.
 - `{ "deny": ["yard-enable_*", "yard-disable_*"] }` keeps the server switches in the web UI only.
 - `yard-reload_config` works only for keys that manage every server, since a reload can touch any of
   them.

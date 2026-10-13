@@ -113,7 +113,7 @@ function logsView(q: Query): Fragment {
   const scoped = all.filter((e) => (!q.server || e.server === q.server) && matches(e, q.q));
   const shown = scoped.filter(FILTERS[q.kind].match);
   return html`<div id="logs" data-refresh>
-    ${pageHead('Logs', { sub: `The last ${all.length} lines since the hub started, newest first. The same lines go to the container's output.` })}
+    ${pageHead('Logs', { sub: `The last ${all.length} lines, newest first. Calls and actions survive a restart; the same lines go to the container's output.` })}
     ${toolbar(html`
       ${chips((Object.keys(FILTERS) as FilterName[]).map((k) => ({ href: href(q, { kind: k }), label: FILTERS[k].label, count: scoped.filter(FILTERS[k].match).length, active: q.kind === k })))}
       ${q.q ? html`<a class="badge badge-ghost gap-1" href="${href(q, { q: '' })}" title="Clear the search">“${q.q}” ✕</a>` : ''}

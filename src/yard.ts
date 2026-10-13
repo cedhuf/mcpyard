@@ -1,7 +1,9 @@
 import type { Tool } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import type { Hub } from './front.ts';
-import { allowed, keySees, type Key } from './keys.ts';
+import { newerVersion, type Hub } from './front.ts';
+import { overview } from './insights.ts';
+import { allowed, isAdmin, keySees, loadKeys, type Key } from './keys.ts';
+import { logs, type LogEntry } from './logs.ts';
 
 /** The hub's own tools, served in /mcp as the `yard` server to keys that list it explicitly. */
 export const YARD = 'yard';
@@ -16,6 +18,10 @@ const name = z.object({ name: z.string().describe('Server name, as in the config
 function manages(hub: Hub, key: Key, server: string): boolean {
   if (!hub.upstreams.has(server)) return false;
   return key.scope.servers.every((s) => s === YARD) || keySees(key, server);
+}
+
+function managesAll(hub: Hub, key: Key): boolean {
+  return [...hub.upstreams.keys()].every((s) => manages(hub, key, s));
 }
 
 function status(hub: Hub, key: Key, server: string, withTools: boolean) {
@@ -86,6 +92,73 @@ export const YARD_TOOLS: YardTool[] = [
         return status(hub, key, name!, false);
       },
     ),
+  ),
+  define('health_check', 'Ping every running server the key manages over MCP; returns who answers, in how many milliseconds, or the error.', z.object({}), true, async (hub, key) => {
+    const all = managesAll(hub, key);
+    const report = await hub.healthCheck(all ? undefined : (s) => manages(hub, key, s));
+    return report.results;
+  }),
+  define('check_updates', 'Ask the package registries now for the latest version of every package server, instead of waiting for the periodic check; returns the servers with an update ready.', z.object({}), true, async (hub, key) => {
+    await hub.checkUpdates();
+    return Object.entries(hub.packageStatus())
+      .filter(([name, pkg]) => manages(hub, key, name) && newerVersion(pkg))
+      .map(([name, pkg]) => ({ name, installed: pkg.installed, latest: pkg.latest?.version }));
+  }),
+  define(
+    'update_all',
+    'Update every hub-owned package the key manages that has a newer version. Each new version starts next to the running one and takes over once it answers. Returns the servers being updated; follow them with list_servers.',
+    z.object({}),
+    false,
+    (hub, key) => ({ updating: hub.updateAll((s) => manages(hub, key, s)) }),
+  ),
+  define(
+    'overview',
+    "The dashboard in one call: servers healthy, needing care or switched off, tools exposed, MCP calls of the last 24 hours, updates ready and the last health check. Keys that manage every server also get the keys (never their tokens) and the security check.",
+    z.object({}),
+    true,
+    (hub, key) => {
+      const all = managesAll(hub, key);
+      const keys = hub.keysPath ? loadKeys(hub.keysPath) : [];
+      return {
+        ...overview(hub, keys, (s) => manages(hub, key, s)),
+        ...(all
+          ? {
+              keyList: keys.map((k) => ({ name: k.name, prefix: k.prefix, enabled: k.enabled, admin: isAdmin(k), servers: k.scope.servers.filter((s) => s !== YARD), tools: k.scope.tools, created: k.created, lastUsed: k.lastUsed })),
+              security: hub.security?.() ?? null,
+            }
+          : {}),
+      };
+    },
+  ),
+  define(
+    'read_logs',
+    'Read the hub logs, newest first: MCP calls (key, tool, duration, error), actions from the web UI, servers output and errors. Filter by kind, server and text. Keys that manage only some servers see only their lines.',
+    z.object({
+      kind: z.enum(['all', 'calls', 'actions', 'output', 'errors']).optional().describe('Which lines; all by default'),
+      server: z.string().optional().describe('Only the lines of this server'),
+      contains: z.string().optional().describe('Only lines whose tool, key, server or message contains this text'),
+      limit: z.number().int().min(1).max(500).optional().describe('How many lines, 50 by default'),
+    }),
+    true,
+    (hub, key, args) => {
+      const { kind = 'all', server, contains, limit = 50 } = args as unknown as { kind?: string; server?: string; contains?: string; limit?: number };
+      const all = managesAll(hub, key);
+      const needle = contains?.toLowerCase();
+      const match: Record<string, (e: LogEntry) => boolean> = {
+        all: () => true,
+        calls: (e) => e.kind === 'call',
+        actions: (e) => e.kind === 'action',
+        output: (e) => e.kind === 'server' || e.kind === 'hub',
+        errors: (e) => e.error,
+      };
+      return logs
+        .list()
+        .filter((e) => (e.server ? manages(hub, key, e.server) || (all && !hub.upstreams.has(e.server)) : all))
+        .filter((e) => match[kind]!(e) && (!server || e.server === server))
+        .filter((e) => !needle || [e.text, e.server, ...Object.values(e.fields ?? {}).map(String)].some((v) => v?.toLowerCase().includes(needle)))
+        .slice(0, limit)
+        .map(({ time, kind: k, error, server: s, text, fields }) => ({ time, kind: k, error, server: s, text, ...(fields ? { fields } : {}) }));
+    },
   ),
   define('reload_config', 'Re-read the server file: start new servers, stop removed ones, restart changed ones. Lists what changed.', z.object({}), false, (hub, key) => {
     if (!key.scope.servers.every((s) => s === YARD || s === '*')) throw new Error('reload_config needs a key that manages every server');

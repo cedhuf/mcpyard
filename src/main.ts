@@ -8,7 +8,7 @@ import { Packages } from './packages.ts';
 import { release } from './release.ts';
 import { Settings } from './settings.ts';
 import { ui, type EnvRow, type UiAuth } from './ui.ts';
-import { note } from './logs.ts';
+import { logs, note } from './logs.ts';
 import { setAppearance } from './ui-layout.ts';
 
 const env = process.env;
@@ -26,15 +26,21 @@ const packages = new Packages({ dataDir, checkHours: settings.value('versionChec
 const configFile = new ConfigFile(env.MCPYARD_CONFIG ?? '/config/mcpyard.yaml');
 const hub = new Hub(configFile.load(), packages, () => configFile.load());
 hub.useState(join(dataDir, 'state.json'));
+logs.persist(join(dataDir, 'activity.json'));
 const releaseChecks = () => release.start(settings.value('updateCheck') ? settings.value('versionCheckHours') : 0);
 const appearance = () => void setAppearance({ mode: settings.value('theme'), light: settings.value('lightTheme'), dark: settings.value('darkTheme') });
 releaseChecks();
 appearance();
 hub.yardEnabled = () => settings.value('adminTools');
+const healthChecks = () => {
+  if (hub.healthEveryMinutes !== settings.value('healthCheckMinutes')) hub.startHealthChecks(settings.value('healthCheckMinutes'));
+};
+healthChecks();
 settings.onChange(() => {
   hub.notifyToolsChanged();
   releaseChecks();
   appearance();
+  healthChecks();
   if (packages.checkHours === settings.value('versionCheckHours')) return;
   packages.checkHours = settings.value('versionCheckHours');
   hub.restartVersionChecks();
@@ -85,6 +91,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, async () => {
     server.close();
     await hub.stop();
+    logs.flush();
     process.exit(0);
   });
 }

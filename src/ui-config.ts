@@ -24,7 +24,7 @@ export type ConfigOptions = {
 };
 
 const NAME = /^[A-Za-z0-9_-]+$/;
-const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'updateCheck', 'theme', 'lightTheme', 'darkTheme'];
+const FORM_FIELDS: SettingKey[] = ['adminTools', 'versionCheckHours', 'healthCheckMinutes', 'updateCheck', 'theme', 'lightTheme', 'darkTheme'];
 
 export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: ConfigOptions): void {
   const { settings, configFile } = options;
@@ -113,12 +113,13 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
   const { settings, environment = [] } = options;
   const admin = settings?.get('adminTools');
   const hours = settings?.get('versionCheckHours');
+  const health = settings?.get('healthCheckMinutes');
   const adminKeys = loadKeys(options.keysPath).filter((k) => isAdmin(k) && k.enabled).length;
   const updates = settings?.get('updateCheck');
   const mode = settings?.get('theme');
   const light = settings?.get('lightTheme');
   const dark = settings?.get('darkTheme');
-  const editable = settings && [admin, hours, updates, mode, light, dark].some((s) => s?.source !== 'env');
+  const editable = settings && [admin, hours, health, updates, mode, light, dark].some((s) => s?.source !== 'env');
   const lockedValue = (value: string, env: string) => html`<span class="inline-flex flex-wrap items-center gap-2"><span>${value}</span>${locked(env)}</span>`;
   const toggle = (key: 'adminTools' | 'updateCheck', label: string, on: boolean | undefined) =>
     html`<input type="hidden" name="${key}" value="false" /><input type="checkbox" class="toggle toggle-sm" name="${key}" value="true" aria-label="${label}" ${on ? 'checked' : ''} />`;
@@ -151,6 +152,17 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
             hours?.source === 'env'
               ? lockedValue(`${hours.value} h`, hours.env)
               : html`<label class="input input-sm w-32"><input type="number" name="versionCheckHours" min="1" max="168" value="${hours?.value ?? 6}" aria-label="Hours between checks" /><span class="opacity-50">hours</span></label>`,
+          ),
+        )}
+        ${section(
+          'Health',
+          'MCP Yard pings every running server over MCP and logs a server that stops or starts answering. The dashboard shows the last results.',
+          setting(
+            'Check every',
+            health?.source === 'env'
+              ? lockedValue(health.value ? `${health.value} min` : 'off', health.env)
+              : html`<label class="input input-sm w-32"><input type="number" name="healthCheckMinutes" min="0" max="1440" value="${health?.value ?? 5}" aria-label="Minutes between health checks" /><span class="opacity-50">min</span></label>`,
+            '0 turns the automatic check off.',
           ),
         )}
         ${section(

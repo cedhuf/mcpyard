@@ -56,6 +56,7 @@ test('the settings page locks environment values and turns hub administration of
   assert.ok(!page.includes('name="versionCheckHours"'), 'a locked setting has no input');
   assert.match(page, /<section id="about"/);
   assert.match(page, /name="updateCheck"/);
+  assert.match(page, /name="healthCheckMinutes"[^>]*value="5"/, 'the health check runs every 5 minutes by default');
 
   const yardTools = async () => {
     const client = new Client({ name: 'test', version: '0' });

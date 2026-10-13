@@ -1,17 +1,49 @@
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+
 export type LogKind = 'call' | 'action' | 'server' | 'hub';
 type Value = string | number | boolean | null;
 export type LogEntry = { id: number; time: string; kind: LogKind; error: boolean; server?: string; text: string; fields?: Record<string, Value> };
 
 const SIZE = 2000;
+const SAVE_AFTER_MS = 10_000;
+
+/** Calls and actions are kept across restarts; server output stays in memory only. */
+const kept = (e: LogEntry) => e.kind === 'call' || e.kind === 'action';
 
 /** The last log lines, kept in memory for the web UI. Everything also goes to stdout or stderr, as before. */
 export class LogBook {
   private entries: LogEntry[] = [];
   private next = 1;
+  private path?: string;
+  private saving?: NodeJS.Timeout;
 
   add(entry: Omit<LogEntry, 'id' | 'time'>): void {
-    this.entries.push({ id: this.next++, time: new Date().toISOString(), ...entry });
+    const full = { id: this.next++, time: new Date().toISOString(), ...entry };
+    this.entries.push(full);
     if (this.entries.length > SIZE) this.entries.splice(0, this.entries.length - SIZE);
+    if (this.path && kept(full)) this.saving ??= setTimeout(() => this.flush(), SAVE_AFTER_MS).unref();
+  }
+
+  /** Reloads the calls and actions saved in `path`, and keeps saving them there. */
+  persist(path: string): void {
+    this.path = path;
+    let saved: LogEntry[] = [];
+    try {
+      saved = JSON.parse(readFileSync(path, 'utf8')) as LogEntry[];
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    }
+    this.entries = [...saved, ...this.entries].slice(-SIZE).map((e, i) => ({ ...e, id: i + 1 }));
+    this.next = this.entries.length + 1;
+  }
+
+  /** Writes the calls and actions now; called on a timer and before the hub stops. */
+  flush(): void {
+    clearTimeout(this.saving);
+    this.saving = undefined;
+    if (!this.path) return;
+    writeFileSync(`${this.path}.tmp`, JSON.stringify(this.entries.filter(kept)));
+    renameSync(`${this.path}.tmp`, this.path);
   }
 
   /** Newest first. */
@@ -21,6 +53,7 @@ export class LogBook {
 
   clear(): void {
     this.entries = [];
+    this.next = 1;
   }
 }
 

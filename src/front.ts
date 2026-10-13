@@ -44,6 +44,10 @@ export class Hub {
   readonly handler = createMcpHandler(({ authInfo }) => this.mcpServer(authInfo?.extra?.key as Key));
   /** Whether the hub's own `yard-*` tools are offered at all; keys must still list `yard`. */
   yardEnabled: () => boolean = () => true;
+  /** Where the keys live, for the admin tools that report on them. Set by app(). */
+  keysPath?: string;
+  /** The web UI's security check, when the UI runs; the admin tools return it too. */
+  security?: () => { ok: boolean; title: string; detail: string; label: string }[];
 
   /** `load` re-reads the server file for `reload()`. */
   constructor(configs: Record<string, ServerConfig>, packages?: Packages, load?: () => Record<string, ServerConfig>) {
@@ -129,9 +133,9 @@ export class Hub {
 
   lastHealth?: HealthReport;
 
-  /** Pings every running server and keeps the report for the dashboard. Switched-off servers are left out. */
-  async healthCheck(): Promise<HealthReport> {
-    const names = [...this.upstreams.keys()].filter((name) => this.configs[name]!.enabled && !this.disabled.has(name));
+  /** Pings every running server, or those of `only`, and keeps the report for the dashboard. Switched-off servers are left out. */
+  async healthCheck(only?: (name: string) => boolean): Promise<HealthReport> {
+    const names = [...this.upstreams.keys()].filter((name) => this.configs[name]!.enabled && !this.disabled.has(name) && (!only || only(name)));
     const results = await Promise.all(
       names.map(async (server): Promise<Health> => {
         try {
@@ -141,8 +145,28 @@ export class Hub {
         }
       }),
     );
-    this.lastHealth = { at: new Date().toISOString(), results };
-    return this.lastHealth;
+    const report = { at: new Date().toISOString(), results };
+    if (!only) {
+      // A server that stops or starts answering between two full checks is worth a line in the log.
+      for (const r of results) {
+        const before = this.lastHealth?.results.find((p) => p.server === r.server);
+        if (before && before.ok !== r.ok) event(r.ok ? 'server_answering' : 'server_not_answering', { server: r.server, error: r.error });
+      }
+      this.lastHealth = report;
+    }
+    return report;
+  }
+
+  private healthTimer?: NodeJS.Timeout;
+  healthEveryMinutes = 0;
+
+  /** Runs the health check every `minutes`, or never with 0. */
+  startHealthChecks(minutes: number): void {
+    clearInterval(this.healthTimer);
+    this.healthEveryMinutes = minutes;
+    if (minutes <= 0) return;
+    this.healthTimer = setInterval(() => void this.healthCheck(), minutes * 60_000);
+    this.healthTimer.unref();
   }
 
   /** Asks the registries now instead of waiting for the next periodic check. */
@@ -151,9 +175,9 @@ export class Hub {
     await Promise.allSettled(specs.map((spec) => this.packages?.latest(spec, 0)));
   }
 
-  /** Starts the update of every hub-owned package that has a newer version; returns their names. */
-  updateAll(): string[] {
-    const due = Object.entries(this.packageStatus()).filter(([, pkg]) => newerVersion(pkg) && !pkg.updating);
+  /** Starts the update of every hub-owned package that has a newer version, or those of `only`; returns their names. */
+  updateAll(only?: (name: string) => boolean): string[] {
+    const due = Object.entries(this.packageStatus()).filter(([name, pkg]) => newerVersion(pkg) && !pkg.updating && (!only || only(name)));
     for (const [name] of due) this.update(name).catch(() => {});
     return due.map(([name]) => name);
   }
@@ -201,6 +225,7 @@ export class Hub {
   }
 
   async stop(): Promise<void> {
+    clearInterval(this.healthTimer);
     this.packages?.unwatch();
     await Promise.all([...this.upstreams.values()].map((u) => u.stop()));
     await this.handler.close();
@@ -296,6 +321,7 @@ function touch(keysPath: string, key: Key): void {
 }
 
 export function app(hub: Hub, keysPath: string, webUi?: Hono<any>): Hono {
+  hub.keysPath = keysPath;
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
   app.all('/mcp', async (c) => {

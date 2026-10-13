@@ -20,8 +20,9 @@ badge when a newer release is out.
 The home page sums up the yard: healthy servers, tools exposed, MCP calls of the last 24 hours with
 their failures and median duration, and active keys. The hub's own clock sits next to the title. Below:
 
-- **Health check**: **Run now** pings every running server over MCP and shows who answers, and how
-  fast.
+- **Health check**: every running server is pinged over MCP every 5 minutes (see Settings), and
+  **Run now** pings them at once. It shows who answers, and how fast; a server that stops or starts
+  answering also gets a line in the logs.
 - **Updates**: how many hub-owned packages run their latest version, the ones that do not, **Check
   now** to ask the registries at once, and **Update all** to update every one of them, each keeping
   the old version serving until the new one answers.
@@ -89,7 +90,7 @@ rewrites the server file and restarts only that server.
 
 ## Logs
 
-The **Logs** page shows the last 2000 log lines since the hub started, newest first:
+The **Logs** page shows the last 2000 log lines, newest first:
 
 - **MCP calls**: every tool call, with its key, duration and, when it failed, the error. This tab
   also shows the number of calls, how many failed, the median and 95th percentile durations, and
@@ -99,9 +100,10 @@ The **Logs** page shows the last 2000 log lines since the hub started, newest fi
 - **Errors**: everything that failed, whatever its kind.
 
 Click a server name to see only its lines; on this page the search field in the top bar matches
-tools, keys and messages. The
-same lines go to the container's output, so `docker logs` and your log shipper see them too; the
-page keeps nothing on disk.
+tools, keys and messages as you type. The same lines go to the container's output, so `docker logs`
+and your log shipper see them too. MCP calls and actions are also kept in
+`$MCPYARD_DATA_DIR/activity.json`, so the dashboard and this page survive a restart; servers' output
+starts afresh.
 
 <picture>
   <source srcset="assets/logs-dark.png" media="(prefers-color-scheme: dark)">
@@ -115,6 +117,7 @@ soon as it is made; there is no save button.
 
 - **Hub administration**: the `yard-*` tools on or off for every key, and how many keys may use them.
 - **Updates**: how often registries are checked.
+- **Health**: how often every running server is pinged, or never.
 - **Appearance**: follow the system's light or dark mode, or force one, and pick the light and dark
   themes: MCP Yard's own `yard` and `yard-night`, drawn from the logo, by default, or any
   [daisyUI theme](https://daisyui.com/docs/themes/).
