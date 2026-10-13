@@ -2,7 +2,7 @@ import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import type { Hub } from './front.ts';
 import { isAdmin, loadKeys, newKey, saveKeys, type Key } from './keys.ts';
-import { actions, badge, checkbox, empty, field, formGrid, linkButton, pageHead, panel, postButton, table } from './ui-kit.ts';
+import { badge, checkbox, empty, field, formGrid, linkButton, menu, menuDivider, menuItem, menuLink, onOff, pageHead, panel } from './ui-kit.ts';
 import { icon, log, page, toast, type Env, type Fragment } from './ui-layout.ts';
 
 export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: { keysPath: string; base: (c: Context) => string }): void {
@@ -86,28 +86,45 @@ function ago(iso: string | null): string {
   return `${Math.round(minutes / 1440)} days ago`;
 }
 
-function keysView(hub: Hub, keys: Key[]): Fragment {
-  const filter = (k: Key) =>
+function keyRow(k: Key): Fragment {
+  const filter =
     [k.scope.tools.allow?.length ? `allow ${k.scope.tools.allow.join(', ')}` : '', k.scope.tools.deny?.length ? `deny ${k.scope.tools.deny.join(', ')}` : '']
       .filter(Boolean)
       .join(' · ') || 'all tools';
-  const rows = keys.map(
-    (k) => html`<tr class="${k.enabled ? '' : 'opacity-60'}">
-      <td><div class="font-medium">${k.name}</div><div class="mono muted">${k.prefix}</div></td>
-      <td><div class="row-wrap">${servers(k).length ? badge('tools', { tone: 'info', soft: true }) : ''}${isAdmin(k) ? badge('admin', { tone: 'warning', icon: 'wrench' }) : ''}${k.enabled ? '' : badge('disabled')}</div></td>
-      <td><div class="row-wrap">${servers(k).includes('*') ? badge('all') : servers(k).length ? servers(k).map((s) => badge(s)) : html`<span class="muted">${isAdmin(k) ? 'manages all' : 'none'}</span>`}</div></td>
-      <td class="mono">${filter(k)}</td>
-      <td title="Created ${k.created.slice(0, 10)}">${ago(k.lastUsed)}</td>
-      <td>${actions(html`${linkButton(`/keys/${k.id}/edit`, 'Edit', { size: 'xs' })}
-        ${postButton(`/keys/${k.id}/${k.enabled ? 'disable' : 'enable'}`, k.enabled ? 'Disable' : 'Enable', { size: 'xs' })}
-        ${postButton(`/keys/${k.id}/delete`, 'Delete', { size: 'xs', tone: 'danger', confirm: `Delete key ${k.name}? Clients using it lose access.` })}`)}</td>
-    </tr>`,
-  );
+  const list = servers(k);
+  return html`<div class="srow ${k.enabled ? '' : 'is-off'}">
+    <div class="srow-head">
+      <div class="krow-main">
+        <div class="stack-sm srow-name"><strong>${k.name}</strong><span class="mono muted text-xs">${k.prefix}…</span></div>
+        <div class="row-wrap">${list.length ? badge('tools', { tone: 'info', soft: true, small: true }) : ''}${isAdmin(k) ? badge('admin', { tone: 'warning', soft: true, small: true, icon: 'wrench' }) : ''}</div>
+        <div class="row-wrap hide-sm">${list.includes('*') ? badge('all servers', { small: true }) : list.length ? list.map((s) => badge(s, { mono: true, small: true })) : html`<span class="muted text-sm">${isAdmin(k) ? 'manages all' : 'no server'}</span>`}</div>
+        <div class="mono muted truncate hide-sm" title="${filter}">${filter}</div>
+        <div class="meta hide-sm" title="Created ${k.created.slice(0, 10)}">${ago(k.lastUsed)}</div>
+      </div>
+      <div class="srow-controls">
+        ${onOff(`/keys/${k.id}/${k.enabled ? 'disable' : 'enable'}`, k.enabled, `${k.enabled ? 'Disable' : 'Enable'} key ${k.name}`)}
+        ${menu(`Actions for ${k.name}`, [
+          menuLink(`/keys/${k.id}/edit`, 'Edit', 'pencil'),
+          menuDivider,
+          menuItem(`/keys/${k.id}/delete`, 'Delete', 'trash', { danger: true, confirm: `Delete key ${k.name}? Clients using it lose access.` }),
+        ])}
+      </div>
+    </div>
+  </div>`;
+}
+
+function keysView(hub: Hub, keys: Key[]): Fragment {
+  const off = keys.filter((k) => !k.enabled).length;
+  const admins = keys.filter((k) => k.enabled && isAdmin(k)).length;
   return html`${pageHead('Keys', {
-      subtitle: html`One key per client, all on <span class="mono">/mcp</span>. A key sees the tools of its servers, and the hub's own <span class="mono">yard-*</span> tools only when administration is allowed.`,
+      subtitle: html`${keys.length} ${keys.length === 1 ? 'key' : 'keys'}${admins ? ` · ${admins} with administration` : ''}${off ? ` · ${off} off` : ''} · all on <span class="mono">/mcp</span>`,
       actions: linkButton('/keys/new', 'New key', { tone: 'primary', size: 'sm', icon: 'plus', dialog: 'new-key' }),
     })}
-    ${keys.length ? table(['Name', 'Access', 'Servers', 'Tools', 'Last used', ''], rows, 'keys-table') : empty('No keys yet. Create one for each client.')}
+    ${keys.length
+      ? html`<div class="list-head krow-head hide-sm" aria-hidden="true"><span>Name</span><span>Access</span><span>Servers</span><span>Tools</span><span>Last used</span></div>
+        <div class="list">${keys.map(keyRow)}</div>`
+      : empty('No keys yet. Create one for each client.')}
+    <p class="muted text-sm mt-4">A key sees the tools of its servers, and the hub's own <span class="mono">yard-*</span> tools only when administration is allowed.</p>
     <dialog id="new-key" class="modal">
       <div class="modal-box max-w-3xl">
         <h3 class="text-lg font-bold mb-4">New key</h3>

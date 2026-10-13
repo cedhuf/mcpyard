@@ -15,7 +15,7 @@ stored, in `$MCPYARD_DATA_DIR/keys.json`.
 
 <picture>
   <source srcset="assets/keys-dark.png" media="(prefers-color-scheme: dark)">
-  <img src="assets/keys-light.png" alt="The keys page with three keys and their scopes">
+  <img src="assets/keys-light.png" alt="The keys page, each key with its access, servers and switch">
 </picture>
 
 Without the web UI, generate one from the container and add the printed entry to `keys.json`:
@@ -72,4 +72,5 @@ Actions from the web UI are logged the same way, with the signed-in user in `by`
 | `server_enabled`, `server_disabled` | A server is switched on or off. |
 | `server_restarted`, `package_update` | A server is restarted or a package updated. |
 | `config_reloaded`, `settings_saved` | The server file is reloaded, or the settings saved. |
-Ship the container logs wherever you keep logs.
+Ship the container logs wherever you keep logs. The web UI's [Logs](web-ui.html#logs) page shows the
+recent ones, with a tab for MCP calls.

@@ -5,8 +5,8 @@ title: Web UI and sign-in
 # Web UI and sign-in
 
 The web UI is served at the root of the hub. It shows each server's state, tools and versions,
-restarts servers, updates and rolls back packages, reloads the server file, and creates, edits,
-disables and deletes keys. It refreshes itself every few seconds.
+restarts servers, updates and rolls back packages, reloads the server file, creates, edits,
+disables and deletes keys, and shows the hub's logs. It refreshes itself every few seconds.
 
 <picture>
   <source srcset="assets/servers-dark.png" media="(prefers-color-scheme: dark)">
@@ -42,13 +42,34 @@ It needs no build step and no external request: the hub serves its own styleshee
 ## Servers from the UI
 
 **Add server** and **Edit** open a form for any kind of server: npm or PyPI package, command, or
-remote URL, with its arguments, environment, headers and tool filters. Saving rewrites the server
-file and restarts only that server.
+remote URL, with its arguments, environment, headers and tool filters, in sections. An existing
+server's page starts with its state, its switch and its actions, and lists its tools. Saving
+rewrites the server file and restarts only that server.
 
 - Comments elsewhere in the file and `${VAR}` references are kept as written.
 - The whole file must still be valid, or nothing is written and the error is shown.
 - If the file is read-only (a `:ro` mount, or not writable by uid 1000), the forms are shown locked
   and the file stays yours to edit by hand; **Reload configuration** applies it.
+
+## Logs
+
+The **Logs** page shows the last 2000 log lines since the hub started, newest first:
+
+- **MCP calls**: every tool call, with its key, duration and, when it failed, the error. This tab
+  also shows the number of calls, how many failed, the median and 95th percentile durations, and
+  the most called tools.
+- **Actions**: what was done from the web UI, and by whom.
+- **Output**: what the servers write on stderr, their state changes, and the hub's own messages.
+- **Errors**: everything that failed, whatever its kind.
+
+Click a server name to see only its lines; the search box matches tools, keys and messages. The
+same lines go to the container's output, so `docker logs` and your log shipper see them too; the
+page keeps nothing on disk.
+
+<picture>
+  <source srcset="assets/logs-dark.png" media="(prefers-color-scheme: dark)">
+  <img src="assets/logs-light.png" alt="The logs page on the MCP calls tab, with call statistics">
+</picture>
 
 ## Settings
 

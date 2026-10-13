@@ -2,6 +2,7 @@ import { Server, createMcpHandler, type CallToolResult, type Tool } from '@model
 import { Hono } from 'hono';
 import type { ServerConfig } from './config.ts';
 import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
+import { event, note } from './logs.ts';
 import { YARD, YARD_TOOLS } from './yard.ts';
 import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
@@ -190,7 +191,7 @@ export class Hub {
   private warnOnce(id: string, message: string): void {
     if (this.warned.has(id)) return;
     this.warned.add(id);
-    console.error(message);
+    note(message, { error: true });
   }
 
   private mcpServer(key: Key): Server {
@@ -217,7 +218,7 @@ export class Hub {
         } catch (e) {
           result = { isError: true, content: [{ type: 'text', text: (e as Error).message }] };
         }
-        audit(key, exposed, !result.isError, Date.now() - started);
+        audit(key, YARD, exposed, result, Date.now() - started);
         return result;
       }
       const route = this.routes.get(exposed);
@@ -229,7 +230,7 @@ export class Hub {
       } catch (e) {
         result = { isError: true, content: [{ type: 'text', text: (e as Error).message }] };
       }
-      audit(key, exposed, !result.isError, Date.now() - started);
+      audit(key, route.server, exposed, result, Date.now() - started);
       return result;
     });
 
@@ -237,8 +238,9 @@ export class Hub {
   }
 }
 
-function audit(key: Key, tool: string, ok: boolean, ms: number): void {
-  console.log(JSON.stringify({ event: 'tool_call', time: new Date().toISOString(), key: key.name, tool, ok, ms }));
+function audit(key: Key, server: string, tool: string, result: CallToolResult, ms: number): void {
+  const text = result.isError ? result.content.find((c) => c.type === 'text')?.text : undefined;
+  event('tool_call', { key: key.name, server, tool, ok: !result.isError, ms, error: text?.slice(0, 300) });
 }
 
 const TOUCH_EVERY_MS = 3_600_000;

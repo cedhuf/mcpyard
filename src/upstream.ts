@@ -2,6 +2,7 @@ import { Client, SSEClientTransport, StreamableHTTPClientTransport, type Tool } 
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio';
 import type { ServerConfig } from './config.ts';
 import type { Launch, Packages } from './packages.ts';
+import { note } from './logs.ts';
 import { VERSION } from './release.ts';
 
 /** `degraded`: was ready, lost its connection, reconnecting. `failed`: never got ready, retrying. */
@@ -169,13 +170,13 @@ export class Upstream {
       stderr: 'pipe',
     });
     transport.stderr?.on('data', (chunk: Buffer) => {
-      for (const line of chunk.toString().split('\n')) if (line) process.stderr.write(`[${this.name}] ${line}\n`);
+      for (const line of chunk.toString().split('\n')) if (line.trim()) note(line, { server: this.name });
     });
     return transport;
   }
 
   private toolsChanged(error: Error | null, tools: Tool[] | null): void {
-    if (error) return console.error(`[${this.name}] tools refresh failed: ${error.message}`);
+    if (error) return note(`tools refresh failed: ${error.message}`, { server: this.name, error: true });
     this.tools = tools ?? [];
     this.onChange();
   }
@@ -183,7 +184,7 @@ export class Upstream {
   private scheduleRetry(reason: string): void {
     this.client = undefined;
     this.set(this.wasReady ? 'degraded' : 'failed', reason);
-    console.error(`[${this.name}] ${reason}, retrying in ${this.backoff / 1000}s`);
+    note(`${reason}, retrying in ${this.backoff / 1000}s`, { server: this.name, error: true });
     clearTimeout(this.retry);
     this.retry = setTimeout(() => void this.run(), this.backoff);
     this.backoff = Math.min(this.backoff * 2, MAX_BACKOFF);
@@ -195,6 +196,7 @@ export class Upstream {
   }
 
   private set(state: State, error?: string): void {
+    if (state !== this.state && !error) note(state, { server: this.name });
     this.state = state;
     this.lastError = error;
     if (state !== 'ready') this.tools = [];

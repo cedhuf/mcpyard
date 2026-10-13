@@ -93,3 +93,54 @@ export function actions(content: Content): Fragment {
 export function empty(content: Content): Fragment {
   return panel(html`<p class="muted">${content}</p>`);
 }
+
+/** An on/off switch posting to `action`: a one-button form, so it works without any script. `locked` shows a padlock instead. */
+export function onOff(action: string, on: boolean, label: string, locked?: string): Fragment {
+  if (locked) return html`<span class="switch locked" title="${locked}">${icon('lock', 'xs')}</span>`;
+  return html`<form method="post" action="${action}" class="inline-form">
+    <button class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on ? 'true' : 'false'}" title="${label}" aria-label="${label}"></button>
+  </form>`;
+}
+
+type MenuItem = Fragment | '' | false | undefined;
+
+/** A "⋯" menu that needs no script: a details element. */
+export function menu(label: string, items: MenuItem[]): Fragment {
+  return html`<details class="dropdown dropdown-end">
+    <summary class="btn btn-ghost btn-sm btn-square" aria-label="${label}">${icon('dots')}</summary>
+    <ul class="dropdown-content menu srv-menu">${items.filter(Boolean)}</ul>
+  </details>`;
+}
+
+export function menuLink(href: string, label: Content, iconName: string): Fragment {
+  return html`<li><a href="${href}">${icon(iconName, 'sm')}${label}</a></li>`;
+}
+
+export function menuItem(action: string, label: Content, iconName: string, options: { fields?: Record<string, string>; confirm?: string; danger?: boolean } = {}): Fragment {
+  return html`<li><form method="post" action="${action}" ${options.confirm ? html`data-confirm="${options.confirm}"` : ''}>${Object.entries(options.fields ?? {}).map(([k, v]) => html`<input type="hidden" name="${k}" value="${v}" />`)}<button class="${options.danger ? 'text-error' : ''}">${icon(iconName, 'sm')}${label}</button></form></li>`;
+}
+
+export const menuDivider = html`<li aria-hidden="true"><hr /></li>`;
+
+/** One titled block of a long form or page: the title and its explanation on the left, the content on the right. */
+export function section(title: Content, description: Content, content: Content, options: { id?: string; kinds?: string } = {}): Fragment {
+  return html`<section class="section" ${options.id ? html`id="${options.id}"` : ''} ${options.kinds ? html`data-kinds="${options.kinds}"` : ''}>
+    <div class="section-side"><h2>${title}</h2>${description ? html`<p>${description}</p>` : ''}</div>
+    <div class="section-main">${content}</div>
+  </section>`;
+}
+
+/** Filter tabs as plain links, each with its count. */
+export function tabs(items: { href: string; label: string; count?: number; active: boolean }[]): Fragment {
+  return html`<div role="tablist" class="tabs tabs-box tabs-sm">
+    ${items.map((t) => html`<a role="tab" class="tab ${t.active ? 'tab-active' : ''}" href="${t.href}">${t.label}${t.count === undefined ? '' : html` <span class="tab-count">${t.count}</span>`}</a>`)}
+  </div>`;
+}
+
+/** A GET search box that keeps the other query parameters. */
+export function search(action: string, value: string, placeholder: string, keep: Record<string, string> = {}): Fragment {
+  return html`<form method="get" action="${action}" class="search">
+    ${Object.entries(keep).map(([k, v]) => html`<input type="hidden" name="${k}" value="${v}" />`)}
+    <label class="input input-sm">${icon('search', 'sm')}<input type="search" name="q" value="${value}" placeholder="${placeholder}" /></label>
+  </form>`;
+}

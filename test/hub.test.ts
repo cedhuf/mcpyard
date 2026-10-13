@@ -9,6 +9,7 @@ import { after, before, test } from 'node:test';
 import { parseConfig } from '../src/config.ts';
 import { app, Hub } from '../src/front.ts';
 import { loadKeys, newKey } from '../src/keys.ts';
+import { logs } from '../src/logs.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'mcpyard-'));
 const full = newKey('full');
@@ -62,6 +63,8 @@ test('merges tools under <server>-<tool> and routes calls', async () => {
   assert.deepEqual(names, ['fix-ture-delete_all', 'fix-ture-echo', 'fix-ture-env', 'fix-ture-version']);
   const result = await client.callTool({ name: 'fix-ture-echo', arguments: { text: 'hi' } });
   assert.deepEqual(result.content, [{ type: 'text', text: 'hi' }]);
+  const [call] = logs.list().filter((e) => e.kind === 'call');
+  assert.deepEqual([call!.text, call!.server, call!.fields?.key, call!.error], ['fix-ture-echo', 'fix-ture', 'full', false], 'the call is in the UI log');
   await client.close();
 });
 

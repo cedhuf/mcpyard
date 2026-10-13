@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import type { User } from './oidc.ts';
+import { event } from './logs.ts';
 import { release } from './release.ts';
 
 export type Env = { Variables: { user?: User; nonce: string } };
@@ -73,6 +74,8 @@ const ICONS: Record<string, string> = {
   trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15"/>',
   dots: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  logs: '<path d="M4 6h16M4 10h16M4 14h10M4 18h7"/>',
   power: '<path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/>',
   wrench: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 8-8M14.7 6.3 13 4.7a4 4 0 0 0-5 5L3 15l3 3 5.3-5.3"/>',
 };
@@ -92,13 +95,14 @@ export function toast(message: Fragment | string, kind: 'success' | 'error' | 'i
   return html`<div class="toast toast-end toast-bottom z-50"><div role="${kind === 'error' ? 'alert' : 'status'}" class="alert alert-${kind} alert-soft shadow-lg ${kind === 'error' ? '' : 'fades'}">${icon(kind === 'error' ? 'alert' : 'check', 'sm')}<span>${message}</span></div></div>`;
 }
 
-export function log(c: Context<Env>, event: string, subject?: Record<string, string>): void {
-  console.log(JSON.stringify({ event, time: new Date().toISOString(), ...subject, by: c.get('user')?.name ?? null }));
+export function log(c: Context<Env>, name: string, subject?: Record<string, string>): void {
+  event(name, { ...subject, by: c.get('user')?.name ?? null });
 }
 
 const NAV = [
   ['/', 'Servers', 'server'],
   ['/keys', 'Keys', 'key'],
+  ['/logs', 'Logs', 'logs'],
   ['/settings', 'Settings', 'settings'],
 ] as const;
 
@@ -199,13 +203,14 @@ if (kind) {
   document.querySelectorAll('[name=kind]').forEach((el) => el.addEventListener('change', sync));
   sync();
 }
-if (document.getElementById('servers')) setInterval(async () => {
-  const current = document.getElementById('servers');
-  if (document.hidden || document.querySelector('dialog[open], details[open]') || current.contains(document.activeElement) && document.activeElement.matches('input[type=search]')) return;
+const live = document.querySelector('[data-refresh]');
+if (live) setInterval(async () => {
+  const current = document.getElementById(live.id);
+  if (document.hidden || document.querySelector('dialog[open], details[open]') || String(getSelection()) || current.contains(document.activeElement) && document.activeElement.matches('input[type=search]')) return;
   const open = [...current.querySelectorAll('input[data-id]:checked')].map((i) => i.dataset.id);
   const res = await fetch(location.pathname + location.search).catch(() => null);
   if (!res || !res.ok || res.redirected) return;
-  const next = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById('servers');
+  const next = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById(live.id);
   if (!next) return;
   for (const id of open) { const box = next.querySelector('input[data-id="' + CSS.escape(id) + '"]'); if (box) box.checked = true; }
   current.replaceWith(next);
@@ -347,6 +352,49 @@ body { background: var(--color-base-200); min-height: 100vh; }
 .max-w-2xl { max-width: 42rem; } .w-32 { width: 8rem; } .text-lg { font-size: 1.125rem; } .text-sm { font-size: 0.875rem; } .font-bold { font-weight: 700; }
 .mt-1 { margin-top: 0.25rem; } .mt-2 { margin-top: 0.5rem; } .mt-4 { margin-top: 1rem; } .mb-2 { margin-bottom: 0.5rem; } .mb-4 { margin-bottom: 1rem; }
 .gap-4 { gap: 1rem; } .cursor-pointer { cursor: pointer; } .text-error { color: var(--color-error); }
+.log-list { background: var(--color-base-100); border: 1px solid var(--color-base-300); border-radius: var(--radius-box); overflow: hidden; }
+.log-row { display: grid; grid-template-columns: 70px 80px minmax(70px, 130px) minmax(0, 1fr) 70px; gap: 14px; align-items: baseline; padding: 7px 16px; font-size: 0.85rem; }
+.log-row + .log-row { border-top: 1px solid color-mix(in oklab, var(--color-base-300) 70%, transparent); }
+.log-row:hover { background: color-mix(in oklab, var(--color-base-200) 55%, transparent); }
+.log-row.is-error { background: color-mix(in oklab, var(--color-error) 5%, transparent); }
+.log-time { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; opacity: 0.6; font-variant-numeric: tabular-nums; }
+.log-src { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; text-decoration: none; font-size: 0.8rem; }
+a.log-src:hover { color: var(--color-primary); text-decoration: underline; }
+.log-msg { min-width: 0; overflow-wrap: anywhere; }
+.log-msg.mono { white-space: pre-wrap; }
+.log-error { color: var(--color-error); margin-top: 2px; white-space: pre-wrap; }
+.log-ms { text-align: right; font-variant-numeric: tabular-nums; opacity: 0.6; font-size: 0.8rem; }
+.log-row .state { font-size: 0.8rem; }
+.stats-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.stat-box { background: var(--color-base-100); border: 1px solid var(--color-base-300); border-radius: var(--radius-box); padding: 12px 18px; min-width: 120px; }
+.stat-label { font-size: 0.75rem; opacity: 0.6; }
+.stat-num { font-size: 1.35rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+@media (max-width: 800px) { .log-row { grid-template-columns: 60px auto minmax(0, 1fr) auto; gap: 4px 10px; } .log-row .log-msg { grid-column: 1 / -1; } .log-row .log-ms { grid-row: 1; grid-column: 4; } }
+.sections { background: var(--color-base-100); border: 1px solid var(--color-base-300); border-radius: var(--radius-box); }
+.section { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); gap: 12px 40px; padding: 24px 28px; }
+.section + .section { border-top: 1px solid var(--color-base-300); }
+.section-side h2 { font-size: 0.98rem; font-weight: 650; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+.section-side p { font-size: 0.83rem; opacity: 0.65; margin: 0; }
+.section-main { min-width: 0; }
+.section-main > .kv:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+.section.admin-section { background: color-mix(in oklab, var(--color-warning) 6%, transparent); }
+@media (max-width: 900px) { .section { grid-template-columns: 1fr; padding: 20px; } }
+.savebar { position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 16px; padding: 12px 16px; background: color-mix(in oklab, var(--color-base-100) 90%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--color-base-300); border-radius: var(--radius-box); }
+.savebar .grow { font-size: 0.83rem; opacity: 0.65; }
+.back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 0.83rem; opacity: 0.65; color: inherit; text-decoration: none; margin-bottom: 10px; }
+.back-link:hover { opacity: 1; color: var(--color-primary); }
+.summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; background: var(--color-base-100); border: 1px solid var(--color-base-300); border-radius: var(--radius-box); padding: 14px 20px; margin-bottom: 16px; }
+.summary .grow { min-width: 0; }
+.summary ~ .callout { margin-bottom: 16px; }
+.page-head h1 .mono { font-size: inherit; letter-spacing: -0.01em; }
+.krow-main { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(170px, 260px) 150px minmax(0, 1fr) minmax(0, 1fr) 120px; align-items: center; gap: 16px; padding: 12px 6px 12px 18px; }
+.list-head { display: grid; grid-template-columns: minmax(170px, 260px) 150px minmax(0, 1fr) minmax(0, 1fr) 120px; gap: 16px; padding: 0 98px 6px 25px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.5; }
+@media (max-width: 900px) { .list-head { display: none; } }
+.krow-main .stack-sm { display: grid; gap: 1px; min-width: 0; }
+@media (max-width: 900px) { .krow-main { grid-template-columns: 1fr auto; } .krow-main .hide-sm { display: none; } }
+details.fold-panel > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+details.fold-panel > summary::-webkit-details-marker { display: none; }
+details.fold-panel[open] > summary .chevron.sm { transform: rotate(-135deg); margin-top: 3px; }
 .bare { display: grid; place-items: center; }
 .bare-main { width: min(440px, calc(100vw - 32px)); padding: 40px 0; }
 `;

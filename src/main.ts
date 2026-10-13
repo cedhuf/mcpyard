@@ -8,6 +8,7 @@ import { Packages } from './packages.ts';
 import { release } from './release.ts';
 import { Settings } from './settings.ts';
 import { ui, type EnvRow, type UiAuth } from './ui.ts';
+import { note } from './logs.ts';
 import { setAppearance } from './ui-layout.ts';
 
 const env = process.env;
@@ -42,12 +43,12 @@ hub.start();
 
 function uiAuth(): UiAuth | undefined {
   if (env.MCPYARD_UI_AUTH === 'none') {
-    console.error('web UI authentication is OFF (MCPYARD_UI_AUTH=none): anyone reaching this port can manage keys and servers');
+    note('web UI authentication is OFF (MCPYARD_UI_AUTH=none): anyone reaching this port can manage keys and servers');
     return { kind: 'none' };
   }
   const { OIDC_ISSUER: issuer, OIDC_CLIENT_ID: clientId, OIDC_CLIENT_SECRET: clientSecret, MCPYARD_PUBLIC_URL: publicUrl } = env;
   if (!issuer || !clientId || !publicUrl) {
-    console.error('web UI disabled: set OIDC_ISSUER, OIDC_CLIENT_ID and MCPYARD_PUBLIC_URL, or MCPYARD_UI_AUTH=none');
+    note('web UI disabled: set OIDC_ISSUER, OIDC_CLIENT_ID and MCPYARD_PUBLIC_URL, or MCPYARD_UI_AUTH=none');
     return undefined;
   }
   const allowedGroups = env.OIDC_ALLOWED_GROUPS?.split(',').map((g) => g.trim()).filter(Boolean);
@@ -71,12 +72,12 @@ const environment: EnvRow[] = [
 const keysPath = join(dataDir, 'keys.json');
 const auth = uiAuth();
 const webUi = auth && ui(hub, { keysPath, auth, publicUrl: env.MCPYARD_PUBLIC_URL, settings, configFile, environment });
-const server = serve({ fetch: app(hub, keysPath, webUi).fetch, port }, () => console.error(`mcpyard listening on :${port}`));
+const server = serve({ fetch: app(hub, keysPath, webUi).fetch, port }, () => note(`mcpyard listening on :${port}`));
 
 process.on('SIGHUP', () => {
   hub.reload().then(
-    (r) => console.error(`configuration reloaded: added [${r.added}], removed [${r.removed}], changed [${r.changed}]`),
-    (e: Error) => console.error(`configuration not reloaded: ${e.message}`),
+    (r) => note(`configuration reloaded: added [${r.added}], removed [${r.removed}], changed [${r.changed}]`),
+    (e: Error) => note(`configuration not reloaded: ${e.message}`, { error: true }),
   );
 });
 

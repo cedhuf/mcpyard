@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { parseConfig } from '../src/config.ts';
 import { app, Hub } from '../src/front.ts';
+import { event, logs, note } from '../src/logs.ts';
 import type { Key } from '../src/keys.ts';
 import { Oidc, Signer } from '../src/oidc.ts';
 import { ui } from '../src/ui.ts';
@@ -64,6 +65,28 @@ test('a server is switched off from the UI, kept off across restarts, and filter
   assert.equal((await post('/servers/nope/disable', {})).status, 404);
   await hub.setDisabled('alpha', false);
   await hub.upstreams.get('alpha')!.stop();
+});
+
+test('the logs page lists calls, actions and output, and filters them', async () => {
+  const { request, post } = setup({ kind: 'none' });
+  logs.clear();
+  event('tool_call', { key: 'laptop', server: 'alpha', tool: 'alpha-search', ok: true, ms: 12 });
+  event('tool_call', { key: 'agent', server: 'beta', tool: 'beta-send', ok: false, ms: 40, error: 'quota exceeded' });
+  note('listening on stdio', { server: 'alpha' });
+  await post('/keys', { name: 'logged' });
+
+  const all = await (await request('/logs')).text();
+  for (const text of ['alpha-search', 'beta-send', 'quota exceeded', 'listening on stdio', 'key created']) assert.ok(all.includes(text), text);
+
+  const calls = await (await request('/logs?kind=calls')).text();
+  assert.ok(calls.includes('alpha-search') && !calls.includes('listening on stdio'), 'the calls tab shows only MCP calls');
+  assert.match(calls, /Failed<\/div><div class="stat-num text-error">1</);
+
+  const errors = await (await request('/logs?kind=errors')).text();
+  assert.ok(errors.includes('beta-send') && !errors.includes('alpha-search'));
+  const alpha = await (await request('/logs?server=alpha')).text();
+  assert.ok(alpha.includes('alpha-search') && !alpha.includes('beta-send'), 'a server link narrows to that server');
+  assert.ok(!(await (await request('/logs?q=quota')).text()).includes('alpha-search'), 'the search matches error text');
 });
 
 test('keys are created with a scope, shown once, disabled and deleted', async () => {
