@@ -144,7 +144,7 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
           html`MCP Yard's own <span class="font-mono">yard-*</span> tools, for the keys allowed to administer the hub.`,
           html`${setting('Admin tools', admin?.source === 'env' ? lockedValue(admin.value ? 'on' : 'off', admin.env) : toggle('adminTools', 'Admin tools', admin?.value), 'Off removes them from every key at once.')}
             ${setting('Keys allowed', html`<a class="link link-primary" href="/keys">${plural(adminKeys, 'key')}</a>`)}
-            <div class="grid gap-2 pt-2.5 border-t border-base-300"><span class="font-medium">Tools</span><span class="flex flex-wrap gap-1.5">${YARD_TOOLS.map((t) => tag(t.tool.name, { mono: true }))}</span></div>`,
+            ${yardTools()}`,
           { tone: 'warning' },
         )}
         ${section(
@@ -215,6 +215,21 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
       `)}
       <noscript><div class="mt-4 flex justify-end"><button class="btn btn-sm btn-primary">Save settings</button></div></noscript>
     </form></div>`;
+}
+
+/** The admin tools, folded by default: read-only ones first, each with the first sentence of its description. */
+function yardTools(): Fragment {
+  const tools = [...YARD_TOOLS].sort((a, b) => Number(!a.tool.annotations?.readOnlyHint) - Number(!b.tool.annotations?.readOnlyHint));
+  const reading = tools.filter((t) => t.tool.annotations?.readOnlyHint).length;
+  return html`<details class="collapse collapse-arrow border-t border-base-300 rounded-none">
+    <summary class="collapse-title px-0 py-2.5 min-h-0 after:end-1 font-medium">Tools <span class="font-normal text-base-content/50">${tools.length}: ${reading} read-only, ${tools.length - reading} that change things</span></summary>
+    <ul class="collapse-content px-0 grid gap-x-6 gap-y-3 sm:grid-cols-2">${tools.map(
+      (t) => html`<li class="min-w-0">
+        <div class="flex items-center gap-2"><span class="font-mono font-medium truncate">yard-${t.tool.name}</span>${t.tool.annotations?.readOnlyHint ? tag('read') : tag('changes', { tone: 'warning' })}</div>
+        <p class="text-xs text-base-content/60">${t.tool.description?.split(/(?<=\.)\s/)[0]}</p>
+      </li>`,
+    )}</ul>
+  </details>`;
 }
 
 const PERIODS = [0, 6, 24, 168, 720];
