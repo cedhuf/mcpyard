@@ -1,5 +1,5 @@
 import { html } from 'hono/html';
-import { icon } from './ui-icons.ts';
+import { icon, mascot } from './ui-icons.ts';
 import type { Fragment } from './ui-layout.ts';
 
 /**
@@ -16,7 +16,7 @@ export function pageHead(title: Content, options: { sub?: Content; actions?: Con
   return html`<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-6">
     <div class="min-w-0">
       ${breadcrumbs(options.crumbs ?? [{ label: title }])}
-      <h1 class="flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">${title}</h1>
+      <h1 class="flex flex-wrap items-center gap-3 font-display text-3xl font-semibold">${title}</h1>
       ${options.sub ? html`<p class="mt-1 text-base-content/60">${options.sub}</p>` : ''}
     </div>
     ${options.actions ? html`<div class="flex flex-wrap items-center gap-2">${options.actions}</div>` : ''}
@@ -31,7 +31,7 @@ export function breadcrumbs(items: Crumb[]): Fragment {
 /** A daisyUI card with a border. */
 export function box(content: Content, options: { title?: Content; aside?: Content; pad?: boolean } = {}): Fragment {
   return html`<section class="card card-border border-base-300 bg-base-100 min-w-0">
-    ${options.title ? html`<div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-base-300"><h2 class="card-title text-base">${options.title}</h2>${options.aside ?? ''}</div>` : ''}
+    ${options.title ? html`<div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-base-300"><h2 class="card-title font-display text-lg font-medium">${options.title}</h2>${options.aside ?? ''}</div>` : ''}
     ${options.pad ? html`<div class="card-body p-5">${content}</div>` : content}
   </section>`;
 }
@@ -158,7 +158,7 @@ export function menu(name: string, label: string, entries: (MenuEntry | false | 
 /** One block of a long form or page: its title and explanation on the left, the content on the right. */
 export function section(heading: Content, description: Content, content: Content, options: { kinds?: string; tone?: 'warning'; id?: string } = {}): Fragment {
   return html`<section ${options.id ? html`id="${options.id}"` : ''} class="grid md:grid-cols-[minmax(180px,280px)_1fr] gap-x-10 gap-y-3 p-5 md:p-6 border-base-300 [&+&]:border-t ${options.tone === 'warning' ? 'bg-warning/5' : ''}" ${options.kinds ? html`data-kinds="${options.kinds}"` : ''}>
-    <div><h2 class="font-semibold flex items-center gap-2">${heading}</h2>${description ? html`<p class="mt-1 text-[13px] text-base-content/60">${description}</p>` : ''}</div>
+    <div><h2 class="font-display text-lg font-medium flex items-center gap-2">${heading}</h2>${description ? html`<p class="mt-1 text-[13px] text-base-content/60">${description}</p>` : ''}</div>
     <div class="min-w-0">${content}</div>
   </section>`;
 }
@@ -220,6 +220,16 @@ function hidden(fields: Record<string, string> = {}): Fragment[] {
 
 export function empty(content: Content): Fragment {
   return html`<div class="card card-border border-base-300 bg-base-100"><div class="card-body items-center py-10 text-base-content/60">${content}</div></div>`;
+}
+
+/** An empty or lost page: the mascot, a title, a line and what to do next. */
+export function hero(heading: Content, text: Content, action?: Content): Fragment {
+  return html`<div class="card card-border border-base-300 bg-base-100"><div class="card-body items-center text-center gap-3 py-12">
+    ${mascot('lg')}
+    <h2 class="font-display text-2xl font-semibold">${heading}</h2>
+    <p class="max-w-md text-base-content/70">${text}</p>
+    ${action ? html`<div class="mt-2">${action}</div>` : ''}
+  </div></div>`;
 }
 
 /** A row of controls above a list: filters, search, layout. */

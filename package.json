@@ -15,6 +15,7 @@
     "dev": "node --watch --env-file-if-exists=_local/.env src/main.ts"
   },
   "dependencies": {
+    "@fontsource-variable/fredoka": "^5.3.0",
     "@hono/node-server": "^2.1.4",
     "@modelcontextprotocol/client": "^2.3.1",
     "@modelcontextprotocol/server": "^2.3.1",

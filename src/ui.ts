@@ -11,10 +11,11 @@ import type { Settings } from './settings.ts';
 import { configRoutes, type EnvRow } from './ui-config.ts';
 import { keyRoutes } from './ui-keys.ts';
 import { logRoutes } from './ui-logs.ts';
-import { box, note as inlineNote } from './ui-kit.ts';
+import { mascot } from './ui-icons.ts';
+import { note as inlineNote } from './ui-kit.ts';
 import { FILTERS, serversView, type Filter, type FilterState, type View } from './ui-servers.ts';
 import { note } from './logs.ts';
-import { log, page, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
+import { log, notFound, page, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
 
 export type { EnvRow };
 
@@ -22,13 +23,16 @@ export type UiAuth = { kind: 'none' } | { kind: 'oidc'; oidc: Oidc; signer: Sign
 
 export type UiOptions = { keysPath: string; auth: UiAuth; publicUrl?: string; settings?: Settings; configFile?: ConfigFile; environment?: EnvRow[] };
 
-/** The logo files, public like the stylesheet: browsers fetch them before any sign-in. */
+/** The logo files and the mascot, public like the stylesheet: browsers fetch them before any sign-in. */
 const STATIC_FILES = [
   ['/favicon.ico', 'image/x-icon'],
   ['/favicon-16x16.png', 'image/png'],
   ['/favicon-32x32.png', 'image/png'],
   ['/apple-touch-icon.png', 'image/png'],
+  ['/icon.png', 'image/png'],
 ] as const;
+
+const FONT = readFileSync(fileURLToPath(import.meta.resolve('@fontsource-variable/fredoka/files/fredoka-latin-wght-normal.woff2')));
 
 const SESSION = 'mcpyard_session';
 const LOGIN = 'mcpyard_login';
@@ -60,7 +64,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     c.set('nonce', nonce);
     const avatar = c.get('user')?.picture;
     const imgSrc = ['\'self\'', 'data:', ...(avatar ? [new URL(avatar).origin] : [])].join(' ');
-    c.header('Content-Security-Policy', `default-src 'none'; style-src 'self' 'unsafe-inline'; img-src ${imgSrc}; script-src 'nonce-${nonce}'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'`);
+    c.header('Content-Security-Policy', `default-src 'none'; style-src 'self' 'unsafe-inline'; img-src ${imgSrc}; font-src 'self'; script-src 'nonce-${nonce}'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'`);
     c.header('Referrer-Policy', 'same-origin');
     await next();
   };
@@ -74,6 +78,12 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     c.header('Vary', 'Accept-Encoding');
     if (gzip) c.header('Content-Encoding', 'gzip');
     return c.body(new Uint8Array(gzip ? sheet.gzip : sheet.body));
+  });
+
+  app.get('/assets/fredoka.woff2', (c) => {
+    c.header('Content-Type', 'font/woff2');
+    c.header('Cache-Control', 'public, max-age=604800');
+    return c.body(new Uint8Array(FONT));
   });
 
   for (const [path, type] of STATIC_FILES) {
@@ -138,7 +148,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   for (const action of ['enable', 'disable'] as const) {
     app.post(`/servers/:name/${action}`, guard, async (c) => {
       const name = c.req.param('name') ?? '';
-      if (!hub.configs[name]) return c.text('Not found', 404);
+      if (!hub.configs[name]) return notFound(c);
       await hub.setDisabled(name, action === 'disable');
       log(c, `server_${action}d`, { server: name });
       return back(c);
@@ -148,7 +158,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   app.post('/servers/:name/update', guard, async (c) => {
     const name = c.req.param('name') ?? '';
     const { version } = await c.req.parseBody();
-    if (!hub.upstreams.has(name)) return c.text('Not found', 404);
+    if (!hub.upstreams.has(name)) return notFound(c);
     // Installing can take minutes: the page polls and shows progress or the error.
     const target = typeof version === 'string' && version ? version : undefined;
     hub.update(name, target).catch((e: Error) => note(`update failed: ${e.message}`, { server: name, error: true }));
@@ -158,7 +168,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
 
   app.post('/servers/:name/restart', guard, async (c) => {
     const name = c.req.param('name') ?? '';
-    if (!hub.upstreams.has(name)) return c.text('Not found', 404);
+    if (!hub.upstreams.has(name)) return notFound(c);
     void hub.restart(name);
     log(c, 'server_restarted', { server: name });
     return back(c);
@@ -186,6 +196,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   configRoutes(app, hub, guard, { keysPath, settings: options.settings, configFile: options.configFile, environment: options.environment, base });
   keyRoutes(app, hub, guard, { keysPath, base });
   logRoutes(app, guard);
+  app.get('*', guard, (c) => notFound(c));
 
   return app;
 }
@@ -199,5 +210,10 @@ function sameOrigin(origin: string | undefined, base: string): boolean {
 }
 
 function signedOut(message: string, failed = false): Fragment {
-  return box(html`<div class="stack">${inlineNote(message, failed ? 'error' : 'info')}<a class="btn btn-sm btn-primary" href="/auth/login">Sign in</a></div>`, { pad: true });
+  return html`<div class="card card-border border-base-300 bg-base-100 w-full"><div class="card-body items-center text-center gap-3">
+    ${mascot('md')}
+    <h1 class="font-display text-2xl font-semibold">${failed ? 'The gate stayed shut' : 'See you soon'}</h1>
+    ${failed ? inlineNote(message, 'error') : html`<p class="text-base-content/70">${message}</p>`}
+    <a class="btn btn-primary mt-2" href="/auth/login">Sign in again</a>
+  </div></div>`;
 }

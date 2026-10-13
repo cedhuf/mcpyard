@@ -44,13 +44,25 @@ test('servers page lists every server with its state', async () => {
 });
 
 test('the navbar search looks in the current section and keeps its filters', async () => {
-  const { request } = setup({ kind: 'none' });
+  const { request, post } = setup({ kind: 'none' });
+  await post('/keys', { name: 'laptop' });
   assert.match(await (await request('/')).text(), /<form method="get" action="\/"[^>]*role="search"/);
   assert.match(await (await request('/logs?kind=calls')).text(), /<form method="get" action="\/logs"[^>]*>\s*<input type="hidden" name="kind" value="calls"/);
   const keys = await (await request('/keys?q=nothing-like-this')).text();
   assert.match(keys, /<form method="get" action="\/keys"/);
   assert.match(keys, /No key matches <strong>nothing-like-this<\/strong>/);
   assert.ok(!(await (await request('/?q=bet')).text()).includes('href="/servers/alpha"'), 'the servers search filters');
+});
+
+test('unknown pages get the mascot, and the font and mascot are served', async () => {
+  const { request } = setup({ kind: 'none' });
+  const missing = await request('/nothing-here');
+  assert.equal(missing.status, 404);
+  assert.match(await missing.text(), /Nothing grows here/);
+  assert.equal((await request('/keys/none/edit')).status, 404);
+  const font = await request('/assets/fredoka.woff2');
+  assert.equal(font.headers.get('content-type'), 'font/woff2');
+  assert.equal((await request('/icon.png')).status, 200);
 });
 
 test('each server has its own page with tabs and breadcrumbs', async () => {

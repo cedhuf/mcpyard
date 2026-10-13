@@ -27,6 +27,8 @@ const ICONS: Record<string, string> = {
   copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15"/>',
   dots: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  sprout: '<path d="M12 21v-8"/><path d="M12 13c0-4.5 3-7.5 8-7.5 0 5-3 7.5-8 7.5Z"/><path d="M12 15.5c0-3.4-2.4-6-6.5-6 0 4 2.4 6 6.5 6Z"/>',
+  fence: '<path d="M5 21V8l2-3 2 3v13M15 21V8l2-3 2 3v13M3 11h18M3 17h18"/>',
   home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1Z"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
@@ -38,7 +40,13 @@ const ICONS: Record<string, string> = {
 const SIZES = { xs: 'size-3', sm: 'size-4', md: 'size-[18px]' } as const;
 
 export function icon(name: string, size: 'xs' | 'sm' | 'md' = 'md'): Fragment {
-  return html`<svg class="${SIZES[size]} shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${raw(ICONS[name] ?? '')}</svg>`;
+  return html`<svg class="${SIZES[size]} shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${raw(ICONS[name] ?? '')}</svg>`;
 }
 
-export const LOGO = raw('<img src="/apple-touch-icon.png" width="28" height="28" alt="" class="size-7 shrink-0 object-contain" />');
+export const LOGO = raw('<img src="/apple-touch-icon.png" width="36" height="36" alt="" class="size-9 shrink-0 object-contain" />');
+
+/** The mascot from the logo, for the moments the UI is empty, waiting or lost. */
+export function mascot(size: 'sm' | 'md' | 'lg' = 'md'): Fragment {
+  const px = { sm: 56, md: 120, lg: 160 }[size];
+  return html`<img src="/icon.png" width="${px}" height="${px}" alt="" class="shrink-0 select-none drop-shadow-sm" />`;
+}

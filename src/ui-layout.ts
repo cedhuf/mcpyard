@@ -14,7 +14,7 @@ export type Fragment = ReturnType<typeof html>;
 
 export type Appearance = { mode: 'system' | 'light' | 'dark'; light: string; dark: string };
 
-let appearance: Appearance = { mode: 'system', light: 'winter', dark: 'dim' };
+let appearance: Appearance = { mode: 'system', light: 'yard', dark: 'yard-night' };
 
 type Stylesheet = { body: Buffer; gzip: Buffer; version: string };
 let current: Stylesheet | undefined;
@@ -33,7 +33,9 @@ async function build(look: Appearance): Promise<Stylesheet> {
   const input = `@import "tailwindcss" source(none);
 @source "./*.ts";
 @source inline("{alert,badge,status,toggle,text,bg,border}-{primary,success,warning,error,info,neutral}");
-@plugin "daisyui" { themes: ${look.light} --default, ${look.dark} --prefersdark; logs: false; include: ${DAISY.join(', ')}; }`;
+${themeCss(look.light, look.dark, DAISY)}
+@font-face { font-family: "Fredoka"; src: url("/assets/fredoka.woff2") format("woff2"); font-weight: 300 700; font-display: swap; }
+@theme { --font-display: "Fredoka", ui-rounded, system-ui, sans-serif; }`;
   const compiler = await compile(input, { base: SOURCES, onDependency: () => {} });
   const candidates = new Scanner({ sources: compiler.sources.map((s) => ({ ...s, base: SOURCES })) }).scan();
   const { code } = optimize(compiler.build(candidates), { minify: true });
@@ -62,7 +64,8 @@ export async function setAppearance(next: Appearance): Promise<void> {
 }
 
 import { icon, LOGO } from './ui-icons.ts';
-import { menu, search, type MenuEntry } from './ui-kit.ts';
+import { hero, linkButton, menu, search, type MenuEntry } from './ui-kit.ts';
+import { themeCss } from './ui-theme.ts';
 
 export { icon, LOGO };
 
@@ -79,10 +82,15 @@ export function log(c: Context<Env>, name: string, subject?: Record<string, stri
   event(name, { ...subject, by: c.get('user')?.name ?? null });
 }
 
+/** A friendly 404 inside the app, for a server, key or page that is not there. */
+export function notFound(c: Context<Env>): Response | Promise<Response> {
+  return c.html(page(c, 'Not found', hero('Nothing grows here', 'This page, server or key does not exist, or not any more.', linkButton('/', 'Back to the servers', { tone: 'primary', icon: 'home' }))), 404);
+}
+
 const NAV = [
-  ['/', 'Servers', 'server'],
-  ['/keys', 'Keys', 'key'],
-  ['/logs', 'Logs', 'logs'],
+  ['/', 'Servers', 'server', 'text-primary'],
+  ['/keys', 'Keys', 'key', 'text-secondary'],
+  ['/logs', 'Logs', 'logs', 'text-accent'],
 ] as const;
 
 /** The navbar search looks in the section the page belongs to, keeping that section's filters. */
@@ -131,16 +139,16 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>`;
-  const brand = html`<a class="btn btn-ghost gap-2 px-2 text-base font-semibold" href="/">${LOGO}<span>MCP Yard</span></a>`;
+  const brand = html`<a class="btn btn-ghost h-auto gap-2 px-2 py-1 font-display text-xl font-semibold" href="/">${LOGO}<span>MCP Yard</span></a>`;
   if (options.bare) {
     return html`${head}
       <body class="min-h-screen grid place-items-center bg-base-200 text-sm">
-        <main class="w-[min(400px,calc(100vw-32px))] py-10 grid gap-6 justify-items-start">${brand}${body}</main>
+        <main class="w-[min(420px,calc(100vw-32px))] py-10 grid gap-6 justify-items-center">${brand}${body}</main>
       </body>
     </html>`;
   }
   const find = sectionSearch(c);
-  const links = NAV.map(([href, label, name]) => html`<li><a href="${href}" class="${active(href) ? 'menu-active' : ''}" ${active(href) ? html`aria-current="page"` : ''}>${icon(name, 'sm')}${label}</a></li>`);
+  const links = NAV.map(([href, label, name, tint]) => html`<li><a href="${href}" class="font-medium ${active(href) ? 'menu-active' : ''}" ${active(href) ? html`aria-current="page"` : ''}><span class="${active(href) ? '' : tint}">${icon(name, 'sm')}</span>${label}</a></li>`);
   return html`${head}
     <body class="min-h-screen text-sm">
       <header class="sticky top-0 z-30 px-2 pt-2 sm:px-4">
@@ -164,7 +172,13 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
           </div>
         </div>
       </header>
-      <main class="px-4 sm:px-6 lg:px-8 pt-6 pb-16">${body}</main>
+      <main class="px-4 sm:px-6 lg:px-8 pt-6 pb-16 min-h-[calc(100dvh-10rem)]">${body}</main>
+      <footer class="px-2 pb-2 sm:px-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-box bg-base-200 px-5 py-3 text-xs text-base-content/60 border-b-4 border-primary/50">
+          <span class="flex items-center gap-1.5">${icon('fence', 'xs')}MCP Yard ${release.status().current === 'dev' ? 'dev' : `v${release.status().current}`}</span>
+          <span class="flex gap-4"><a class="link link-hover" href="https://cedhuf.github.io/mcpyard/" target="_blank" rel="noreferrer">Docs</a><a class="link link-hover" href="https://github.com/cedhuf/mcpyard" target="_blank" rel="noreferrer">GitHub</a></span>
+        </div>
+      </footer>
       ${nonce ? html`<script nonce="${nonce}">${raw(SCRIPT)}</script>` : ''}
     </body>
   </html>`;

@@ -1,8 +1,8 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-/** daisyUI's themes, any of which the UI can use. */
-export const THEMES = ['abyss', 'acid', 'aqua', 'autumn', 'black', 'bumblebee', 'business', 'caramellatte', 'cmyk', 'coffee', 'corporate', 'cupcake', 'cyberpunk', 'dark', 'dim', 'dracula', 'emerald', 'fantasy', 'forest', 'garden', 'halloween', 'lemonade', 'light', 'lofi', 'luxury', 'night', 'nord', 'pastel', 'retro', 'silk', 'sunset', 'synthwave', 'valentine', 'winter', 'wireframe'] as const;
+/** MCP Yard's own themes, then daisyUI's, any of which the UI can use. */
+export const THEMES = ['yard', 'yard-night', 'abyss', 'acid', 'aqua', 'autumn', 'black', 'bumblebee', 'business', 'caramellatte', 'cmyk', 'coffee', 'corporate', 'cupcake', 'cyberpunk', 'dark', 'dim', 'dracula', 'emerald', 'fantasy', 'forest', 'garden', 'halloween', 'lemonade', 'light', 'lofi', 'luxury', 'night', 'nord', 'pastel', 'retro', 'silk', 'sunset', 'synthwave', 'valentine', 'winter', 'wireframe'] as const;
 export const THEME_MODES = ['system', 'light', 'dark'] as const;
 
 /** Settings the UI may change at runtime. An environment variable, when set, wins and locks the setting. */
@@ -11,8 +11,8 @@ const DEFINITIONS = {
   versionCheckHours: { env: 'MCPYARD_VERSION_CHECK_HOURS', type: 'number', default: 6, min: 1, max: 24 * 7 },
   updateCheck: { env: 'MCPYARD_UPDATE_CHECK', type: 'boolean', default: true },
   theme: { env: 'MCPYARD_THEME', type: 'choice', options: THEME_MODES, default: 'system' },
-  lightTheme: { env: 'MCPYARD_THEME_LIGHT', type: 'choice', options: THEMES, default: 'winter' },
-  darkTheme: { env: 'MCPYARD_THEME_DARK', type: 'choice', options: THEMES, default: 'dim' },
+  lightTheme: { env: 'MCPYARD_THEME_LIGHT', type: 'choice', options: THEMES, default: 'yard' },
+  darkTheme: { env: 'MCPYARD_THEME_DARK', type: 'choice', options: THEMES, default: 'yard-night' },
 } as const;
 
 export type SettingKey = keyof typeof DEFINITIONS;

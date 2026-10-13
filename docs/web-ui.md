@@ -46,9 +46,10 @@ file: the choice is kept in `state.json` in the data directory and survives rest
 It works when the server file is read-only. A server with `enabled: false` in the file shows a
 padlock instead of the switch.
 
-The UI is built with [daisyUI](https://daisyui.com) on [Tailwind CSS](https://tailwindcss.com) and
-follows your system's light or dark theme. There is no build step: the hub compiles its stylesheet
-from its own source when it starts, and makes no external request.
+The UI is built with [daisyUI](https://daisyui.com) on [Tailwind CSS](https://tailwindcss.com), in
+two themes of its own taken from the logo, and follows your system's light or dark theme. There is
+no build step: the hub compiles its stylesheet from its own source when it starts, and makes no
+external request: even the rounded heading font is served by the hub.
 
 ## Servers from the UI
 
@@ -90,7 +91,8 @@ soon as it is made; there is no save button.
 - **Hub administration**: the `yard-*` tools on or off for every key, and how many keys may use them.
 - **Updates**: how often registries are checked.
 - **Appearance**: follow the system's light or dark mode, or force one, and pick the light and dark
-  [daisyUI themes](https://daisyui.com/docs/themes/) (`winter` and `dim` by default).
+  themes: MCP Yard's own `yard` and `yard-night`, drawn from the logo, by default, or any
+  [daisyUI theme](https://daisyui.com/docs/themes/).
 - **About**: the running version and the latest release on GitHub. The account menu also shows the
   version, and a dot on the avatar links to the release notes when a newer one exists. The hub never updates
   itself; turn the check off here or with `MCPYARD_UPDATE_CHECK=false`.

@@ -108,8 +108,8 @@ warns at startup about any tool that would cross that line. Keep server names sh
 | `MCPYARD_UI_AUTH` | `oidc` | `none` turns web UI sign-in off. |
 | `MCPYARD_ADMIN_TOOLS` | `true` | `false` removes the hub's `yard-*` tools from every key. Also on the Settings page. |
 | `MCPYARD_THEME` | `system` | `system`, `light` or `dark`. Also on the Settings page. |
-| `MCPYARD_THEME_LIGHT` | `winter` | Any [daisyUI theme](https://daisyui.com/docs/themes/) for light mode. |
-| `MCPYARD_THEME_DARK` | `dim` | Any daisyUI theme for dark mode. |
+| `MCPYARD_THEME_LIGHT` | `yard` | MCP Yard's own `yard`, or any [daisyUI theme](https://daisyui.com/docs/themes/), for light mode. |
+| `MCPYARD_THEME_DARK` | `yard-night` | MCP Yard's own `yard-night`, or any daisyUI theme, for dark mode. |
 | `MCPYARD_UPDATE_CHECK` | `true` | `false` stops asking GitHub whether a newer MCP Yard exists. Also on the Settings page. |
 
 `MCPYARD_ADMIN_TOOLS`, `MCPYARD_UPDATE_CHECK`, `MCPYARD_VERSION_CHECK_HOURS` and the three theme variables can instead be set on the web UI's

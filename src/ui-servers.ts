@@ -3,7 +3,7 @@ import type { ServerConfig } from './config.ts';
 import type { Hub, PackageStatus } from './front.ts';
 import { allowed } from './keys.ts';
 import type { Upstream } from './upstream.ts';
-import { box, cell, chips, ROW, ROW_ANCHOR, ROW_END, type Content, empty, linkButton, list, menu, type MenuEntry, note, onOff, pageHead, postButton, row as item, segLinks, status, tabs, tag, title, toolbar, type Tone } from './ui-kit.ts';
+import { box, cell, chips, hero, ROW, ROW_ANCHOR, ROW_END, type Content, empty, linkButton, list, menu, type MenuEntry, note, onOff, pageHead, postButton, row as item, segLinks, status, tabs, tag, title, toolbar, type Tone } from './ui-kit.ts';
 import { icon, type Fragment } from './ui-layout.ts';
 
 export type View = 'cards' | 'list';
@@ -149,9 +149,11 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
   const link = (state: FilterState) => `/?state=${state}${filter.q ? `&q=${encodeURIComponent(filter.q)}` : ''}`;
   return html`<div id="servers" data-refresh>
     ${pageHead('Servers', {
-      sub: html`${plural(all.length, 'server')}, ${count('online')} online${count('failed') ? `, ${count('failed')} failing` : ''}${updates ? html`, <span class="text-primary">${plural(updates, 'update')} available</span>` : ''}`,
+      sub: all.length
+        ? html`${plural(all.length, 'server')} in the yard: ${count('online')} healthy${count('failed') ? html`, <span class="text-error">${count('failed')} ${count('failed') === 1 ? 'needs' : 'need'} care</span>` : ''}${updates ? html`, <span class="text-primary font-medium">${plural(updates, 'update')} ready</span>` : ''}`
+        : 'Every MCP server you add here shows up behind one endpoint.',
       actions: html`${postButton('/reload', 'Reload', { icon: 'refresh', title: 'Re-read the server file and apply the changes' })}
-        ${editable ? linkButton('/servers/new', 'Add server', { tone: 'primary', icon: 'plus' }) : ''}`,
+        ${editable ? linkButton('/servers/new', 'Add server', { tone: 'primary', icon: 'sprout' }) : ''}`,
     })}
     ${toolbar(html`
       ${chips(FILTERS.map((f) => ({ href: link(f), label: `${f[0]!.toUpperCase()}${f.slice(1)}`, count: count(f), active: filter.state === f })))}
@@ -163,7 +165,11 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
       ])}
     `)}
     ${!all.length
-      ? empty(editable ? html`<p>No servers yet. <a class="link link-primary" href="/servers/new">Add the first one</a>.</p>` : 'No servers yet. Declare them in the server file and reload.')
+      ? hero(
+          'Your yard is empty',
+          editable ? 'Plant a first MCP server: an npm or PyPI package, a command, or a remote URL. Its tools show up behind /mcp at once.' : 'Declare servers in the server file, then reload.',
+          editable ? linkButton('/servers/new', 'Add a first server', { tone: 'primary', icon: 'sprout' }) : postButton('/reload', 'Reload', { icon: 'refresh' }),
+        )
       : !rows.length
         ? empty(filter.q ? html`<p>No server matches <strong>${filter.q}</strong>. <a class="link link-primary" href="/">Show all</a></p>` : 'No server matches this filter.')
         : view === 'list'

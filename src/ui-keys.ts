@@ -2,9 +2,10 @@ import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import type { Hub } from './front.ts';
 import { isAdmin, loadKeys, newKey, saveKeys, type Key } from './keys.ts';
-import { box, cell, checkbox, dialogButton, empty, field, fields, linkButton, list, menu, onOff, pageHead, row, tag, title } from './ui-kit.ts';
+import { box, cell, checkbox, dialogButton, empty, hero, field, fields, linkButton, list, menu, onOff, pageHead, row, tag, title } from './ui-kit.ts';
 import { plural } from './ui-servers.ts';
-import { icon, log, page, toast, type Env, type Fragment } from './ui-layout.ts';
+import { mascot } from './ui-icons.ts';
+import { icon, log, notFound, page, toast, type Env, type Fragment } from './ui-layout.ts';
 
 export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: { keysPath: string; base: (c: Context) => string }): void {
   const { keysPath } = options;
@@ -27,7 +28,7 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
 
   app.get('/keys/:id/edit', guard, (c) => {
     const key = loadKeys(keysPath).find((k) => k.id === c.req.param('id'));
-    if (!key) return c.text('Not found', 404);
+    if (!key) return notFound(c);
     return c.html(page(c, 'Edit key', html`${pageHead(key.name, { crumbs: [{ label: 'Keys', href: '/keys' }, { label: key.name }], sub: html`<span class="font-mono">${key.prefix}…</span>, created ${key.created.slice(0, 10)}, last used ${ago(key.lastUsed)}` })}${box(keyForm(hub, key), { pad: true })}`));
   });
 
@@ -37,7 +38,7 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
     if (!name || name.length > 64) return c.text('Bad request: name is required, 64 characters at most', 400);
     const keys = loadKeys(keysPath);
     const key = keys.find((k) => k.id === c.req.param('id'));
-    if (!key) return c.text('Not found', 404);
+    if (!key) return notFound(c);
     key.name = name;
     key.scope = scopeFrom(form);
     saveKeys(keysPath, keys);
@@ -50,7 +51,7 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
       const id = c.req.param('id') ?? '';
       const keys = loadKeys(keysPath);
       const key = keys.find((k) => k.id === id);
-      if (!key) return c.text('Not found', 404);
+      if (!key) return notFound(c);
       if (action === 'delete') keys.splice(keys.indexOf(key), 1);
       else key.enabled = action === 'enable';
       saveKeys(keysPath, keys);
@@ -118,13 +119,13 @@ function keysView(hub: Hub, all: Key[], q = ''): Fragment {
   const admins = all.filter((k) => k.enabled && isAdmin(k)).length;
   return html`${pageHead('Keys', {
       sub: html`${plural(all.length, 'key')}${admins ? `, ${admins} with administration` : ''}${off ? `, ${off} off` : ''}. Every client connects to <span class="font-mono">/mcp</span> with its own key.`,
-      actions: dialogButton('new-key', 'New key', { tone: 'primary', icon: 'plus' }),
+      actions: dialogButton('new-key', 'New key', { tone: 'primary', icon: 'key' }),
     })}
     ${q ? html`<div class="mb-3"><a class="badge badge-ghost gap-1" href="/keys" title="Clear the search">“${q}” ✕</a></div>` : ''}
-    ${!keys.length && q ? empty(html`<p>No key matches <strong>${q}</strong>.</p>`) : keys.length ? list(['Name', { label: 'Access', hide: true }, { label: 'Servers', hide: true }, { label: 'Tools', hide: true }, { label: 'Last used', hide: true }], keys.map(keyRow)) : empty('No keys yet. Create one for each client.')}
+    ${!all.length ? hero('No keys yet', 'Every client gets its own key, so you can see who calls what and switch one off without touching the others.', dialogButton('new-key', 'Make the first key', { tone: 'primary', icon: 'key' })) : !keys.length && q ? empty(html`<p>No key matches <strong>${q}</strong>.</p>`) : keys.length ? list(['Name', { label: 'Access', hide: true }, { label: 'Servers', hide: true }, { label: 'Tools', hide: true }, { label: 'Last used', hide: true }], keys.map(keyRow)) : empty('No keys yet. Create one for each client.')}
     <dialog id="new-key" class="modal">
       <div class="modal-box max-w-2xl">
-        <h3 class="text-lg font-semibold mb-4">New key</h3>
+        <h3 class="font-display text-xl font-semibold mb-4 flex items-center gap-2"><span class="text-secondary">${icon('key')}</span>New key</h3>
         ${keyForm(hub)}
       </div>
       <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -170,8 +171,8 @@ function created(key: Key, token: string, base: string): Fragment {
     html`<div class="flex items-center gap-2 rounded-field bg-base-200 py-1.5 pl-3 pr-1.5"><code id="${id}" class="flex-1 min-w-0 break-all font-mono text-xs">${value}</code><button type="button" class="btn btn-sm btn-ghost" data-copy="${id}">${icon('copy', 'xs')}<span>Copy</span></button></div>`;
   return html`<dialog class="modal modal-open" open>
     <div class="modal-box max-w-2xl grid gap-4">
-      <div><h3 class="text-lg font-semibold">Key ${key.name} created</h3>
-      <p class="text-base-content/60">Copy the token now: it is shown once, and only its hash is stored.</p></div>
+      <div class="flex items-center gap-4">${mascot('sm')}<div><h3 class="font-display text-xl font-semibold">Here is the key for ${key.name}</h3>
+      <p class="text-base-content/60">Copy it now: it is shown once, and only its hash is kept.</p></div></div>
       <div class="grid gap-1.5">
         <span class="text-xs font-semibold">Token</span>${secret('new-token', token)}
         <span class="text-xs font-semibold mt-2">Claude Code</span>${secret('new-command', command)}

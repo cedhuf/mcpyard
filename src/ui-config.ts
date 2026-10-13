@@ -8,7 +8,7 @@ import { THEME_MODES, THEMES, type SettingKey, type Settings } from './settings.
 import { plural } from './ui-servers.ts';
 import { release } from './release.ts';
 import { box, checkbox, field, fields, linkButton, note, pageHead, section, segRadio, setting, tag } from './ui-kit.ts';
-import { icon, locked, log, page, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
+import { icon, locked, log, notFound, page, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
 import { logsBlock, logsForServer } from './ui-logs.ts';
 import { rowOf, serverHead, serverOverview } from './ui-servers.ts';
 
@@ -33,7 +33,7 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
   app.get('/settings', guard, (c) => c.html(page(c, 'Settings', settingsView(c, hub, options))));
 
   app.post('/settings', guard, async (c) => {
-    if (!settings) return c.text('Not found', 404);
+    if (!settings) return notFound(c);
     const form = await c.req.parseBody({ all: true });
     // A toggle posts a hidden "false" then, when on, "true"; the last value wins.
     const changes = FORM_FIELDS.filter((key) => settings.get(key).source !== 'env' && form[key] !== undefined)
@@ -54,13 +54,13 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
 
   app.get('/servers/:name', guard, (c) => {
     const row = rowOf(hub, c.req.param('name') ?? '');
-    if (!row) return c.text('Not found', 404);
+    if (!row) return notFound(c);
     return c.html(page(c, row.name, serverOverview(row, editable(), logsForServer(row.name).length)));
   });
 
   app.get('/servers/:name/logs', guard, (c) => {
     const row = rowOf(hub, c.req.param('name') ?? '');
-    if (!row) return c.text('Not found', 404);
+    if (!row) return notFound(c);
     const entries = logsForServer(row.name);
     return c.html(page(c, `${row.name} logs`, html`<div id="server-logs" data-refresh>${serverHead(row, editable(), 'logs', entries.length)}${logsBlock(entries)}</div>`));
   });
@@ -68,7 +68,7 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
   app.get('/servers/:name/edit', guard, (c) => {
     const name = c.req.param('name') ?? '';
     const raw = configFile?.raw(name);
-    if (!raw) return c.text('Not found', 404);
+    if (!raw) return notFound(c);
     return c.html(page(c, `${name} settings`, serverPage(hub, name, raw, configFile)));
   });
 
@@ -94,14 +94,14 @@ export function configRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<
 
   app.post('/servers/:name', guard, async (c) => {
     const name = c.req.param('name') ?? '';
-    if (!hub.configs[name]) return c.text('Not found', 404);
+    if (!hub.configs[name]) return notFound(c);
     return save(c, name);
   });
 
   app.post('/servers/:name/delete', guard, async (c) => {
     const name = c.req.param('name') ?? '';
     if (!configFile || configFile.readOnlyReason()) return c.text('Forbidden: the server file is read-only', 403);
-    if (!hub.configs[name]) return c.text('Not found', 404);
+    if (!hub.configs[name]) return notFound(c);
     configFile.save(name, undefined);
     log(c, 'server_deleted', { server: name });
     await hub.reload();
