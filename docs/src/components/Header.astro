@@ -1,0 +1,95 @@
+---
+/**
+ * Starlight's header with the site's sections next to the title. The first column has the same width
+ * on every page, with or without a sidebar, so the search field does not move between the home page
+ * and the docs.
+ *
+ * Registered in `astro.config.mjs` under `components.Header`.
+ */
+import Search from '@astrojs/starlight/components/Search.astro';
+import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
+import SocialIcons from '@astrojs/starlight/components/SocialIcons.astro';
+import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const path = Astro.url.pathname.replace(/\/(index\.html)?$/, '');
+const sections = [
+  { label: 'Home', href: `${base}/`, current: path === base },
+  { label: 'Documentation', href: `${base}/getting-started.html`, current: false },
+  { label: 'Architecture', href: `${base}/architecture.html`, current: path.startsWith(`${base}/architecture`) },
+  { label: 'Releases', href: `${base}/releases.html`, current: path === `${base}/releases.html` },
+];
+sections[1]!.current = path !== base && !sections.some((s) => s.current);
+---
+
+<div class="header">
+  <div class="title-wrapper sl-flex">
+    <SiteTitle />
+  </div>
+  <nav class="sections sl-hidden md:sl-flex print:hidden" aria-label="Sections">
+    {sections.map((s) => <a href={s.href} aria-current={s.current ? 'page' : undefined}>{s.label}</a>)}
+  </nav>
+  <div class="sl-flex print:hidden">
+    <Search />
+  </div>
+  <div class="sl-hidden md:sl-flex print:hidden right-group">
+    <div class="sl-flex social-icons">
+      <SocialIcons />
+    </div>
+    <ThemeSelect />
+  </div>
+</div>
+
+<style>
+  .header {
+    display: flex;
+    gap: var(--sl-nav-gap);
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+  }
+  .title-wrapper {
+    overflow: clip;
+    padding: 0.25rem;
+    margin: -0.25rem;
+    min-width: 0;
+  }
+  .sections {
+    gap: 0.25rem;
+    align-items: center;
+  }
+  .sections a {
+    padding: 0.35rem 0.8rem;
+    border-radius: 0.75rem;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .sections a:hover {
+    color: var(--sl-color-white);
+    background: var(--sl-color-gray-6);
+  }
+  .sections a[aria-current='page'] {
+    background: var(--yard-neutral);
+    color: var(--yard-neutral-content);
+  }
+  .right-group,
+  .social-icons {
+    gap: 1rem;
+    align-items: center;
+  }
+  .social-icons::after {
+    content: '';
+    height: 2rem;
+    border-inline-end: 1px solid var(--sl-color-gray-5);
+  }
+  @media (min-width: 50rem) {
+    .header {
+      display: grid;
+      grid-template-columns: minmax(calc(var(--sl-sidebar-width) - 2 * var(--sl-nav-pad-x)), auto) auto 1fr auto;
+      align-content: center;
+    }
+  }
+</style>

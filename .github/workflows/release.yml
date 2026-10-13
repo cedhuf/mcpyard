@@ -81,6 +81,8 @@ jobs:
           cache-dependency-path: docs/package-lock.json
       - run: npm ci --prefix docs
       - run: npm run build --prefix docs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

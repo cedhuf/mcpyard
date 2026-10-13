@@ -128,7 +128,7 @@ Where to go next:
 
 ## Contributing
 
-[ARCHITECTURE.md](ARCHITECTURE.md) explains how the hub is built and why.
+The [architecture pages](https://cedhuf.github.io/mcpyard/architecture.html) explain how the hub is built and why.
 
 ## License
 

@@ -313,3 +313,24 @@ h1,
   text-align: center;
   text-wrap: balance;
 }
+
+/* Releases: the date sits on the version's heading line. */
+.release + .release {
+  margin-top: 2.5rem;
+}
+.release__date {
+  margin-inline-start: 0.75rem;
+  color: var(--sl-color-gray-3);
+  font-family: var(--sl-font-system);
+  font-size: var(--sl-text-sm);
+  font-weight: 400;
+}
+.release h2 a {
+  text-decoration: none;
+}
+.release :is(h3, h4) {
+  font-size: var(--sl-text-lg);
+}
+.release__empty {
+  color: var(--sl-color-gray-3);
+}

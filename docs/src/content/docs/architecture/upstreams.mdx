@@ -1,0 +1,77 @@
+---
+title: Upstreams and packages
+description: How servers are started, isolated, installed, pinned and updated side by side.
+sidebar:
+  order: 3
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+## Kinds
+
+Each server is exactly one of:
+
+- `package`: an npm or PyPI package the hub installs, then runs over stdio;
+- `command`: an executable already on the host, over stdio;
+- `url`: a remote server over Streamable HTTP, or legacy SSE.
+
+## Lifecycle
+
+States: `installing`, `starting`, `ready`, `degraded` (was ready, reconnecting), `failed` (never got
+ready, retrying), `stopped`.
+
+A server is `ready` once `initialize` and `tools/list` succeed. A lost connection or a crashed
+child schedules a retry with exponential backoff, from 1 second up to 5 minutes. A server that is
+not ready exposes no tools, and every change to an upstream's tools rebuilds the routing table and
+sends `tools/list_changed` to connected clients. Servers start in parallel and fail independently.
+
+Servers can also be switched off from the UI or over MCP without touching the file. That state is
+kept in `state.json`, on top of what the file says, so it works with a read-only server file.
+
+## Isolation
+
+A stdio child is spawned without a shell, with its arguments as an array. Its environment is a
+minimal base (`PATH`, `HOME` and the like) plus the `env` its entry declares, and nothing else: the
+hub's own secrets and other servers' tokens never reach it. Install commands get the same scrubbed
+environment, plus the proxy and registry variables they need.
+
+## Packages and versions
+
+Packages are installed by the hub, never fetched on the fly:
+
+```
+$MCPYARD_DATA_DIR/packages/<server>/<version>/
+```
+
+- npm: `npm install --ignore-scripts --prefix <dir> <pkg>@<version>`, then the bin is run from
+  `<dir>/node_modules/.bin/`.
+- PyPI: `uv venv <dir>`, then `uv pip install --no-build --python <dir> <pkg>==<version>`, run
+  from `<dir>/bin/`.
+
+A marker file written after a successful install tells a complete directory from an interrupted
+one. Install-time code is off by default (no npm lifecycle scripts, wheels only); `allowScripts`
+turns it on per server.
+
+Each server has one version source:
+
+- **Pinned**: `version` is in the file. That version runs; only an edit changes it.
+- **Hub-owned**: `version` is omitted. The first start installs the latest and records it in
+  `versions.json`; later starts reuse the recorded version, so a restart never upgrades anything.
+
+Registries are asked for the latest version on a period, one request per package, with the
+result cached for that period. An update of a hub-owned package runs side by side:
+
+<Steps>
+
+1. install the new version into its own directory;
+2. start it next to the running one;
+3. wait for `initialize` and `tools/list`;
+4. switch traffic to it, then stop the old process;
+5. record the new version and keep the previous one for rollback; delete older directories.
+
+</Steps>
+
+If any step fails, the old version keeps serving and the error is kept on the server. Updates are
+triggered by a person (UI, `yard-update_*`) or, when switched on, by the nightly schedule.
+
+Node's timers top out at about 24.8 days (`MAX_TIMER`): longer periods are clamped to it.

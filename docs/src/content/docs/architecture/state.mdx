@@ -1,0 +1,39 @@
+---
+title: State and logs
+description: The log book, the events on stdout and the files in the data directory.
+sidebar:
+  order: 6
+---
+
+import { FileTree } from '@astrojs/starlight/components';
+
+## Logs and events
+
+`logs.ts` keeps the last 2000 entries in memory for the Logs page and the admin tools: MCP calls,
+actions from the UI, servers' standard error and the hub's own notes. Calls and actions are also
+saved to `activity.json` a few seconds after they happen and on shutdown, so history survives a
+restart; server output stays in memory.
+
+Everything also goes to the process output: structured events as JSON lines on stdout for log
+collectors, plain lines on stderr. Long-term retention is the collector's job.
+
+## Data directory
+
+<FileTree>
+
+- $MCPYARD_DATA_DIR/
+  - keys.json keys, with token hashes only
+  - settings.json settings saved from the UI
+  - state.json servers switched off from the UI
+  - versions.json recorded and previous versions of hub-owned packages
+  - activity.json saved MCP calls and UI actions
+  - session.key signs the UI cookies
+  - packages/
+    - &lt;server&gt;/
+      - &lt;version&gt;/ an installed package
+  - cache/ npm and uv caches
+  - python/ uv-managed Python
+
+</FileTree>
+
+Files are written to a temporary name, then renamed, so a crash never leaves half a file. The server file is the exception, written in place as [Configuration](/mcpyard/architecture/configuration.html) explains.

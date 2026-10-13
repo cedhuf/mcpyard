@@ -1,0 +1,70 @@
+---
+/**
+ * Every release, read from GitHub at build time: semantic-release already writes the notes from the
+ * commit log, so this page shows those rather than a copy that would drift. The docs job runs after
+ * each release, which keeps it current. A failed fetch falls back to a link instead of failing the build.
+ */
+import { createMarkdownProcessor } from '@astrojs/markdown-remark';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+
+const REPO = 'cedhuf/mcpyard';
+const RELEASES_URL = `https://github.com/${REPO}/releases`;
+
+type Release = { tag: string; name: string; date: string; url: string; body: string };
+
+async function loadReleases(): Promise<Release[] | null> {
+  const headers: Record<string, string> = { accept: 'application/vnd.github+json', 'user-agent': 'mcpyard-docs' };
+  if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  try {
+    const response = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, { headers });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { tag_name: string; name: string | null; published_at: string | null; html_url: string; draft: boolean; body: string | null }[];
+    return payload
+      .filter((r) => !r.draft)
+      .map((r) => ({ tag: r.tag_name, name: r.name?.trim() || r.tag_name, date: r.published_at ?? '', url: r.html_url, body: r.body?.trim() ?? '' }));
+  } catch {
+    return null;
+  }
+}
+
+// semantic-release opens each body with a heading repeating the version and the date, shown here already.
+const withoutLeadingHeading = (body: string) => body.replace(/^#{1,3}\s+.*(?:\r?\n)+/, '');
+
+const releases = await loadReleases();
+const processor = await createMarkdownProcessor();
+const rendered = await Promise.all(
+  (releases ?? []).map(async (r) => ({ ...r, html: r.body ? (await processor.render(withoutLeadingHeading(r.body))).code : '' })),
+);
+const formatDate = (iso: string) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
+---
+
+<StarlightPage frontmatter={{ title: 'Releases', description: 'Every MCP Yard release, straight from its release notes.', tableOfContents: false }}>
+  <p>
+    Versions come from <a href="https://semantic-release.gitbook.io/">semantic-release</a>, which writes the notes from the
+    commit log: a <code>feat</code> gives a minor version, a <code>fix</code> a patch. Each version is published as
+    <code>ghcr.io/cedhuf/mcpyard:&lt;version&gt;</code>.
+  </p>
+
+  {
+    rendered.length === 0 && (
+      <aside class="starlight-aside starlight-aside--note">
+        <p class="starlight-aside__title">The releases could not be read at build time</p>
+        <div class="starlight-aside__content">
+          <p>They are all on <a href={RELEASES_URL}>GitHub</a>, where this page reads them from.</p>
+        </div>
+      </aside>
+    )
+  }
+
+  {
+    rendered.map((r) => (
+      <section class="release">
+        <h2 id={r.tag}>
+          <a href={r.url}>{r.name}</a>
+          <span class="release__date">{formatDate(r.date)}</span>
+        </h2>
+        {r.html ? <Fragment set:html={r.html} /> : <p class="release__empty">No notes for this release.</p>}
+      </section>
+    ))
+  }
+</StarlightPage>

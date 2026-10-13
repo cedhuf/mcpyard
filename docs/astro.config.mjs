@@ -26,18 +26,13 @@ export default defineConfig({
           attrs: { defer: true, src: 'https://audience.thehuf.uk/script.js', 'data-website-id': '6f3d2ca5-ddc2-40da-9ed1-60195b4112f2' },
         },
       ],
-      components: { Hero: './src/components/Hero.astro' },
+      components: { Header: './src/components/Header.astro', Hero: './src/components/Hero.astro' },
       sidebar: [
         { label: 'Start', items: ['getting-started', 'deployment'] },
         { label: 'Configure', items: ['configuration', 'packages', 'keys'] },
         { label: 'Operate', items: ['web-ui', 'admin'] },
-        {
-          label: 'Project',
-          items: [
-            { label: 'Architecture', link: 'https://github.com/cedhuf/mcpyard/blob/main/ARCHITECTURE.md' },
-            { label: 'Releases', link: 'https://github.com/cedhuf/mcpyard/releases' },
-          ],
-        },
+        { label: 'Architecture', items: [{ autogenerate: { directory: 'architecture' } }] },
+        { label: 'Project', items: [{ label: 'Releases', link: '/releases.html' }] },
       ],
     }),
   ],
