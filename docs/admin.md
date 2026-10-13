@@ -33,6 +33,8 @@ no server tools and manages every server.
 | `yard-list_servers` | State, last error, tool count and package versions of every managed server. |
 | `yard-get_server` | One server in detail, with each tool and whether the configuration exposes it. |
 | `yard-restart_server` | Restarts a server, waits up to 30 seconds for it to settle, returns its status. |
+| `yard-disable_server` | Switches a server off, like the switch in the web UI: stopped, tools hidden, kept across restarts. |
+| `yard-enable_server` | Switches it back on and waits up to 30 seconds for it to settle. |
 | `yard-update_server` | Updates a hub-owned package to a version, or the latest; pass the previous version to roll back. |
 | `yard-reload_config` | Re-reads the server file and applies it; returns the added, removed and restarted servers. |
 
@@ -43,6 +45,7 @@ A `yard-list_servers` entry looks like this:
   "name": "time",
   "source": { "pypi": "mcp-server-time" },
   "enabled": true,
+  "switchedOff": false,
   "state": "ready",
   "tools": 2,
   "package": { "pinned": false, "installed": "2026.8.18", "latest": { "version": "2026.10.10", "checkedAt": "2026-10-12T09:00:00.000Z" }, "updating": false }
@@ -50,7 +53,8 @@ A `yard-list_servers` entry looks like this:
 ```
 
 States are `installing`, `starting`, `ready`, `degraded` (was ready, reconnecting), `failed` (never got
-ready, retrying) and `stopped`.
+ready, retrying) and `stopped`. `enabled` is false when the server file disables the server or when it
+is switched off; `switchedOff` tells the second case apart.
 
 ## Updates from an agent
 
@@ -66,6 +70,7 @@ The key's tool filter applies to the yard tools like to any other:
 
 - `{ "allow": ["yard-list_*", "yard-get_*"] }` with no servers gives a read-only monitoring key.
 - `{ "deny": ["yard-update_server"] }` keeps everything but package updates.
+- `{ "deny": ["yard-enable_*", "yard-disable_*"] }` keeps the server switches in the web UI only.
 - `yard-reload_config` works only for keys that manage every server, since a reload can touch any of
   them.
 

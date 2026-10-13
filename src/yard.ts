@@ -25,12 +25,18 @@ function status(hub: Hub, key: Key, server: string, withTools: boolean) {
   return {
     name: server,
     source: config.package ? { ...config.package } : config.url ? { url: config.url } : { command: config.command },
-    enabled: config.enabled,
+    enabled: config.enabled && !hub.isDisabled(server),
+    switchedOff: hub.isDisabled(server),
     state: upstream.state,
     error: upstream.lastError,
     tools: withTools ? upstream.tools.map((t) => ({ name: `${server}-${t.name}`, exposed: allowed(t.name, config.tools) })) : upstream.tools.length,
     package: hub.packageStatus()[server],
   };
+}
+
+async function settle(hub: Hub, server: string): Promise<void> {
+  const deadline = Date.now() + SETTLE_MS;
+  while (['installing', 'starting'].includes(hub.upstreams.get(server)!.state) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
 }
 
 function define(id: string, description: string, schema: z.ZodObject, readOnly: boolean, run: YardTool['run']): YardTool {
@@ -48,8 +54,7 @@ export const YARD_TOOLS: YardTool[] = [
   define('restart_server', 'Restart a server and wait up to 30 seconds for it to settle; returns its status.', name, false, async (hub, key, { name }) => {
     if (!manages(hub, key, name!)) throw new Error(`unknown server ${name}`);
     await hub.restart(name!);
-    const deadline = Date.now() + SETTLE_MS;
-    while (['installing', 'starting'].includes(hub.upstreams.get(name!)!.state) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
+    await settle(hub, name!);
     return status(hub, key, name!, false);
   }),
   define(
@@ -64,6 +69,23 @@ export const YARD_TOOLS: YardTool[] = [
       await hub.update(name!, version);
       return status(hub, key, name!, false);
     },
+  ),
+  ...(['enable', 'disable'] as const).map((action) =>
+    define(
+      `${action}_server`,
+      action === 'disable'
+        ? 'Switch a server off: stop it and hide its tools from every key, without touching the server file. Kept across restarts.'
+        : 'Switch a server back on after disable_server, and wait up to 30 seconds for it to settle; returns its status.',
+      name,
+      false,
+      async (hub, key, { name }) => {
+        if (!manages(hub, key, name!)) throw new Error(`unknown server ${name}`);
+        if (action === 'enable' && !hub.configs[name!]!.enabled) throw new Error(`${name} has enabled: false in the server file`);
+        await hub.setDisabled(name!, action === 'disable');
+        await settle(hub, name!);
+        return status(hub, key, name!, false);
+      },
+    ),
   ),
   define('reload_config', 'Re-read the server file: start new servers, stop removed ones, restart changed ones. Lists what changed.', z.object({}), false, (hub, key) => {
     if (!key.scope.servers.every((s) => s === YARD || s === '*')) throw new Error('reload_config needs a key that manages every server');

@@ -107,6 +107,8 @@ test('a key without administration never sees the yard tools', async () => {
 test('an administration-only key manages every server without seeing their tools', async () => {
   const client = await connect(admin.token);
   assert.deepEqual((await client.listTools()).tools.map((t) => t.name).sort(), [
+    'yard-disable_server',
+    'yard-enable_server',
     'yard-get_server',
     'yard-list_servers',
     'yard-reload_config',
@@ -121,6 +123,14 @@ test('an administration-only key manages every server without seeing their tools
   assert.deepEqual(detail.tools.find((t: { name: string }) => t.name === 'fix-ture-echo'), { name: 'fix-ture-echo', exposed: true });
   const restarted = json(await client.callTool({ name: 'yard-restart_server', arguments: { name: 'fix-ture' } }));
   assert.equal(restarted.state, 'ready');
+
+  const off = json(await client.callTool({ name: 'yard-disable_server', arguments: { name: 'fix-ture' } }));
+  assert.deepEqual([off.enabled, off.switchedOff, off.state], [false, true, 'stopped']);
+  const fullClient = await connect(full.token);
+  assert.ok(!(await fullClient.listTools()).tools.some((t) => t.name.startsWith('fix-ture-')), 'a switched-off server hides its tools');
+  await fullClient.close();
+  const on = json(await client.callTool({ name: 'yard-enable_server', arguments: { name: 'fix-ture' } }));
+  assert.deepEqual([on.enabled, on.switchedOff, on.state], [true, false, 'ready']);
   await client.close();
 });
 

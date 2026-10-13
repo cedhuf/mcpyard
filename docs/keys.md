@@ -63,6 +63,13 @@ Every tool call is written to standard output as one JSON line:
 {"event":"tool_call","time":"2026-10-12T09:14:03.120Z","key":"laptop-claude-code","tool":"time-get_current_time","ok":true,"ms":42}
 ```
 
-Key changes and configuration reloads from the web UI are logged the same way, with the signed-in
-user.
+Actions from the web UI are logged the same way, with the signed-in user in `by`:
+
+| Event | When |
+| --- | --- |
+| `key_created`, `key_updated`, `key_enable`, `key_disable`, `key_delete` | A key changes. |
+| `server_added`, `server_updated`, `server_deleted` | A server form is saved, or a server removed. |
+| `server_enabled`, `server_disabled` | A server is switched on or off. |
+| `server_restarted`, `package_update` | A server is restarted or a package updated. |
+| `config_reloaded`, `settings_saved` | The server file is reloaded, or the settings saved. |
 Ship the container logs wherever you keep logs.

@@ -122,6 +122,9 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     return getCookie(c, VIEW) === 'list' ? 'list' : 'cards';
   };
 
+  /** Back to the servers page the action came from, keeping its filters. */
+  const back = (c: Context<Env>) => c.redirect(c.req.header('referer')?.match(/^https?:\/\/[^/]+(\/(?:\?[^#]*)?)$/)?.[1] ?? '/', 303);
+
   const filter = (c: Context<Env>): Filter => {
     const state = c.req.query('state');
     return { state: FILTERS.includes(state as FilterState) ? (state as FilterState) : 'all', q: (c.req.query('q') ?? '').trim() };
@@ -139,7 +142,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
       if (!hub.configs[name]) return c.text('Not found', 404);
       await hub.setDisabled(name, action === 'disable');
       log(c, `server_${action}d`, { server: name });
-      return c.redirect(c.req.header('referer')?.match(/^https?:\/\/[^/]+(\/(?:\?[^#]*)?)$/)?.[1] ?? '/', 303);
+      return back(c);
     });
   }
 
@@ -148,15 +151,18 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     const { version } = await c.req.parseBody();
     if (!hub.upstreams.has(name)) return c.text('Not found', 404);
     // Installing can take minutes: the page polls and shows progress or the error.
-    hub.update(name, typeof version === 'string' && version ? version : undefined).catch((e: Error) => console.error(`[${name}] update failed: ${e.message}`));
-    return c.redirect('/', 303);
+    const target = typeof version === 'string' && version ? version : undefined;
+    hub.update(name, target).catch((e: Error) => console.error(`[${name}] update failed: ${e.message}`));
+    log(c, 'package_update', { server: name, ...(target ? { version: target } : {}) });
+    return back(c);
   });
 
   app.post('/servers/:name/restart', guard, async (c) => {
     const name = c.req.param('name') ?? '';
     if (!hub.upstreams.has(name)) return c.text('Not found', 404);
     void hub.restart(name);
-    return c.redirect('/', 303);
+    log(c, 'server_restarted', { server: name });
+    return back(c);
   });
 
   app.post('/reload', guard, async (c) => {

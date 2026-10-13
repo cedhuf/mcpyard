@@ -10,6 +10,7 @@ import { newKey } from '../src/keys.ts';
 import { Settings } from '../src/settings.ts';
 import { ui } from '../src/ui.ts';
 import { setAppearance, stylesheet } from '../src/ui-layout.ts';
+import { YARD_TOOLS } from '../src/yard.ts';
 
 const PUBLIC = 'http://yard.test';
 const fixture = join(import.meta.dirname, 'fixture-server.ts');
@@ -67,11 +68,11 @@ test('the settings page locks environment values and turns hub administration of
     await client.close();
     return names.length;
   };
-  assert.equal(await yardTools(), 5);
+  assert.equal(await yardTools(), YARD_TOOLS.length);
   assert.equal((await post('/settings', { adminTools: 'false' })).status, 200);
   assert.equal(await yardTools(), 0);
   await post('/settings', { adminTools: ['false', 'true'] });
-  assert.equal(await yardTools(), 5);
+  assert.equal(await yardTools(), YARD_TOOLS.length);
 });
 
 test('servers are added, edited and removed through the file, keeping comments and references', async () => {
