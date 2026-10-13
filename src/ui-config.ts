@@ -4,7 +4,7 @@ import type { ConfigFile, RawServer } from './config.ts';
 import type { Hub } from './front.ts';
 import { isAdmin, loadKeys } from './keys.ts';
 import { YARD_TOOLS } from './yard.ts';
-import { THEME_MODES, THEME_NAMES, THEMES, type SettingKey, type Settings } from './settings.ts';
+import { THEME_MODES, THEME_NAMES, type SettingKey, type Settings } from './settings.ts';
 import { plural } from './ui-servers.ts';
 import { release } from './release.ts';
 import { box, checkbox, field, fields, linkButton, note, pageHead, section, segRadio, setting, tag } from './ui-kit.ts';
@@ -181,7 +181,6 @@ function settingsView(c: Context<Env>, hub: Hub, options: ConfigOptions): Fragme
             theme?.source === 'env'
               ? lockedValue(themeLabel(theme.value), theme.env)
               : html`<select class="select select-sm w-40" name="theme" aria-label="Theme">${THEME_NAMES.map((t) => html`<option value="${t}" ${t === theme?.value ? 'selected' : ''}>${themeLabel(t)}</option>`)}</select>`,
-            html`<span class="font-mono">${THEMES[theme?.value ?? 'default'].join(' / ')}</span>`,
           )}
             ${setting(
             'Mode',

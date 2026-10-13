@@ -250,11 +250,19 @@ if (autosave) {
     const res = await fetch(autosave.action, { method: 'POST', body: new URLSearchParams(new FormData(autosave)) }).catch(() => null);
     if (!res || !res.ok) return show(res ? 'Not saved: ' + (new DOMParser().parseFromString(await res.text(), 'text/html').querySelector('.toast')?.textContent.trim() || res.status) : 'Not saved: no connection', 'failed');
     const next = new DOMParser().parseFromString(await res.text(), 'text/html');
-    const sheet = next.querySelector('link[rel=stylesheet]');
-    if (sheet) document.querySelector('link[rel=stylesheet]').href = sheet.getAttribute('href');
-    const theme = next.documentElement.getAttribute('data-theme');
-    if (theme) document.documentElement.setAttribute('data-theme', theme); else document.documentElement.removeAttribute('data-theme');
-    show('Saved', 'saved');
+    const apply = () => {
+      const theme = next.documentElement.getAttribute('data-theme');
+      if (theme) document.documentElement.setAttribute('data-theme', theme); else document.documentElement.removeAttribute('data-theme');
+      show('Saved', 'saved');
+    };
+    // Swap the stylesheet only once the new one has loaded, or the page flashes unstyled.
+    const sheet = next.querySelector('link[rel=stylesheet]')?.getAttribute('href');
+    const old = document.querySelector('link[rel=stylesheet]');
+    if (!sheet || sheet === old.getAttribute('href')) return apply();
+    const link = old.cloneNode();
+    link.href = sheet;
+    link.onload = () => { apply(); old.remove(); };
+    old.after(link);
   });
 }
 const clock = document.querySelector('[data-clock]');
