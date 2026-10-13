@@ -146,8 +146,9 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
       sub: summary,
       crumbs: [{ label: 'Dashboard' }],
       wideActions: true,
+      center: mascot('md', mood),
       actions: html`<div class="flex w-full items-center gap-4">
-        <div class="flex flex-1 justify-center">${mascot('md', mood)}</div>
+        <div class="flex flex-1 justify-center lg:hidden">${mascot('md', mood)}</div>
         <div class="grid gap-2 max-sm:flex-1">
           ${clock()}
           <form method="post" action="/dashboard/reload" class="contents"><button class="btn btn-sm w-full" title="Re-read the server file and apply the changes">${icon('refresh', 'sm')}Reload server file</button></form>

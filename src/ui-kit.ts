@@ -12,15 +12,17 @@ export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'in
 export type Crumb = { label: Content; href?: string };
 
 /** The top of every page: breadcrumbs from the home page, the title, a line under it, and the page's actions. */
-export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[]; eyebrow?: Content; wideActions?: boolean } = {}): Fragment {
-  return html`<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-6">
+export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[]; eyebrow?: Content; wideActions?: boolean; center?: Content } = {}): Fragment {
+  // With a center, large screens get three columns of which the middle one sits at the page's center.
+  return html`<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-6 ${options.center ? 'lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center' : ''}">
     <div class="min-w-0">
       ${breadcrumbs(options.crumbs ?? [{ label: title }])}
       ${options.eyebrow ? html`<p class="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">${options.eyebrow}</p>` : ''}
       <h1 class="flex flex-wrap items-center gap-3 font-display text-3xl font-semibold">${title}</h1>
       ${options.sub ? html`<p class="mt-1 text-base-content/60">${options.sub}</p>` : ''}
     </div>
-    ${options.actions ? html`<div class="flex flex-wrap items-center gap-2 max-sm:w-full ${options.wideActions ? 'sm:flex-1' : ''}">${options.actions}</div>` : ''}
+    ${options.center ? html`<div class="hidden lg:flex justify-center">${options.center}</div>` : ''}
+    ${options.actions ? html`<div class="flex flex-wrap items-center gap-2 max-sm:w-full ${options.wideActions ? 'sm:flex-1' : ''} ${options.center ? 'lg:justify-self-end' : ''}">${options.actions}</div>` : ''}
   </header>`;
 }
 
