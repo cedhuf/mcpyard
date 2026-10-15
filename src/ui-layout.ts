@@ -130,7 +130,7 @@ function footer(): Fragment {
         <a class="link link-hover" href="https://cedhuf.github.io/mcpyard/" target="_blank" rel="noreferrer">Docs</a>
         <a class="link link-hover" href="https://github.com/cedhuf/mcpyard" target="_blank" rel="noreferrer">GitHub</a>
         <a class="link link-hover" href="https://ko-fi.com/cedric52222" target="_blank" rel="noreferrer" title="Support MCP Yard on Ko-fi">Sponsor</a>
-        <span class="flex items-center gap-1">Made with <span class="text-error" aria-label="love">${icon('heart', 'xs')}</span> by <a class="link link-hover font-medium" href="https://thehuf.com" target="_blank" rel="noreferrer">cedhuf</a></span>
+        <span class="flex items-center gap-1">Made with <span class="text-error" aria-label="love">${icon('heart', 'xs')}</span> by <a class="link link-hover font-medium" href="https://thehuf.uk" target="_blank" rel="noreferrer">cedhuf</a></span>
       </span>
     </div>
   </footer>`;
