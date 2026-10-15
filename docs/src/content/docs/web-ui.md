@@ -54,6 +54,11 @@ Click a server to open its own page, with three tabs: **Overview** (state, versi
 available update, and every tool with its description), **Logs** (that server's lines only) and
 **Settings** (its form).
 
+Next to its tool count, each server shows an estimate of the context its exposed tools cost a
+client: the size of their definitions (name, description, input schema) divided by four, a rough
+token count. Tools hidden by the server file are left out. Keys can hide more, so a given client may
+spend less.
+
 <img src="assets/server-light.png" alt="A server's own page, on its Overview tab" class="dark:sl-hidden">
 <img src="assets/server-dark.png" alt="A server's own page, on its Overview tab" class="light:sl-hidden">
 

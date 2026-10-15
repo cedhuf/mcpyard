@@ -63,9 +63,22 @@ function toolCounts(row: Row): { visible: number; total: number } {
   return { visible: row.upstream.tools.filter((t) => allowed(t.name, row.config.tools)).length, total };
 }
 
+/** Context a client spends on this server's exposed tool definitions. */
+// ponytail: JSON length / 4, a real tokenizer if the estimate needs to be exact
+export function contextTokens(row: Row): number {
+  const exposed = row.upstream.tools.filter((t) => allowed(t.name, row.config.tools));
+  return Math.round(exposed.reduce((n, t) => n + JSON.stringify({ ...t, name: `${row.name}-${t.name}` }).length, 0) / 4);
+}
+
+function tokensText(row: Row): string {
+  const n = contextTokens(row);
+  return `~${n < 1000 ? n : `${(n / 1000).toFixed(1)}k`} tokens`;
+}
+
 function toolsText(row: Row): string {
   const { visible, total } = toolCounts(row);
-  return !total ? 'no tools' : visible === total ? plural(total, 'tool') : `${visible} of ${plural(total, 'tool')}`;
+  const count = !total ? 'no tools' : visible === total ? plural(total, 'tool') : `${visible} of ${plural(total, 'tool')}`;
+  return visible ? `${count} · ${tokensText(row)}` : count;
 }
 
 function version(row: Row): string | undefined {
@@ -234,13 +247,14 @@ export function serverOverview(row: Row, editable: boolean, logCount: number): F
       ${moodBanner(row)}
       ${notes(row)}
       ${box(
-        html`<dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4">
+        html`<dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-x-6 gap-y-4">
           ${fact('State', stateLabel(row))}
           ${fact('Kind', transport(row.config))}
           ${fact('Version', pkg?.installed ? html`<span class="font-mono">${pkg.installed}</span>` : html`<span class="opacity-40">n/a</span>`)}
           ${fact('Owned by', pkg ? (pkg.pinned ? 'the server file (pinned)' : 'the hub') : html`<span class="opacity-40">n/a</span>`)}
           ${fact('Latest', pkg?.latest?.version ? html`<span class="font-mono">${pkg.latest.version}</span>` : html`<span class="opacity-40">${pkg ? 'not checked yet' : 'n/a'}</span>`)}
           ${fact('Tools', total ? `${visible} of ${total} exposed` : 'none yet')}
+          ${fact('Context', visible ? html`<span title="Estimated size of the exposed tool definitions in a client's context">${tokensText(row)}</span>` : html`<span class="opacity-40">n/a</span>`)}
         </dl>`,
         { pad: true },
       )}

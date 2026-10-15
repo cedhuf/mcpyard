@@ -13,6 +13,8 @@ import { event, logs, note } from '../src/logs.ts';
 import type { Key } from '../src/keys.ts';
 import { Oidc, Signer } from '../src/oidc.ts';
 import { ui } from '../src/ui.ts';
+import { contextTokens, type Row } from '../src/ui-servers.ts';
+import type { Upstream } from '../src/upstream.ts';
 
 const PUBLIC = 'http://yard.test';
 const hub = new Hub(parseConfig('servers:\n  alpha: { command: /bin/true }\n  beta: { url: "http://beta.test/mcp" }'));
@@ -86,6 +88,19 @@ test('each server has its own page with tabs and breadcrumbs', async () => {
   const logsTab = await (await request('/servers/alpha/logs')).text();
   assert.ok(logsTab.includes('hello from alpha'));
   assert.equal((await request('/servers/nope')).status, 404);
+});
+
+test('the context estimate counts only the exposed tools', () => {
+  const tool = (name: string) => ({ name, description: 'x'.repeat(400), inputSchema: { type: 'object' as const } });
+  const row = (deny: string[]): Row => ({
+    name: 's',
+    config: parseConfig(`servers:\n  s: { command: x, tools: { deny: [${deny.join(',')}] } }`).s!,
+    upstream: { tools: [tool('a'), tool('b')] } as unknown as Upstream,
+    uiDisabled: false,
+  });
+  const both = contextTokens(row([]));
+  assert.ok(both > 200 && both < 260, String(both));
+  assert.equal(contextTokens(row(['b'])), Math.round(both / 2));
 });
 
 test('a server is switched off from the UI, kept off across restarts, and filtered', async () => {
