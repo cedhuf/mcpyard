@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { ConfigFile } from './config.ts';
 import { app, Hub } from './front.ts';
 import { newKey } from './keys.ts';
+import { OAuthStore } from './oauth.ts';
 import { Oidc, Signer } from './oidc.ts';
 import { Packages } from './packages.ts';
 import { release } from './release.ts';
@@ -24,7 +25,9 @@ if (process.argv[2] === 'keygen') {
 const settings = new Settings(dataDir);
 const packages = new Packages({ dataDir, checkHours: settings.value('versionCheckHours') });
 const configFile = new ConfigFile(env.MCPYARD_CONFIG ?? '/config/mcpyard.yaml');
-const hub = new Hub(configFile.load(), packages, () => configFile.load());
+const port = Number(env.MCPYARD_PORT ?? 3000);
+const oauth = new OAuthStore(dataDir, env.MCPYARD_PUBLIC_URL ?? `http://localhost:${port}`);
+const hub = new Hub(configFile.load(), packages, () => configFile.load(), oauth);
 hub.configFile = configFile;
 hub.useState(join(dataDir, 'state.json'));
 logs.persist(join(dataDir, 'activity.json'));
@@ -70,7 +73,6 @@ function uiAuth(): UiAuth | undefined {
   return { kind: 'oidc', oidc, signer: new Signer(dataDir) };
 }
 
-const port = Number(env.MCPYARD_PORT ?? 3000);
 const environment: EnvRow[] = [
   { env: 'MCPYARD_CONFIG', value: configFile.path },
   { env: 'MCPYARD_DATA_DIR', value: dataDir },

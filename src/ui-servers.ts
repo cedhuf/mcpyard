@@ -94,8 +94,14 @@ function controls(row: Row, editable: boolean, options: { settings?: boolean } =
   return html`${enableSwitch(row)}${menu(`server-${row.name}`, `Actions for ${row.name}`, actions(row, editable, options))}`;
 }
 
+function signInUrl(row: Row): URL | undefined {
+  return row.upstream.state === 'failed' ? row.upstream.auth?.signInUrl : undefined;
+}
+
 /** The error or the available update, as one line each. */
 function notes(row: Row): Fragment {
+  const signIn = signInUrl(row);
+  if (signIn) return note(html`<strong>${row.name}</strong> needs you to sign in with its provider. Its tokens are then kept and refreshed by the hub.`, 'warning', linkButton(signIn.href, 'Sign in', { tone: 'primary' }));
   const error = row.upstream.lastError ?? row.pkg?.updateError;
   const newer = newerVersion(row.pkg);
   return html`${error && stateOf(row) !== 'disabled' ? note(html`${row.pkg?.updateError && !row.upstream.lastError ? 'Update failed: ' : ''}<span class="font-mono">${error}</span>`, 'error') : ''}
@@ -207,7 +213,9 @@ function moodBanner(row: Row): Fragment {
   const [mood, text]: [Mood, string] | [] =
     state === 'disabled'
       ? ['sleeping', row.config.enabled ? 'Switched off from the UI: its tools are hidden from every key. The switch at the top wakes it up.' : 'Disabled in the server file: set enabled back to true and reload.']
-      : state === 'failed' || state === 'degraded'
+      : signInUrl(row)
+        ? ['sleeping', 'It waits for a sign-in before it can start.']
+        : state === 'failed' || state === 'degraded'
         ? ['worried', state === 'failed' ? 'It never got ready and keeps retrying. The error below says why.' : 'It was ready, lost its connection and is reconnecting.']
         : ['installing', 'starting', 'updating'].includes(state)
           ? ['busy', state === 'updating' ? 'Updating: the new version starts next to the old one and takes over once it answers.' : `${state[0]!.toUpperCase()}${state.slice(1)}…`]

@@ -20,6 +20,7 @@ const server = z
     url: z.url().optional(),
     transport: z.enum(['streamable-http', 'sse']).optional(),
     headers: z.record(z.string(), z.string()).optional(),
+    oauth: z.boolean().optional(),
     command: z.string().optional(),
     args: z.array(z.string()).default([]),
     env: z.record(z.string(), z.string()).default({}),
@@ -29,7 +30,8 @@ const server = z
     enabled: z.boolean().default(true),
   })
   .strict()
-  .refine((s) => [s.package, s.url, s.command].filter(Boolean).length === 1, 'needs exactly one of package, url or command');
+  .refine((s) => [s.package, s.url, s.command].filter(Boolean).length === 1, 'needs exactly one of package, url or command')
+  .refine((s) => !s.oauth || !!s.url, 'oauth needs a url');
 
 const file = z
   .object({ servers: z.record(z.string().regex(/^[A-Za-z0-9_-]+$/, 'server names are [A-Za-z0-9_-]+'), server) })

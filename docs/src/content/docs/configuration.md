@@ -34,6 +34,10 @@ servers:
     headers:
       Authorization: Bearer ${SEARCH_TOKEN}
 
+  speakers:
+    url: https://mcp.example.com/mcp
+    oauth: true
+
   legacy:
     url: https://old.example.lan/sse
     transport: sse
@@ -54,9 +58,21 @@ Each server has **exactly one** of these:
 | --- | --- | --- |
 | `package` | installs it from npm or PyPI and runs it over stdio | `npm` or `pypi`, `version`, `bin`, `allowScripts` |
 | `command` | spawns an executable over stdio | `args`, `cwd` |
-| `url` | connects to a remote server | `headers`, `transport` (`streamable-http` or `sse`) |
+| `url` | connects to a remote server | `headers`, `transport` (`streamable-http` or `sse`), `oauth` |
 
 Packages are covered in [Packages and updates](packages.html).
+
+## OAuth servers
+
+`oauth: true` is for remote servers that sign users in with OAuth instead of taking a fixed token.
+The hub registers itself with the server's authorization server (dynamic client registration), then
+the server's page in the web UI shows a **Sign in** button. After the sign-in, the hub keeps the
+tokens in `oauth.json` and refreshes them on its own. If a refresh fails, the server goes back to
+waiting for a sign-in.
+
+The redirect URI is `<MCPYARD_PUBLIC_URL>/servers/<name>/oauth/callback`, so set
+`MCPYARD_PUBLIC_URL` to the address your browser uses (it defaults to `http://localhost:<port>`).
+The authorization server must accept dynamic client registration with that redirect URI.
 
 ## Common fields
 

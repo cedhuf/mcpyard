@@ -1,6 +1,7 @@
-import { Client, SSEClientTransport, StreamableHTTPClientTransport, type Tool } from '@modelcontextprotocol/client';
+import { Client, SSEClientTransport, StreamableHTTPClientTransport, UnauthorizedError, type Tool } from '@modelcontextprotocol/client';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio';
 import type { ServerConfig } from './config.ts';
+import type { UpstreamAuth } from './oauth.ts';
 import type { Launch, Packages } from './packages.ts';
 import { note } from './logs.ts';
 import { VERSION } from './release.ts';
@@ -29,12 +30,14 @@ export class Upstream {
   private readonly config: ServerConfig;
   private readonly onChange: () => void;
   private readonly packages?: Packages;
+  readonly auth?: UpstreamAuth;
 
-  constructor(name: string, config: ServerConfig, onChange: () => void, packages?: Packages) {
+  constructor(name: string, config: ServerConfig, onChange: () => void, packages?: Packages, auth?: UpstreamAuth) {
     this.name = name;
     this.config = config;
     this.onChange = onChange;
     this.packages = packages;
+    this.auth = auth;
   }
 
   start(): void {
@@ -72,9 +75,23 @@ export class Upstream {
     return Date.now() - started;
   }
 
-  callTool(name: string, args: Record<string, unknown> | undefined) {
+  async callTool(name: string, args: Record<string, unknown> | undefined) {
     if (!this.client || this.state !== 'ready') throw new Error(`server ${this.name} is not ready`);
-    return this.client.callTool({ name, arguments: args });
+    try {
+      return await this.client.callTool({ name, arguments: args });
+    } catch (e) {
+      if (e instanceof UnauthorizedError && this.auth?.signInUrl) this.needsSignIn();
+      throw e;
+    }
+  }
+
+  /** Completes a browser sign-in with the callback's query string, then connects with the new tokens. */
+  async finishAuth(params: URLSearchParams): Promise<void> {
+    if (!this.auth) throw new Error(`server ${this.name} does not use OAuth`);
+    this.auth.checkState(params.get('state'));
+    await (this.transport() as SSEClientTransport | StreamableHTTPClientTransport).finishAuth(params);
+    this.auth.signInUrl = undefined;
+    await this.restart();
   }
 
   /**
@@ -130,7 +147,10 @@ export class Upstream {
       this.backoff = MIN_BACKOFF;
       this.ready();
     } catch (e) {
-      if (!this.stopped && !this.client) this.scheduleRetry((e as Error).message);
+      if (this.stopped || this.client) return;
+      // Retrying cannot help until someone signs in from the web UI.
+      if (e instanceof UnauthorizedError && this.auth?.signInUrl) this.needsSignIn();
+      else this.scheduleRetry((e as Error).message);
     }
   }
 
@@ -172,8 +192,9 @@ export class Upstream {
     const c = this.config;
     if (c.url) {
       const url = new URL(c.url);
-      const requestInit = { headers: c.headers };
-      return c.transport === 'sse' ? new SSEClientTransport(url, { requestInit }) : new StreamableHTTPClientTransport(url, { requestInit });
+      if (c.oauth && !this.auth) throw new Error('no OAuth store configured');
+      const options = { requestInit: { headers: c.headers }, authProvider: this.auth };
+      return c.transport === 'sse' ? new SSEClientTransport(url, options) : new StreamableHTTPClientTransport(url, options);
     }
     const transport = new StdioClientTransport({
       command: launch?.command ?? c.command!,
@@ -202,6 +223,15 @@ export class Upstream {
     clearTimeout(this.retry);
     this.retry = setTimeout(() => void this.run(), this.backoff);
     this.backoff = Math.min(this.backoff * 2, MAX_BACKOFF);
+  }
+
+  private needsSignIn(): void {
+    const client = this.client;
+    this.client = undefined;
+    clearTimeout(this.retry);
+    note('sign-in required: open the server in the web UI', { server: this.name, error: true });
+    this.set('failed', 'sign-in required');
+    void client?.close().catch(() => {});
   }
 
   private ready(): void {

@@ -270,6 +270,7 @@ function toRaw(form: Record<string, unknown>): RawServer {
     if (one('transport') === 'sse') raw.transport = 'sse';
     const headers = pairs(form.headers, /:\s?/);
     if (Object.keys(headers).length) raw.headers = headers;
+    if ([form.oauth].flat().includes('true')) raw.oauth = true;
   }
   if (kind !== 'url' && lines(form.args).length) raw.args = lines(form.args);
   const env = pairs(form.env, /=/);
@@ -338,8 +339,11 @@ function serverPage(hub: Hub, name: string | undefined, raw: RawServer, file: Co
           )}
           ${section(
             'Connection',
-            'Headers sent with every request, for example a bearer token.',
-            fields(field('Headers', area('headers', record(raw.headers, ': '), 'Authorization: Bearer \${TOKEN}'), { wide: true, hint: html`One <span class="font-mono">Name: value</span> per line.` })),
+            'Headers sent with every request, for example a bearer token, or an OAuth sign-in kept by the hub.',
+            fields(html`
+              ${field('Headers', area('headers', record(raw.headers, ': '), 'Authorization: Bearer \${TOKEN}'), { wide: true, hint: html`One <span class="font-mono">Name: value</span> per line.` })}
+              ${field('OAuth', checkbox('oauth', 'true', 'Sign in', !!raw.oauth), { hint: 'The server page then offers a sign-in; the hub keeps and refreshes the tokens.' })}
+            `),
             { kinds: 'url' },
           )}
           ${section(

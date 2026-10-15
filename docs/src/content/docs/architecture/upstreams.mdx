@@ -25,6 +25,12 @@ child schedules a retry with exponential backoff, from 1 second up to 5 minutes.
 not ready exposes no tools, and every change to an upstream's tools rebuilds the routing table and
 sends `tools/list_changed` to connected clients. Servers start in parallel and fail independently.
 
+A server with `oauth: true` that answers 401 does not retry: the SDK registers the hub as a client,
+the provider records the authorization URL, and the server stays `failed` with "sign-in required"
+until the web UI's callback exchanges the code. The hub checks the callback's `state` itself, since
+the SDK does not. Tokens and the client registration live in `oauth.json`; the PKCE verifier and
+the `state` stay in memory, so a sign-in started before a restart has to start again.
+
 Servers can also be switched off from the UI or over MCP without touching the file. That state is
 kept in `state.json`, on top of what the file says, so it works with a read-only server file.
 

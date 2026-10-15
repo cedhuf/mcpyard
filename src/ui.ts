@@ -176,6 +176,22 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     return back(c);
   });
 
+  app.get('/servers/:name/oauth/callback', guard, async (c) => {
+    const name = c.req.param('name') ?? '';
+    const upstream = hub.upstreams.get(name);
+    if (!upstream?.auth) return notFound(c);
+    try {
+      await upstream.finishAuth(new URL(c.req.url).searchParams);
+      log(c, 'server_signed_in', { server: name });
+      return c.redirect(`/servers/${name}`);
+    } catch (e) {
+      note(`sign-in failed: ${(e as Error).message}`, { server: name, error: true });
+      // A fresh sign-in link for the next attempt.
+      void upstream.restart();
+      return c.html(page(c, 'Sign-in failed', inlineNote(html`Sign-in to <strong>${name}</strong> failed: <span class="font-mono">${(e as Error).message}</span>. <a class="link" href="/servers/${name}">Back to the server</a>`, 'error')), 400);
+    }
+  });
+
   app.post('/reload', guard, async (c) => {
     let notice: Fragment;
     try {

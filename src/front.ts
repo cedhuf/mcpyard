@@ -4,6 +4,7 @@ import type { ConfigFile, ServerConfig } from './config.ts';
 import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
 import { event, note } from './logs.ts';
 import { YARD, YARD_TOOLS } from './yard.ts';
+import type { OAuthStore } from './oauth.ts';
 import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
 import { VERSION } from './release.ts';
@@ -41,6 +42,7 @@ export class Hub {
   configs: Record<string, ServerConfig>;
   private readonly packages?: Packages;
   private readonly load?: () => Record<string, ServerConfig>;
+  private readonly oauth?: OAuthStore;
   readonly handler = createMcpHandler(({ authInfo }) => this.mcpServer(authInfo?.extra?.key as Key));
   /** Whether the hub's own `yard-*` tools are offered at all; keys must still list `yard`. */
   yardEnabled: () => boolean = () => true;
@@ -52,10 +54,11 @@ export class Hub {
   security?: () => { ok: boolean; title: string; detail: string; label: string }[];
 
   /** `load` re-reads the server file for `reload()`. */
-  constructor(configs: Record<string, ServerConfig>, packages?: Packages, load?: () => Record<string, ServerConfig>) {
+  constructor(configs: Record<string, ServerConfig>, packages?: Packages, load?: () => Record<string, ServerConfig>, oauth?: OAuthStore) {
     this.configs = configs;
     this.packages = packages;
     this.load = load;
+    this.oauth = oauth;
     for (const [name, config] of Object.entries(configs)) this.upstreams.set(name, this.newUpstream(name, config));
   }
 
@@ -89,7 +92,7 @@ export class Hub {
 
   private newUpstream(name: string, config: ServerConfig): Upstream {
     const enabled = config.enabled && !this.disabled.has(name);
-    return new Upstream(name, { ...config, enabled }, () => this.rebuild(), this.packages);
+    return new Upstream(name, { ...config, enabled }, () => this.rebuild(), this.packages, config.oauth ? this.oauth?.provider(name) : undefined);
   }
 
   /** Servers switched off from the UI: state kept in the data directory, on top of what the server file says. */
