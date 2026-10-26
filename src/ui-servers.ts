@@ -54,6 +54,13 @@ function stateLabel(row: Row): Fragment {
   return status(STATE_TONE[state] ?? 'neutral', state[0]!.toUpperCase() + state.slice(1), { busy: BUSY.includes(state) });
 }
 
+/** The state, with the last error in a tooltip; above the row's link so hovering reaches it. */
+function stateWithError(row: Row): Fragment {
+  const error = stateOf(row) === 'disabled' ? undefined : row.upstream.lastError;
+  if (!error) return stateLabel(row);
+  return html`<span class="${ROW_END} tooltip tooltip-bottom before:font-mono before:text-xs before:break-words" data-tip="${error}">${stateLabel(row)}</span>`;
+}
+
 export function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
@@ -136,7 +143,7 @@ function listRow(row: Row, editable: boolean): Fragment {
   const meta = [transport(row.config), version(row), toolsText(row)].filter(Boolean).join(' · ');
   return item(
     html`${title(serverLabel(row.name, row.config), html`<span class="lg:hidden">${meta}</span><span class="max-lg:hidden font-mono">${source(row.config)}</span>`, { href: `/servers/${row.name}` })}
-      ${cell(stateLabel(row))}
+      ${cell(stateWithError(row))}
       ${cell(tag(transport(row.config)), { hide: true })}
       ${cell(version(row) ? html`<span class="inline-flex items-center gap-2"><span class="inline-flex items-center gap-1 font-mono">${version(row)}${row.pkg?.pinned ? icon('pin', 'xs') : ''}</span><span class="${ROW_END}">${updateButton(row)}</span></span>` : html`<span class="opacity-40">none</span>`, { hide: true })}
       ${cell(toolsText(row), { hide: true })}`,
@@ -146,7 +153,6 @@ function listRow(row: Row, editable: boolean): Fragment {
 
 function tile(row: Row, editable: boolean): Fragment {
   const off = stateOf(row) === 'disabled';
-  const error = row.upstream.lastError && !off ? row.upstream.lastError : undefined;
   const facts = [transport(row.config), version(row)].filter(Boolean).join(' · ');
   // One fact per line, each cut to its line, so every card has the same layout whatever it holds.
   return html`<article class="${ROW} card card-border border-base-300 bg-base-100 hover:border-base-content/20 transition-colors">
@@ -158,12 +164,11 @@ function tile(row: Row, editable: boolean): Fragment {
       <p class="-mt-2 font-mono text-xs text-base-content/50 truncate" title="${source(row.config)}">${source(row.config)}</p>
       <div class="mt-auto grid gap-1.5 border-t border-base-300 pt-3 text-[13px] text-base-content/70">
         <div class="flex items-center gap-2 min-h-6">
-          <span class="shrink-0">${stateLabel(row)}</span>
+          <span class="shrink-0">${stateWithError(row)}</span>
           <span class="min-w-0 truncate font-mono text-xs text-base-content/50">${facts}</span>
           <span class="${ROW_END} ml-auto shrink-0">${updateButton(row)}</span>
         </div>
         <div class="flex items-center gap-2 min-w-0">${icon('wrench', 'xs')}<span class="truncate">${toolsText(row)}</span></div>
-        <p class="font-mono text-xs truncate min-h-4 ${error ? 'text-error' : ''}" ${error ? html`title="${error}"` : ''}>${error ?? ''}</p>
       </div>
     </div>
   </article>`;
