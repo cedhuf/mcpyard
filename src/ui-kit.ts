@@ -12,17 +12,15 @@ export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'in
 export type Crumb = { label: Content; href?: string };
 
 /** The top of every page: breadcrumbs from the home page, the title, a line under it, and the page's actions. */
-export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[]; eyebrow?: Content; wideActions?: boolean; center?: Content } = {}): Fragment {
-  // With a center, large screens get three columns of which the middle one sits at the page's center.
-  return html`<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-6 ${options.center ? 'lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center' : ''}">
+export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[]; eyebrow?: Content; wideActions?: boolean } = {}): Fragment {
+  return html`<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-6">
     <div class="min-w-0">
       ${breadcrumbs(options.crumbs ?? [{ label: title }])}
       ${options.eyebrow ? html`<p class="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">${options.eyebrow}</p>` : ''}
       <h1 class="flex flex-wrap items-center gap-3 font-display text-3xl font-semibold">${title}</h1>
       ${options.sub ? html`<p class="mt-1 text-base-content/60">${options.sub}</p>` : ''}
     </div>
-    ${options.center ? html`<div class="hidden lg:flex justify-center">${options.center}</div>` : ''}
-    ${options.actions ? html`<div class="flex flex-wrap items-center gap-2 max-sm:w-full ${options.wideActions ? 'sm:flex-1' : ''} ${options.center ? 'lg:justify-self-end' : ''}">${options.actions}</div>` : ''}
+    ${options.actions ? html`<div class="flex flex-wrap items-center gap-2 max-sm:w-full ${options.wideActions ? 'sm:flex-1' : ''}">${options.actions}</div>` : ''}
   </header>`;
 }
 
@@ -218,11 +216,11 @@ export function stats(items: { label: string; value: Content; tone?: Tone; desc?
   )}</div>`;
 }
 
-type ButtonOptions = { tone?: 'primary' | 'ghost' | 'outline' | 'danger'; icon?: string; title?: string };
+type ButtonOptions = { tone?: 'primary' | 'soft' | 'ghost' | 'outline' | 'danger'; icon?: string; title?: string; small?: boolean };
 
 function buttonClass(options: ButtonOptions): string {
-  const tone = { primary: 'btn-primary', ghost: 'btn-ghost', outline: '', danger: 'btn-ghost text-error' }[options.tone ?? 'outline'];
-  return `btn btn-sm ${tone}`;
+  const tone = { primary: 'btn-primary', soft: 'btn-soft btn-primary', ghost: 'btn-ghost', outline: '', danger: 'btn-ghost text-error' }[options.tone ?? 'outline'];
+  return `btn ${options.small ? 'btn-xs gap-1' : 'btn-sm'} ${tone}`;
 }
 
 export function linkButton(href: string, label: Content, options: ButtonOptions = {}): Fragment {
@@ -236,7 +234,7 @@ export function dialogButton(dialog: string, label: Content, options: ButtonOpti
 
 /** A button that POSTs, with hidden fields and an optional confirmation. */
 export function postButton(action: string, label: Content, options: ButtonOptions & { confirm?: string; fields?: Record<string, string> } = {}): Fragment {
-  return html`<form method="post" action="${action}" class="inline-flex" ${options.confirm ? html`data-confirm="${options.confirm}"` : ''}>${hidden(options.fields)}<button class="${buttonClass(options)}" ${options.title ? html`title="${options.title}"` : ''}>${options.icon ? icon(options.icon, 'sm') : ''}${label}</button></form>`;
+  return html`<form method="post" action="${action}" class="inline-flex" ${options.confirm ? html`data-confirm="${options.confirm}"` : ''}>${hidden(options.fields)}<button class="${buttonClass(options)}" ${options.title ? html`title="${options.title}"` : ''}>${options.icon ? icon(options.icon, options.small ? 'xs' : 'sm') : ''}${label}</button></form>`;
 }
 
 function hidden(fields: Record<string, string> = {}): Fragment[] {

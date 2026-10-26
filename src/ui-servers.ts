@@ -89,6 +89,13 @@ function version(row: Row): string | undefined {
   return row.pkg?.installed ? `v${row.pkg.installed}` : undefined;
 }
 
+/** A small button that starts the update, where a line would say one is available. */
+function updateButton(row: Row): Fragment | '' {
+  const newer = newerVersion(row.pkg);
+  if (!newer || row.pkg!.updating) return '';
+  return postButton(`/servers/${row.name}/update`, newer, { tone: 'soft', small: true, icon: 'up', fields: { version: newer }, title: `Update ${row.name} to ${newer}` });
+}
+
 function enableSwitch(row: Row): Fragment {
   const on = !row.uiDisabled;
   return onOff(`/servers/${row.name}/${on ? 'disable' : 'enable'}`, on, `${on ? 'Switch off' : 'Switch on'} ${row.name}`, row.config.enabled ? undefined : 'Disabled in the server file');
@@ -126,21 +133,18 @@ function notes(row: Row): Fragment {
 }
 
 function listRow(row: Row, editable: boolean): Fragment {
-  const newer = newerVersion(row.pkg);
   const meta = [transport(row.config), version(row), toolsText(row)].filter(Boolean).join(' · ');
   return item(
     html`${title(serverLabel(row.name, row.config), html`<span class="lg:hidden">${meta}</span><span class="max-lg:hidden font-mono">${source(row.config)}</span>`, { href: `/servers/${row.name}` })}
       ${cell(stateLabel(row))}
       ${cell(tag(transport(row.config)), { hide: true })}
-      ${cell(version(row) ? html`<span class="inline-flex items-center gap-1 font-mono">${version(row)}${row.pkg?.pinned ? icon('pin', 'xs') : ''}</span>` : html`<span class="opacity-40">none</span>`, { hide: true })}
-      ${cell(toolsText(row), { hide: true })}
-      ${cell(newer ? tag(`${newer} available`, { tone: 'primary', icon: 'up' }) : '', { hide: true })}`,
+      ${cell(version(row) ? html`<span class="inline-flex items-center gap-2"><span class="inline-flex items-center gap-1 font-mono">${version(row)}${row.pkg?.pinned ? icon('pin', 'xs') : ''}</span><span class="${ROW_END}">${updateButton(row)}</span></span>` : html`<span class="opacity-40">none</span>`, { hide: true })}
+      ${cell(toolsText(row), { hide: true })}`,
     { end: controls(row, editable), off: stateOf(row) === 'disabled' },
   );
 }
 
 function tile(row: Row, editable: boolean): Fragment {
-  const newer = newerVersion(row.pkg);
   const off = stateOf(row) === 'disabled';
   return html`<article class="${ROW} card card-border border-base-300 bg-base-100 hover:border-base-content/20 transition-colors">
     <div class="card-body p-4 gap-2">
@@ -153,8 +157,8 @@ function tile(row: Row, editable: boolean): Fragment {
         ${stateLabel(row)}<span class="opacity-40">·</span>${transport(row.config)}
         ${version(row) ? html`<span class="opacity-40">·</span><span class="font-mono">${version(row)}</span>` : ''}
         <span class="opacity-40">·</span>${toolsText(row)}
+        <span class="${ROW_END}">${updateButton(row)}</span>
       </div>
-      ${newer ? html`<div>${tag(`${newer} available`, { tone: 'primary', icon: 'up' })}</div>` : ''}
       ${row.upstream.lastError && !off ? html`<p class="font-mono text-xs text-error truncate" title="${row.upstream.lastError}">${row.upstream.lastError}</p>` : ''}
     </div>
   </article>`;
@@ -194,8 +198,8 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
       : !rows.length
         ? empty(filter.q ? html`<p>No server matches <strong>${filter.q}</strong>. <a class="link link-primary" href="/servers">Show all</a></p>` : 'No server matches this filter.')
         : view === 'list'
-          ? list(['Name', 'State', { label: 'Kind', hide: true }, { label: 'Version', hide: true }, { label: 'Tools', hide: true }, { label: '', hide: true }], rows.map((r) => listRow(r, editable)))
-          : html`<div class="grid gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))]">${rows.map((r) => tile(r, editable))}</div>`}
+          ? list(['Name', 'State', { label: 'Kind', hide: true }, { label: 'Version', hide: true }, { label: 'Tools', hide: true }], rows.map((r) => listRow(r, editable)))
+          : html`<div class="grid gap-3 auto-rows-fr grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))]">${rows.map((r) => tile(r, editable))}</div>`}
   </div>`;
 }
 
@@ -257,7 +261,7 @@ export function serverOverview(row: Row, editable: boolean, logCount: number): F
           ${fact('State', stateLabel(row))}
           ${fact('Kind', transport(row.config))}
           ${fact('Version', pkg?.installed ? html`<span class="font-mono">${pkg.installed}</span>` : html`<span class="opacity-40">n/a</span>`)}
-          ${fact('Owned by', pkg ? (pkg.pinned ? 'the server file (pinned)' : 'the hub') : html`<span class="opacity-40">n/a</span>`)}
+          ${fact('Updates', pkg ? (pkg.pinned ? html`<span class="inline-flex items-center gap-1" title="The version is pinned in the server file">${icon('pin', 'xs')}Pinned</span>` : 'By the hub') : html`<span class="opacity-40">n/a</span>`)}
           ${fact('Latest', pkg?.latest?.version ? html`<span class="font-mono">${pkg.latest.version}</span>` : html`<span class="opacity-40">${pkg ? 'not checked yet' : 'n/a'}</span>`)}
           ${fact('Tools', total ? `${visible} of ${total} exposed` : 'none yet')}
           ${fact('Context', visible || row.skills.length ? html`<span title="Estimated size of the exposed tool definitions and skill descriptions in a client's context">${tokensText(row)}</span>` : html`<span class="opacity-40">n/a</span>`)}
