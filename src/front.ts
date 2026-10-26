@@ -1,4 +1,4 @@
-import { Server, createMcpHandler, type CallToolResult, type Tool } from '@modelcontextprotocol/server';
+import { McpServer, createMcpHandler, type CallToolResult, type Tool } from '@modelcontextprotocol/server';
 import { Hono } from 'hono';
 import type { ConfigFile, ServerConfig } from './config.ts';
 import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
@@ -286,8 +286,9 @@ export class Hub {
     note(message, { error: true });
   }
 
-  private mcpServer(key: Key): Server {
-    const server = new Server({ name: 'mcpyard', version: VERSION }, { capabilities: { tools: { listChanged: true } } });
+  private mcpServer(key: Key): McpServer {
+    const mcp = new McpServer({ name: 'mcpyard', version: VERSION }, { capabilities: { tools: { listChanged: true } } });
+    const server = mcp.server;
 
     const yardTools = () => (this.yardEnabled() ? YARD_TOOLS.filter((t) => keySees(key, YARD, `${YARD}-${t.tool.name}`)) : []);
 
@@ -326,7 +327,7 @@ export class Hub {
       return result;
     });
 
-    return server;
+    return mcp;
   }
 }
 
