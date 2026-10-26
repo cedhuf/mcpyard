@@ -146,20 +146,25 @@ function listRow(row: Row, editable: boolean): Fragment {
 
 function tile(row: Row, editable: boolean): Fragment {
   const off = stateOf(row) === 'disabled';
+  const error = row.upstream.lastError && !off ? row.upstream.lastError : undefined;
+  const facts = [transport(row.config), version(row)].filter(Boolean).join(' · ');
+  // One fact per line, each cut to its line, so every card has the same layout whatever it holds.
   return html`<article class="${ROW} card card-border border-base-300 bg-base-100 hover:border-base-content/20 transition-colors">
-    <div class="card-body p-4 gap-2">
+    <div class="card-body p-4 gap-3">
       <div class="flex items-center gap-2">
         <a class="${ROW_ANCHOR} flex-1 min-w-0 truncate font-semibold ${off ? 'opacity-50' : ''}" href="/servers/${row.name}">${serverLabel(row.name, row.config)}</a>
         <div class="${ROW_END} flex items-center gap-1">${controls(row, editable)}</div>
       </div>
-      <p class="font-mono text-xs text-base-content/50 truncate" title="${source(row.config)}">${source(row.config)}</p>
-      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-base-content/70">
-        ${stateLabel(row)}<span class="opacity-40">·</span>${transport(row.config)}
-        ${version(row) ? html`<span class="opacity-40">·</span><span class="font-mono">${version(row)}</span>` : ''}
-        <span class="opacity-40">·</span>${toolsText(row)}
-        <span class="${ROW_END}">${updateButton(row)}</span>
+      <p class="-mt-2 font-mono text-xs text-base-content/50 truncate" title="${source(row.config)}">${source(row.config)}</p>
+      <div class="mt-auto grid gap-1.5 border-t border-base-300 pt-3 text-[13px] text-base-content/70">
+        <div class="flex items-center gap-2 min-h-6">
+          <span class="shrink-0">${stateLabel(row)}</span>
+          <span class="min-w-0 truncate font-mono text-xs text-base-content/50">${facts}</span>
+          <span class="${ROW_END} ml-auto shrink-0">${updateButton(row)}</span>
+        </div>
+        <div class="flex items-center gap-2 min-w-0">${icon('wrench', 'xs')}<span class="truncate">${toolsText(row)}</span></div>
+        <p class="font-mono text-xs truncate min-h-4 ${error ? 'text-error' : ''}" ${error ? html`title="${error}"` : ''}>${error ?? ''}</p>
       </div>
-      ${row.upstream.lastError && !off ? html`<p class="font-mono text-xs text-error truncate" title="${row.upstream.lastError}">${row.upstream.lastError}</p>` : ''}
     </div>
   </article>`;
 }

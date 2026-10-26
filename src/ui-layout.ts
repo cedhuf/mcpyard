@@ -163,7 +163,7 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
   const find = sectionSearch(c);
   const links = NAV.map(([href, label, name, tint]) => html`<li><a href="${href}" class="font-medium ${active(href) ? 'menu-active' : ''}" ${active(href) ? html`aria-current="page"` : ''}><span class="${active(href) ? '' : tint}">${icon(name, 'sm')}</span>${label}</a></li>`);
   return html`${head}
-    <body class="min-h-screen text-sm">
+    <body class="min-h-dvh flex flex-col text-sm">
       <header class="sticky top-0 z-30 px-2 pt-2 sm:px-4">
         <div class="max-lg:collapse w-full rounded-box bg-base-200 shadow-sm">
           <input id="nav-toggle" class="peer hidden" type="checkbox" aria-label="Menu" />
@@ -185,7 +185,7 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
           </div>
         </div>
       </header>
-      <main class="px-4 sm:px-6 lg:px-8 pt-6 pb-16 min-h-[calc(100dvh-10rem)]">${body}</main>
+      <main class="flex-1 px-4 sm:px-6 lg:px-8 pt-6 pb-16">${body}</main>
       ${footer()}
       ${nonce ? html`${CONFIRM}<script nonce="${nonce}">${raw(SCRIPT)}</script>` : ''}
     </body>
