@@ -121,6 +121,7 @@ servers:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MCPYARD_CONFIG` | `/config/mcpyard.yaml` | The server file. |
+| `MCPYARD_SKILLS_DIR` | `skills/` next to the server file | The [skills](skills.html) declared in the hub. |
 | `MCPYARD_DATA_DIR` | `/data` | Keys, installed packages, recorded versions, session key. |
 | `MCPYARD_PORT` | `3000` | HTTP port. |
 | `MCPYARD_VERSION_CHECK_HOURS` | `6` | How often registries are asked for new versions, up to `720` (a month); `0` turns it off. |

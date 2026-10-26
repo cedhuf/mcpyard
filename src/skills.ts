@@ -1,8 +1,9 @@
 import { SkillsExtension, type Skill, type SkillCatalog, type SkillCatalogChanges, type SkillFiles, type SkillReadResult } from '@modelcontextprotocol/server/ext/skills';
 import { nodeSkillFiles } from '@modelcontextprotocol/server/ext/skills/node';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stringify } from 'yaml';
+import { readOnlyReason } from './config.ts';
 import { note } from './logs.ts';
 
 const SCHEME = 'skill://';
@@ -19,7 +20,7 @@ export const MAX_DESCRIPTION = 1024;
 
 const warned = new Set<string>();
 
-/** Skills added in the hub, kept as `<root>/<server>/<skill>/SKILL.md` and served as `skill://<server>/<skill>/…`. */
+/** Skills declared in the hub, kept as `<root>/<server>/<skill>/SKILL.md` and served as `skill://<server>/<skill>/…`. */
 export class Skills {
   private readonly catalog: SkillCatalog;
   private readonly files: SkillFiles;
@@ -31,9 +32,10 @@ export class Skills {
     this.root = root;
   }
 
+  /** A missing `root` is an empty catalog until something creates it. */
   static async load(root: string): Promise<Skills> {
-    mkdirSync(root, { recursive: true });
-    const files = nodeSkillFiles(root);
+    const disk = nodeSkillFiles(root);
+    const files: SkillFiles = { list: async (dir) => (existsSync(root) ? disk.list(dir) : []), read: (path) => disk.read(path) };
     const catalog = await SkillsExtension.load(files, {
       // An empty folder is the normal state, not a problem.
       onWarning: (w) => !w.message.startsWith('no skills found') && note(`skill ${w.path}: ${w.message}`, { error: true }),
@@ -48,6 +50,11 @@ export class Skills {
 
   reload(): Promise<SkillCatalogChanges> {
     return this.catalog.reload();
+  }
+
+  /** Why the web UI cannot write skills, or undefined when it can. */
+  readOnlyReason(): string | undefined {
+    return readOnlyReason(this.root, 'the skills folder');
   }
 
   /** The instructions of a hub skill: its `SKILL.md` without the frontmatter. */

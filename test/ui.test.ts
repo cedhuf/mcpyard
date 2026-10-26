@@ -117,6 +117,18 @@ test('skills are added, edited and deleted from the server page', async () => {
   }
 });
 
+test('a skills folder that cannot be written locks the Skills tab', async () => {
+  const { dir, request, post } = setup({ kind: 'none' });
+  hub.skills = await Skills.load(join(dir, 'missing', 'skills'));
+  try {
+    assert.match(await (await request('/servers/alpha/skills')).text(), /Read-only: the skills folder is not writable/);
+    assert.ok(!(await (await request('/servers/alpha/skills')).text()).includes('href="/servers/alpha/new-skill"'));
+    assert.equal((await post('/servers/alpha/skills', { name: 'triage', description: 'x', body: '' })).status, 403);
+  } finally {
+    hub.skills = undefined;
+  }
+});
+
 test('the context estimate counts only the exposed tools', () => {
   const tool = (name: string) => ({ name, description: 'x'.repeat(400), inputSchema: { type: 'object' as const } });
   const row = (deny: string[]): Row => ({

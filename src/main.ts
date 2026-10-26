@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { ConfigFile } from './config.ts';
 import { app, Hub } from './front.ts';
 import { newKey } from './keys.ts';
@@ -31,7 +31,8 @@ const oauth = new OAuthStore(dataDir, env.MCPYARD_PUBLIC_URL ?? `http://localhos
 const hub = new Hub(configFile.load(), packages, () => configFile.load(), oauth);
 hub.configFile = configFile;
 hub.useState(join(dataDir, 'state.json'));
-hub.skills = await Skills.load(join(dataDir, 'skills'));
+const skillsDir = env.MCPYARD_SKILLS_DIR ?? join(dirname(configFile.path), 'skills');
+hub.skills = await Skills.load(skillsDir);
 logs.persist(join(dataDir, 'activity.json'));
 const releaseChecks = () => release.start(settings.value('updateCheck') ? settings.value('versionCheckHours') : 0);
 const appearance = () => {
@@ -77,6 +78,7 @@ function uiAuth(): UiAuth | undefined {
 
 const environment: EnvRow[] = [
   { env: 'MCPYARD_CONFIG', value: configFile.path },
+  { env: 'MCPYARD_SKILLS_DIR', value: skillsDir },
   { env: 'MCPYARD_DATA_DIR', value: dataDir },
   { env: 'MCPYARD_PORT', value: String(port) },
   { env: 'MCPYARD_PUBLIC_URL', value: env.MCPYARD_PUBLIC_URL },

@@ -21,7 +21,7 @@ is refused as unknown. The upstream result is returned unchanged; an upstream er
 
 **Skills.** The hub declares the Skills extension (`io.modelcontextprotocol/skills`) and answers
 `skills/list`, `skills/get` and `resources/read` from `skills.ts`. Two sources share one list. The
-SDK builds the hub's catalog from `$MCPYARD_DATA_DIR/skills/`, with digests and sizes; a skill there
+SDK builds the hub's catalog from the skills folder (`MCPYARD_SKILLS_DIR`, by default `skills/` next to the server file), with digests and sizes; a skill there
 counts when it sits exactly one folder below a server. Each upstream lists its own skills with the
 SDK's `SkillsClient` on connect and on `resources/list_changed`; the hub moves their URIs under
 `skill://<server>/` and forwards file reads, so the upstream digests reach the client untouched. On

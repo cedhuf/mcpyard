@@ -17,6 +17,7 @@ services:
     env_file: .env
     volumes:
       - ./mcpyard.yaml:/config/mcpyard.yaml
+      - ./skills:/config/skills
       - mcpyard-data:/data
 
 volumes:
@@ -38,6 +39,7 @@ SEARCH_TOKEN=...
 | Path | Contents |
 | --- | --- |
 | `/config/mcpyard.yaml` | The server file. Writable by uid 1000 to edit servers from the UI; mount it `:ro` to forbid that. |
+| `/config/skills/` | [Skills](skills.html), one folder per server. Create it on the host first (Docker would create it owned by root): writable by uid 1000 to edit skills from the UI, `:ro` to forbid that. |
 | `/data/keys.json` | Hashed keys and their scopes. |
 | `/data/versions.json` | Hub-owned package versions. |
 | `/data/packages/` | Installed packages, one directory per version. |
@@ -45,7 +47,6 @@ SEARCH_TOKEN=...
 | `/data/settings.json` | Settings saved from the UI's Settings page. |
 | `/data/state.json` | Servers switched off from the UI. |
 | `/data/oauth.json` | Client registrations and tokens of OAuth servers. Secret, mode 600. |
-| `/data/skills/` | [Skills](skills.html) added in the hub, one folder per server. |
 | `/data/activity.json` | The last MCP calls and UI actions, so the dashboard and the logs survive a restart. |
 | `/data/session.key` | Signs web UI sessions. |
 

@@ -1,4 +1,5 @@
-import { accessSync, constants, readFileSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { parse, parseDocument } from 'yaml';
 import { z } from 'zod';
 
@@ -69,6 +70,17 @@ export function parseConfig(text: string, env: NodeJS.ProcessEnv = process.env):
   return result.data.servers;
 }
 
+/** Why `path` cannot be written, or undefined when it can; a missing path depends on its parent folder. */
+export function readOnlyReason(path: string, what: string): string | undefined {
+  try {
+    accessSync(existsSync(path) ? path : dirname(path), constants.W_OK);
+    return undefined;
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    return code === 'EROFS' ? `${what} is mounted read-only` : `${what} is not writable (${code})`;
+  }
+}
+
 export function loadConfig(path: string): Record<string, ServerConfig> {
   return parseConfig(readFileSync(path, 'utf8'));
 }
@@ -95,13 +107,7 @@ export class ConfigFile {
 
   /** Why the UI cannot write the file, or undefined when it can. */
   readOnlyReason(): string | undefined {
-    try {
-      accessSync(this.path, constants.W_OK);
-      return undefined;
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code;
-      return code === 'EROFS' ? 'the file is mounted read-only' : `the file is not writable (${code})`;
-    }
+    return readOnlyReason(this.path, 'the file');
   }
 
   raw(name: string): RawServer | undefined {

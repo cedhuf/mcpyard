@@ -14,11 +14,13 @@ Every skill belongs to a server. Open the server in the web UI, then its **Skill
 **Add skill**: a name, a description and the instructions in Markdown. Clients see it at once and
 nothing restarts. The same tab edits and deletes the skills added there.
 
-The web UI writes to the data directory, where you can also put a skill by hand, in a folder
-named after the server and then after the skill:
+Skills are configuration, like the server file: they live in a `skills/` folder next to it
+(`MCPYARD_SKILLS_DIR` moves it), so they can be versioned and backed up together. The web UI writes
+there, and you can also put a skill by hand, in a folder named after the server and then after the
+skill:
 
 ```text
-$MCPYARD_DATA_DIR/skills/
+skills/
   mail/
     triage/
       SKILL.md
@@ -45,6 +47,11 @@ and when to use it. Files next to `SKILL.md` are served too, and the agent reads
 A skill put there by hand is read at startup and on every [reload](configuration.html#reloading). A skill
 with a problem (no frontmatter, a name that does not match its folder) is left out and the reason
 goes to the logs.
+
+When the folder is not writable (a `:ro` mount, or not writable by uid 1000), the Skills tab shows
+the skills locked, as the server forms are for a read-only server file. With Docker, mount the
+folder from the host, as [Deployment](deployment.html) shows, or the skills live in the container
+only.
 
 ## Skills from servers
 

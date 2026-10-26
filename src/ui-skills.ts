@@ -13,6 +13,7 @@ type Draft = { name: string; description: string; body: string };
 export function skillRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, editable: () => boolean): void {
   const server = (c: Context<Env>) => rowOf(hub, c.req.param('name') ?? '');
   const own = (row: Row, skill: string) => row.skills.find((s) => s.own && s.skill.frontmatter.name === skill);
+  const readOnly = () => (hub.skills ? hub.skills.readOnlyReason() : 'there is no skills folder');
 
   app.get('/servers/:name/skills', guard, (c) => {
     const row = server(c);
@@ -20,13 +21,13 @@ export function skillRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<E
     const saved = c.req.query('saved');
     const deleted = c.req.query('deleted');
     const notice = saved ? toast(html`Saved <strong>${saved}</strong>; clients see it at once.`) : deleted ? toast(html`Deleted <strong>${deleted}</strong>.`) : '';
-    return c.html(page(c, `${row.config.title ?? row.name} skills`, html`${skillsView(row, editable(), !!hub.skills)}${notice}`));
+    return c.html(page(c, `${row.config.title ?? row.name} skills`, html`${skillsView(row, editable(), readOnly())}${notice}`));
   });
 
   app.get('/servers/:name/new-skill', guard, (c) => {
     const row = server(c);
     if (!row || !hub.skills) return notFound(c);
-    return c.html(page(c, 'New skill', editor(row, editable(), undefined, { name: '', description: '', body: '' })));
+    return c.html(page(c, 'New skill', editor(row, editable(), readOnly(), undefined, { name: '', description: '', body: '' })));
   });
 
   app.get('/servers/:name/skills/:skill', guard, (c) => {
@@ -35,15 +36,16 @@ export function skillRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<E
     const served = row && own(row, name);
     if (!row || !served || !hub.skills) return notFound(c);
     const draft = { name, description: String(served.skill.frontmatter.description), body: hub.skills.body(row.name, name) ?? '' };
-    return c.html(page(c, name, editor(row, editable(), name, draft)));
+    return c.html(page(c, name, editor(row, editable(), readOnly(), name, draft)));
   });
 
   const save = async (c: Context<Env>, existing: string | undefined) => {
     const row = server(c);
     if (!row || !hub.skills || (existing && !own(row, existing))) return notFound(c);
+    if (readOnly()) return c.text(`Forbidden: ${readOnly()}`, 403);
     const form = await c.req.parseBody();
     const draft = { name: existing ?? String(form.name ?? '').trim(), description: String(form.description ?? '').trim(), body: String(form.body ?? '') };
-    const fail = (message: string) => c.html(page(c, existing ?? 'New skill', editor(row, editable(), existing, draft, message)), 400);
+    const fail = (message: string) => c.html(page(c, existing ?? 'New skill', editor(row, editable(), undefined, existing, draft, message)), 400);
     if (!existing && own(row, draft.name)) return fail(`A skill named ${draft.name} already exists.`);
     if (!draft.description) return fail('Description: say what the skill covers and when to use it.');
     if (draft.description.length > MAX_DESCRIPTION) return fail(`Description: ${MAX_DESCRIPTION} characters at most.`);
@@ -64,6 +66,7 @@ export function skillRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<E
     const row = server(c);
     const name = c.req.param('skill');
     if (!row || !hub.skills || !own(row, name)) return notFound(c);
+    if (readOnly()) return c.text(`Forbidden: ${readOnly()}`, 403);
     hub.skills.remove(row.name, name);
     await hub.reloadSkills();
     log(c, 'skill_deleted', { server: row.name, skill: name });
@@ -71,11 +74,15 @@ export function skillRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<E
   });
 }
 
-function skillsView(row: Row, editable: boolean, writable: boolean): Fragment {
+const lockedNote = (reason: string) => note(`Read-only: ${reason}. Mount the skills folder read-write to edit skills here, or edit the files by hand and reload.`, 'warning');
+
+function skillsView(row: Row, editable: boolean, readOnly: string | undefined): Fragment {
+  const writable = !readOnly;
   const add = writable ? linkButton(`/servers/${row.name}/new-skill`, 'Add skill', { tone: 'primary', icon: 'plus' }) : '';
   const base = `/servers/${row.name}/skills`;
   return html`${serverHead(row, editable, 'skills', logsForServer(row.name).length)}
     <div class="grid gap-4">
+      ${readOnly ? lockedNote(readOnly) : ''}
       ${row.skills.length
         ? box(
             html`<ul class="list">${row.skills.map(({ skill, own }) => {
@@ -83,7 +90,7 @@ function skillsView(row: Row, editable: boolean, writable: boolean): Fragment {
               return html`<li class="list-row items-center">
                 <div class="list-col-grow min-w-0">
                   <div class="font-mono font-medium flex flex-wrap items-center gap-2">
-                    ${own ? html`<a class="link link-hover" href="${base}/${name}">${name}</a>` : name}
+                    ${own ? html`<a class="link link-hover" href="${base}/${name}" title="${writable ? 'Edit' : 'View'} ${name}">${name}</a>` : name}
                     ${own ? tag('added here', { tone: 'primary' }) : tag('from the server')}
                   </div>
                   <p class="mt-0.5 text-[13px] text-base-content/60 break-words">${String(skill.frontmatter.description)}</p>
@@ -103,12 +110,14 @@ function skillsView(row: Row, editable: boolean, writable: boolean): Fragment {
     </div>`;
 }
 
-function editor(row: Row, editable: boolean, existing: string | undefined, draft: Draft, error?: string): Fragment {
+function editor(row: Row, editable: boolean, readOnly: string | undefined, existing: string | undefined, draft: Draft, error?: string): Fragment {
   const action = existing ? `/servers/${row.name}/skills/${existing}` : `/servers/${row.name}/skills`;
   return html`${serverHead(row, editable, 'skills', logsForServer(row.name).length)}
     <div class="grid gap-4">
+      ${readOnly ? lockedNote(readOnly) : ''}
       ${error ? note(html`Not saved: ${error}`, 'error') : ''}
       <form method="post" action="${action}" class="grid gap-4">
+      <fieldset class="contents" ${readOnly ? 'disabled' : ''}>
         ${box(html`
           ${section(
             'Skill',
@@ -127,10 +136,11 @@ function editor(row: Row, editable: boolean, existing: string | undefined, draft
           )}
         `)}
         <div class="savebar sticky bottom-3 z-20 flex flex-wrap items-center justify-end gap-2 rounded-box border border-base-300 bg-base-100/85 py-2.5 pl-5 pr-3 shadow-sm">
-          <span class="flex-1 text-[13px] text-base-content/50">Clients see the change at once; nothing restarts.</span>
-          ${linkButton(`/servers/${row.name}/skills`, 'Cancel', { tone: 'ghost' })}
-          <button class="btn btn-sm btn-primary">${existing ? 'Save' : 'Add skill'}</button>
+          <span class="flex-1 text-[13px] text-base-content/50">${readOnly ? 'The skills folder is read-only.' : 'Clients see the change at once; nothing restarts.'}</span>
+          ${linkButton(`/servers/${row.name}/skills`, readOnly ? 'Back' : 'Cancel', { tone: 'ghost' })}
+          ${readOnly ? '' : html`<button class="btn btn-sm btn-primary">${existing ? 'Save' : 'Add skill'}</button>`}
         </div>
+      </fieldset>
       </form>
     </div>`;
 }
