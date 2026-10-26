@@ -255,6 +255,7 @@ if (autosave) {
   autosave.addEventListener('change', async () => {
     show('Saving…', 'saving');
     const res = await fetch(autosave.action, { method: 'POST', body: new URLSearchParams(new FormData(autosave)) }).catch(() => null);
+    if (res?.status === 401) return location.reload();
     if (!res || !res.ok) return show(res ? 'Not saved: ' + (new DOMParser().parseFromString(await res.text(), 'text/html').querySelector('.toast')?.textContent.trim() || res.status) : 'Not saved: no connection', 'failed');
     const next = new DOMParser().parseFromString(await res.text(), 'text/html');
     const apply = () => {

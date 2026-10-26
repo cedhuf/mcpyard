@@ -264,6 +264,9 @@ test('without a session the UI redirects to login and refuses posts', async () =
   assert.equal(res.status, 302);
   assert.equal(res.headers.get('location'), '/auth/login?return=%2Fkeys');
   assert.equal((await post('/keys', { name: 'x' })).status, 401);
+  const form = await post('/keys', { name: 'x' }, { origin: PUBLIC, referer: `${PUBLIC}/servers/mail`, 'sec-fetch-mode': 'navigate' });
+  assert.equal(form.status, 303, 'a form posted after the session expired goes to login');
+  assert.equal(form.headers.get('location'), '/auth/login?return=%2Fservers%2Fmail');
 });
 
 test('OIDC login with PKCE opens a session', async () => {

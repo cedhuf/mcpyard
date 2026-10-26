@@ -57,8 +57,10 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     if (auth.kind === 'oidc') {
       const user = auth.signer.open<User>(getCookie(c, SESSION));
       if (!user) {
-        if (c.req.method !== 'GET') return c.text('Unauthorized', 401);
-        return c.redirect(`/auth/login?return=${encodeURIComponent(c.req.path)}`);
+        // A form posted after the session expired goes back to login, then to the page it came from; scripts get a 401.
+        if (c.req.method !== 'GET' && c.req.header('sec-fetch-mode') !== 'navigate') return c.text('Unauthorized', 401);
+        if (c.req.method === 'GET') return c.redirect(`/auth/login?return=${encodeURIComponent(c.req.path)}`);
+        return c.redirect(`/auth/login?return=${encodeURIComponent(refererPath(c.req.header('referer'), base(c)))}`, 303);
       }
       c.set('user', user);
     }
@@ -218,6 +220,11 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   app.get('*', guard, (c) => notFound(c));
 
   return app;
+}
+
+/** The path of a same-origin referer, or `/`. */
+function refererPath(referer: string | undefined, base: string): string {
+  return referer && sameOrigin(referer, base) ? new URL(referer).pathname : '/';
 }
 
 function sameOrigin(origin: string | undefined, base: string): boolean {
