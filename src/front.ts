@@ -4,6 +4,7 @@ import type { ConfigFile, ServerConfig } from './config.ts';
 import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
 import { event, note } from './logs.ts';
 import { YARD, YARD_TOOLS } from './yard.ts';
+import type { Skills } from './skills.ts';
 import type { OAuthStore } from './oauth.ts';
 import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
@@ -50,6 +51,8 @@ export class Hub {
   keysPath?: string;
   /** The server file, for the admin tools that edit it. */
   configFile?: ConfigFile;
+  /** Skills added in the hub, served to the keys that see their server. */
+  skills?: Skills;
   /** The web UI's security check, when the UI runs; the admin tools return it too. */
   security?: () => { ok: boolean; title: string; detail: string; label: string }[];
 
@@ -87,7 +90,19 @@ export class Hub {
     this.packages?.unwatch();
     this.watchPackages();
     this.rebuild();
+    await this.reloadSkills();
     return { added, removed, changed };
+  }
+
+  /** Scans the skills folder again; a failed scan keeps the skills already served. */
+  async reloadSkills(): Promise<void> {
+    if (!this.skills) return;
+    try {
+      await this.skills.reload();
+    } catch (e) {
+      note(`skills not reloaded: ${(e as Error).message}`, { error: true });
+    }
+    this.handler.notify.resourcesChanged();
   }
 
   private newUpstream(name: string, config: ServerConfig): Upstream {
@@ -110,6 +125,11 @@ export class Hub {
     for (const name of this.upstreams.keys()) if (this.disabled.has(name)) this.upstreams.set(name, this.newUpstream(name, this.configs[name]!));
   }
 
+  /** Configured, enabled in the server file and not switched off from the UI. */
+  private serves(name: string): boolean {
+    return !!this.configs[name]?.enabled && !this.disabled.has(name);
+  }
+
   isDisabled(name: string): boolean {
     return this.disabled.has(name);
   }
@@ -130,6 +150,7 @@ export class Hub {
     await old.stop();
     this.upstreams.get(name)!.start();
     this.rebuild();
+    if (this.skills) this.handler.notify.resourcesChanged();
   }
 
   /** Tells connected clients to list their tools again, after something outside the upstreams changed them. */
@@ -141,7 +162,7 @@ export class Hub {
 
   /** Pings every running server, or those of `only`, and keeps the report for the dashboard. Switched-off servers are left out. */
   async healthCheck(only?: (name: string) => boolean): Promise<HealthReport> {
-    const names = [...this.upstreams.keys()].filter((name) => this.configs[name]!.enabled && !this.disabled.has(name) && (!only || only(name)));
+    const names = [...this.upstreams.keys()].filter((name) => this.serves(name) && (!only || only(name)));
     const results = await Promise.all(
       names.map(async (server): Promise<Health> => {
         try {
@@ -289,6 +310,7 @@ export class Hub {
   private mcpServer(key: Key): McpServer {
     const mcp = new McpServer({ name: 'mcpyard', version: VERSION }, { capabilities: { tools: { listChanged: true } } });
     const server = mcp.server;
+    this.skills?.extension((name) => this.serves(name) && keySees(key, name)).attach(mcp);
 
     const yardTools = () => (this.yardEnabled() ? YARD_TOOLS.filter((t) => keySees(key, YARD, `${YARD}-${t.tool.name}`)) : []);
 

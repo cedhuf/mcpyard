@@ -33,7 +33,7 @@ export default defineConfig({
       components: { Header: './src/components/Header.astro', Hero: './src/components/Hero.astro' },
       sidebar: [
         { label: 'Start', items: ['getting-started', 'deployment'] },
-        { label: 'Configure', items: ['configuration', 'packages', 'keys'] },
+        { label: 'Configure', items: ['configuration', 'packages', 'keys', 'skills'] },
         { label: 'Operate', items: ['web-ui', 'admin'] },
         { label: 'Architecture', items: [{ autogenerate: { directory: 'architecture' } }] },
         { label: 'Project', items: [{ label: 'Releases', link: '/releases.html' }] },

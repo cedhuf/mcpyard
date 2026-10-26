@@ -19,6 +19,12 @@ tools it may use. `tools/call` checks the same rule again, so a call to a tool t
 is refused as unknown. The upstream result is returned unchanged; an upstream error becomes an
 `isError` result rather than a protocol error.
 
+**Skills.** The hub declares the Skills extension (`io.modelcontextprotocol/skills`) and answers
+`skills/list`, `skills/get` and `resources/read` from `skills.ts`. The SDK builds the catalog from
+`$MCPYARD_DATA_DIR/skills/`, with digests and sizes; the hub only filters it. A skill is served when
+it sits exactly one folder below a server the key sees and that server is enabled; any other skill
+on disk is never listed nor read. A reload or a switched server sends `resources/list_changed`.
+
 **Audit.** Every call emits a `tool_call` event: key name, server, tool, success, duration and the
 start of the error text, never the arguments.
 

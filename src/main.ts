@@ -8,6 +8,7 @@ import { Oidc, Signer } from './oidc.ts';
 import { Packages } from './packages.ts';
 import { release } from './release.ts';
 import { Settings, THEMES } from './settings.ts';
+import { Skills } from './skills.ts';
 import { ui, type EnvRow, type UiAuth } from './ui.ts';
 import { logs, note } from './logs.ts';
 import { setAppearance } from './ui-layout.ts';
@@ -30,6 +31,7 @@ const oauth = new OAuthStore(dataDir, env.MCPYARD_PUBLIC_URL ?? `http://localhos
 const hub = new Hub(configFile.load(), packages, () => configFile.load(), oauth);
 hub.configFile = configFile;
 hub.useState(join(dataDir, 'state.json'));
+hub.skills = await Skills.load(join(dataDir, 'skills'));
 logs.persist(join(dataDir, 'activity.json'));
 const releaseChecks = () => release.start(settings.value('updateCheck') ? settings.value('versionCheckHours') : 0);
 const appearance = () => {

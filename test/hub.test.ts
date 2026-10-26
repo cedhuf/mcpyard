@@ -1,7 +1,8 @@
 import { serve } from '@hono/node-server';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { SkillsClient } from '@modelcontextprotocol/client/ext/skills';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +11,7 @@ import { parseConfig } from '../src/config.ts';
 import { app, Hub } from '../src/front.ts';
 import { loadKeys, newKey } from '../src/keys.ts';
 import { logs } from '../src/logs.ts';
+import { Skills } from '../src/skills.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'mcpyard-'));
 const full = newKey('full');
@@ -32,10 +34,22 @@ servers:
     tools: { deny: [env_never] }
 `),
 );
+function writeSkill(path: string, files: Record<string, string>): void {
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(join(dir, 'skills', path, name, '..'), { recursive: true });
+    writeFileSync(join(dir, 'skills', path, name), text);
+  }
+}
+const skillMd = (name: string, body = 'Read `references/rules.md` first.') => `---\nname: ${name}\ndescription: How to use ${name}.\n---\n\n${body}\n`;
+writeSkill('fix-ture/echo-well', { 'SKILL.md': skillMd('echo-well'), 'references/rules.md': 'Never echo secrets.\n' });
+writeSkill('ghost/haunt', { 'SKILL.md': skillMd('haunt') });
+writeSkill('loose', { 'SKILL.md': skillMd('loose') });
+
 let url: URL;
 let http: ReturnType<typeof serve>;
 
 before(async () => {
+  hub.skills = await Skills.load(join(dir, 'skills'));
   hub.start();
   await new Promise<void>((resolve) => {
     http = serve({ fetch: app(hub, join(dir, 'keys.json')).fetch, port: 0 }, (info: AddressInfo) => {
@@ -211,4 +225,39 @@ test('config needs exactly one of package, url or command', () => {
   assert.throws(() => parseConfig('servers:\n  a: { command: "${NOPE_NOT_SET}" }', {}), /NOPE_NOT_SET/);
   assert.throws(() => parseConfig('servers:\n  a: { command: x, env: { T: ${T} } }', { T: 't' }), /quote references/);
   assert.throws(() => parseConfig('servers:\n  yard: { command: x }'), /reserved/);
+});
+
+test('hub skills reach the keys that see their server, and only those', async () => {
+  const client = await connect(full.token);
+  const skills = new SkillsClient(client);
+  assert.ok(skills.supported);
+  const { skills: listed } = await skills.list();
+  assert.deepEqual(listed.map((s) => s.uri), ['skill://fix-ture/echo-well/SKILL.md'], 'unknown servers and loose skills stay hidden');
+  const manifest = await skills.read(listed[0]!);
+  assert.equal(manifest.frontmatter?.name, 'echo-well');
+  assert.match(manifest.body!, /references\/rules\.md/);
+  assert.equal((await skills.read(listed[0]!, 'references/rules.md')).text, 'Never echo secrets.\n');
+  await assert.rejects(skills.get('skill://ghost/haunt/SKILL.md'));
+  await client.close();
+
+  const other = await connect(admin.token);
+  assert.deepEqual((await new SkillsClient(other).list()).skills, []);
+  await assert.rejects(other.readResource({ uri: 'skill://fix-ture/echo-well/SKILL.md' }));
+  await other.close();
+});
+
+test('a reload serves new skills, and a switched-off server takes its skills along', async () => {
+  writeSkill('fix-ture/later', { 'SKILL.md': skillMd('later', 'Added after start.') });
+  await hub.reloadSkills();
+  const client = await connect(full.token);
+  const uris = async () => (await new SkillsClient(client).list()).skills.map((s) => s.uri);
+  assert.deepEqual(await uris(), ['skill://fix-ture/echo-well/SKILL.md', 'skill://fix-ture/later/SKILL.md']);
+  await hub.setDisabled('fix-ture', true);
+  try {
+    assert.deepEqual(await uris(), []);
+  } finally {
+    await hub.setDisabled('fix-ture', false);
+    while (hub.upstreams.get('fix-ture')!.state !== 'ready') await new Promise((r) => setTimeout(r, 50));
+  }
+  await client.close();
 });

@@ -154,5 +154,5 @@ docker kill -s HUP mcpyard
 ```
 
 New servers start, removed ones stop, and servers whose settings changed restart with them; the others
-keep running untouched. A file that does not parse changes nothing and the error is reported.
+keep running untouched. The [skills](skills.html) folder is read again too. A file that does not parse changes nothing and the error is reported.
 Environment variables are read once at startup, so a new `${VAR}` still needs a container restart.
