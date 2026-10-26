@@ -1,4 +1,5 @@
 import { Client, SSEClientTransport, StreamableHTTPClientTransport, UnauthorizedError, type Tool } from '@modelcontextprotocol/client';
+import { SkillsClient, type Skill } from '@modelcontextprotocol/client/ext/skills';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio';
 import type { ServerConfig } from './config.ts';
 import type { UpstreamAuth } from './oauth.ts';
@@ -15,6 +16,8 @@ const MAX_BACKOFF = 5 * 60_000;
 export class Upstream {
   state: State = 'stopped';
   tools: Tool[] = [];
+  /** Skills the server serves, as it addresses them. */
+  skills: Skill[] = [];
   lastError?: string;
   /** Installed package version, once known. */
   version?: string;
@@ -85,6 +88,14 @@ export class Upstream {
     }
   }
 
+  /** One file of a skill this server serves, by its own URI. */
+  async readSkillFile(uri: string): Promise<{ text: string; mimeType?: string } | { bytes: Uint8Array; mimeType?: string }> {
+    if (!this.client || this.state !== 'ready') throw new Error(`server ${this.name} is not ready`);
+    const file = (await this.client.readResource({ uri })).contents[0];
+    if (!file) throw new Error(`server ${this.name} returned nothing for ${uri}`);
+    return 'text' in file ? { text: file.text, mimeType: file.mimeType } : { bytes: Buffer.from(file.blob, 'base64'), mimeType: file.mimeType };
+  }
+
   /** Completes a browser sign-in with the callback's query string, then connects with the new tokens. */
   async finishAuth(params: URLSearchParams): Promise<void> {
     if (!this.auth) throw new Error(`server ${this.name} does not use OAuth`);
@@ -110,7 +121,7 @@ export class Upstream {
       const target = version ?? (await this.packages.latest(spec));
       if (target === this.version) return;
       const launch = await this.packages.prepare(this.name, spec, target, this.config.allowScripts);
-      const { client, tools } = await this.open(launch);
+      const { client, tools, skills } = await this.open(launch);
       if (this.stopped) return void (await client.close());
       const old = this.client;
       const previous = this.version;
@@ -120,6 +131,7 @@ export class Upstream {
       this.version = target;
       this.client = client;
       this.tools = tools;
+      this.skills = skills;
       this.updateError = undefined;
       this.ready();
       await old?.close().catch(() => {});
@@ -140,10 +152,11 @@ export class Upstream {
       if (this.config.package && !this.launch) await this.install();
       if (this.stopped) return;
       this.set('starting');
-      const { client, tools } = await this.open(this.launch);
+      const { client, tools, skills } = await this.open(this.launch);
       if (this.stopped || this.client) return void (await client.close());
       this.client = client;
       this.tools = tools;
+      this.skills = skills;
       this.backoff = MIN_BACKOFF;
       this.ready();
     } catch (e) {
@@ -167,12 +180,13 @@ export class Upstream {
     if (!spec.version && !recorded) this.packages.record(this.name, version);
   }
 
-  private async open(launch?: Launch): Promise<{ client: Client; tools: Tool[] }> {
+  private async open(launch?: Launch): Promise<{ client: Client; tools: Tool[]; skills: Skill[] }> {
     const client = new Client(
       { name: 'mcpyard', version: VERSION },
       {
         listChanged: {
           tools: { onChanged: (error, tools) => this.client === client && this.toolsChanged(error, tools) },
+          resources: { autoRefresh: false, onChanged: () => this.client === client && void this.skillsChanged(client) },
         },
       },
     );
@@ -181,7 +195,7 @@ export class Upstream {
     };
     try {
       await client.connect(this.transport(launch));
-      return { client, tools: (await client.listTools()).tools };
+      return { client, tools: (await client.listTools()).tools, skills: await this.listSkills(client) };
     } catch (e) {
       await client.close().catch(() => {});
       throw e;
@@ -216,6 +230,27 @@ export class Upstream {
     this.onChange();
   }
 
+  /** A server whose skills cannot be listed still serves its tools. */
+  private async listSkills(client: Client): Promise<Skill[]> {
+    const skills = new SkillsClient(client, { skipInvalid: true });
+    if (!skills.supported) return [];
+    try {
+      const listing = await skills.list();
+      for (const bad of listing.invalid) note(`skill ${bad.uri ?? `#${bad.index}`} ignored: ${bad.reason}`, { server: this.name, error: true });
+      return listing.skills;
+    } catch (e) {
+      note(`skills not listed: ${(e as Error).message}`, { server: this.name, error: true });
+      return [];
+    }
+  }
+
+  private async skillsChanged(client: Client): Promise<void> {
+    const skills = await this.listSkills(client);
+    if (this.client !== client) return;
+    this.skills = skills;
+    this.onChange();
+  }
+
   private scheduleRetry(reason: string): void {
     this.client = undefined;
     this.set(this.wasReady ? 'degraded' : 'failed', reason);
@@ -243,7 +278,10 @@ export class Upstream {
     if (state !== this.state && !error) note(state, { server: this.name });
     this.state = state;
     this.lastError = error;
-    if (state !== 'ready') this.tools = [];
+    if (state !== 'ready') {
+      this.tools = [];
+      this.skills = [];
+    }
     this.onChange();
   }
 }

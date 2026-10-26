@@ -42,6 +42,16 @@ The hub reads the folder at startup and on every [reload](configuration.html#rel
 with a problem (no frontmatter, a name that does not match its folder) is left out and the reason
 goes to the logs.
 
+## Skills from servers
+
+A server that serves skills itself keeps them behind the hub: they are listed with the hub's own,
+under `skill://<server>/…`, and every read goes to that server. Its digests pass through
+unchanged, so the client still checks each file against what the server published. The list is
+read when the server connects and again when it announces a change.
+
+When a skill added in the hub has the same address as one the server serves, the hub's wins and
+the logs say so. A server skill whose address is not a `skill://` URI is left out.
+
 ## Who sees a skill
 
 A key that sees a server sees its skills, as `skill://<server>/<skill>/SKILL.md`. A server that is

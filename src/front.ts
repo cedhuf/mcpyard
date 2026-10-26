@@ -150,7 +150,6 @@ export class Hub {
     await old.stop();
     this.upstreams.get(name)!.start();
     this.rebuild();
-    if (this.skills) this.handler.notify.resourcesChanged();
   }
 
   /** Tells connected clients to list their tools again, after something outside the upstreams changed them. */
@@ -299,6 +298,7 @@ export class Hub {
     }
     this.routes = routes;
     this.handler.notify.toolsChanged();
+    if (this.skills) this.handler.notify.resourcesChanged();
   }
 
   private warnOnce(id: string, message: string): void {
@@ -310,7 +310,12 @@ export class Hub {
   private mcpServer(key: Key): McpServer {
     const mcp = new McpServer({ name: 'mcpyard', version: VERSION }, { capabilities: { tools: { listChanged: true } } });
     const server = mcp.server;
-    this.skills?.extension((name) => this.serves(name) && keySees(key, name)).attach(mcp);
+    this.skills
+      ?.extension(
+        (name) => this.serves(name) && keySees(key, name),
+        () => [...this.upstreams].map(([name, upstream]) => ({ server: name, skills: upstream.skills, read: (uri: string) => upstream.readSkillFile(uri) })),
+      )
+      .attach(mcp);
 
     const yardTools = () => (this.yardEnabled() ? YARD_TOOLS.filter((t) => keySees(key, YARD, `${YARD}-${t.tool.name}`)) : []);
 

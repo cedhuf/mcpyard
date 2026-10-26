@@ -20,10 +20,14 @@ is refused as unknown. The upstream result is returned unchanged; an upstream er
 `isError` result rather than a protocol error.
 
 **Skills.** The hub declares the Skills extension (`io.modelcontextprotocol/skills`) and answers
-`skills/list`, `skills/get` and `resources/read` from `skills.ts`. The SDK builds the catalog from
-`$MCPYARD_DATA_DIR/skills/`, with digests and sizes; the hub only filters it. A skill is served when
-it sits exactly one folder below a server the key sees and that server is enabled; any other skill
-on disk is never listed nor read. A reload or a switched server sends `resources/list_changed`.
+`skills/list`, `skills/get` and `resources/read` from `skills.ts`. Two sources share one list. The
+SDK builds the hub's catalog from `$MCPYARD_DATA_DIR/skills/`, with digests and sizes; a skill there
+counts when it sits exactly one folder below a server. Each upstream lists its own skills with the
+SDK's `SkillsClient` on connect and on `resources/list_changed`; the hub moves their URIs under
+`skill://<server>/` and forwards file reads, so the upstream digests reach the client untouched. On
+the same address the hub's skill wins. A key gets the skills of the enabled servers it sees, and a
+read outside their manifests is refused. Any change to the upstreams, a reload or a switched server
+sends `resources/list_changed`.
 
 **Audit.** Every call emits a `tool_call` event: key name, server, tool, success, duration and the
 start of the error text, never the arguments.

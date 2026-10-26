@@ -232,11 +232,18 @@ test('hub skills reach the keys that see their server, and only those', async ()
   const skills = new SkillsClient(client);
   assert.ok(skills.supported);
   const { skills: listed } = await skills.list();
-  assert.deepEqual(listed.map((s) => s.uri), ['skill://fix-ture/echo-well/SKILL.md'], 'unknown servers and loose skills stay hidden');
+  assert.deepEqual(
+    listed.map((s) => s.uri),
+    ['skill://fix-ture/echo-well/SKILL.md', 'skill://fix-ture/guide/SKILL.md'],
+    'unknown servers and loose skills stay hidden; the hub skill wins over the upstream one of the same name',
+  );
   const manifest = await skills.read(listed[0]!);
   assert.equal(manifest.frontmatter?.name, 'echo-well');
   assert.match(manifest.body!, /references\/rules\.md/);
   assert.equal((await skills.read(listed[0]!, 'references/rules.md')).text, 'Never echo secrets.\n');
+  const relayed = await skills.read(listed[1]!, 'notes.md');
+  assert.ok(relayed.verified, 'a relayed file matches the digest the upstream server published');
+  assert.equal(relayed.text, 'From upstream.\n');
   await assert.rejects(skills.get('skill://ghost/haunt/SKILL.md'));
   await client.close();
 
@@ -250,8 +257,8 @@ test('a reload serves new skills, and a switched-off server takes its skills alo
   writeSkill('fix-ture/later', { 'SKILL.md': skillMd('later', 'Added after start.') });
   await hub.reloadSkills();
   const client = await connect(full.token);
-  const uris = async () => (await new SkillsClient(client).list()).skills.map((s) => s.uri);
-  assert.deepEqual(await uris(), ['skill://fix-ture/echo-well/SKILL.md', 'skill://fix-ture/later/SKILL.md']);
+  const uris = async () => (await new SkillsClient(client).list()).skills.map((s) => s.uri).sort();
+  assert.deepEqual(await uris(), ['skill://fix-ture/echo-well/SKILL.md', 'skill://fix-ture/guide/SKILL.md', 'skill://fix-ture/later/SKILL.md']);
   await hub.setDisabled('fix-ture', true);
   try {
     assert.deepEqual(await uris(), []);
