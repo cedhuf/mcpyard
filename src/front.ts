@@ -4,7 +4,7 @@ import type { ConfigFile, ServerConfig } from './config.ts';
 import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
 import { event, note } from './logs.ts';
 import { YARD, YARD_TOOLS } from './yard.ts';
-import type { Skills } from './skills.ts';
+import type { Relay, Served, Skills } from './skills.ts';
 import type { OAuthStore } from './oauth.ts';
 import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
@@ -123,6 +123,15 @@ export class Hub {
     }
     // Called before start(): replacing the upstreams of disabled servers is enough.
     for (const name of this.upstreams.keys()) if (this.disabled.has(name)) this.upstreams.set(name, this.newUpstream(name, this.configs[name]!));
+  }
+
+  private relays(): Relay[] {
+    return [...this.upstreams].map(([server, upstream]) => ({ server, skills: upstream.skills, read: (uri: string) => upstream.readSkillFile(uri) }));
+  }
+
+  /** The skills served for one server, the hub's own first. */
+  skillsOf(server: string): Served[] {
+    return this.skills?.served(this.relays()).filter((s) => s.server === server) ?? [];
   }
 
   /** Configured, enabled in the server file and not switched off from the UI. */
@@ -310,12 +319,7 @@ export class Hub {
   private mcpServer(key: Key): McpServer {
     const mcp = new McpServer({ name: 'mcpyard', version: VERSION }, { capabilities: { tools: { listChanged: true } } });
     const server = mcp.server;
-    this.skills
-      ?.extension(
-        (name) => this.serves(name) && keySees(key, name),
-        () => [...this.upstreams].map(([name, upstream]) => ({ server: name, skills: upstream.skills, read: (uri: string) => upstream.readSkillFile(uri) })),
-      )
-      .attach(mcp);
+    this.skills?.extension((name) => this.serves(name) && keySees(key, name), () => this.relays()).attach(mcp);
 
     const yardTools = () => (this.yardEnabled() ? YARD_TOOLS.filter((t) => keySees(key, YARD, `${YARD}-${t.tool.name}`)) : []);
 

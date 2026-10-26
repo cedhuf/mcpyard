@@ -1,6 +1,8 @@
 import { SkillsExtension, type Skill, type SkillCatalog, type SkillCatalogChanges, type SkillFiles, type SkillReadResult } from '@modelcontextprotocol/server/ext/skills';
 import { nodeSkillFiles } from '@modelcontextprotocol/server/ext/skills/node';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { stringify } from 'yaml';
 import { note } from './logs.ts';
 
 const SCHEME = 'skill://';
@@ -8,7 +10,12 @@ const SCHEME = 'skill://';
 /** The skills one upstream server serves, under its own URIs, and how to read their files. */
 export type Relay = { server: string; skills: readonly Skill[]; read: (uri: string) => Promise<SkillReadResult> };
 
-type Served = { server: string; skill: Skill; read: (uri: string) => Promise<SkillReadResult | undefined> };
+/** A skill as clients see it; `own` when it was added in the hub rather than served by its server. */
+export type Served = { server: string; skill: Skill; own: boolean; read: (uri: string) => Promise<SkillReadResult | undefined> };
+
+/** The Agent Skills rule for names, which are also folder names. */
+export const SKILL_NAME = /^(?=.{1,64}$)[a-z0-9]+(-[a-z0-9]+)*$/;
+export const MAX_DESCRIPTION = 1024;
 
 const warned = new Set<string>();
 
@@ -16,17 +23,22 @@ const warned = new Set<string>();
 export class Skills {
   private readonly catalog: SkillCatalog;
   private readonly files: SkillFiles;
+  private readonly root: string;
 
-  private constructor(catalog: SkillCatalog, files: SkillFiles) {
+  private constructor(catalog: SkillCatalog, files: SkillFiles, root: string) {
     this.catalog = catalog;
     this.files = files;
+    this.root = root;
   }
 
   static async load(root: string): Promise<Skills> {
     mkdirSync(root, { recursive: true });
     const files = nodeSkillFiles(root);
-    const catalog = await SkillsExtension.load(files, { onWarning: (w) => note(`skill ${w.path}: ${w.message}`, { error: true }) });
-    return new Skills(catalog, files);
+    const catalog = await SkillsExtension.load(files, {
+      // An empty folder is the normal state, not a problem.
+      onWarning: (w) => !w.message.startsWith('no skills found') && note(`skill ${w.path}: ${w.message}`, { error: true }),
+    });
+    return new Skills(catalog, files, root);
   }
 
   /** Every skill on disk, whatever its server; a skill outside a server folder is never served. */
@@ -36,6 +48,30 @@ export class Skills {
 
   reload(): Promise<SkillCatalogChanges> {
     return this.catalog.reload();
+  }
+
+  /** The instructions of a hub skill: its `SKILL.md` without the frontmatter. */
+  body(server: string, name: string): string | undefined {
+    try {
+      return readFileSync(join(this.root, server, name, 'SKILL.md'), 'utf8').replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim();
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Writes a hub skill's `SKILL.md`, keeping its other frontmatter fields and files. Takes effect on the next reload. */
+  write(server: string, name: string, description: string, body: string): void {
+    if (!SKILL_NAME.test(name)) throw new Error('Name: lowercase letters, digits and single hyphens, up to 64 characters.');
+    const current = this.entries.find((skill) => skill.uri === `${SCHEME}${server}/${name}/SKILL.md`);
+    const dir = join(this.root, server, name);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'SKILL.md'), `---\n${stringify({ ...current?.frontmatter, name, description })}---\n\n${body.trim()}\n`);
+  }
+
+  /** Deletes a hub skill's folder with every file in it. Takes effect on the next reload. */
+  remove(server: string, name: string): void {
+    if (!SKILL_NAME.test(name)) throw new Error(`no skill named ${name}`);
+    rmSync(join(this.root, server, name), { recursive: true, force: true });
   }
 
   /**
@@ -54,8 +90,9 @@ export class Skills {
     });
   }
 
-  private served(relays: Iterable<Relay>): Served[] {
-    const served: Served[] = this.entries.map((skill) => ({ server: serverOf(skill)!, skill, read: (uri) => this.readFile(uri) }));
+  /** Every skill served, the hub's own first, whoever asks. */
+  served(relays: Iterable<Relay>): Served[] {
+    const served: Served[] = this.entries.map((skill) => ({ server: serverOf(skill)!, skill, own: true, read: (uri) => this.readFile(uri) }));
     const taken = new Set(served.map((s) => s.skill.uri));
     for (const relay of relays) {
       const prefix = `${SCHEME}${relay.server}/`;
@@ -66,7 +103,7 @@ export class Skills {
           continue;
         }
         taken.add(skill.uri);
-        served.push({ server: relay.server, skill, read: (uri) => relay.read(SCHEME + uri.slice(prefix.length)) });
+        served.push({ server: relay.server, skill, own: false, read: (uri) => relay.read(SCHEME + uri.slice(prefix.length)) });
       }
     }
     return served;

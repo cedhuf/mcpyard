@@ -41,6 +41,7 @@ All code is in `src/`, run directly by Node from its TypeScript sources: there i
 | `front.ts` | `Hub` (upstreams, routing table, health checks, updates) and the HTTP app with `/mcp`. |
 | `upstream.ts` | One upstream server: transport, lifecycle, reconnection, side-by-side update. |
 | `packages.ts` | Installing npm and PyPI packages per version, registry checks, recorded versions. |
+| `skills.ts` | Skills: the hub's catalog in the data directory, the relayed upstream skills, the Skills extension per key. |
 | `keys.ts` | Keys: token format, hashing, lookup, scopes and tool filters. |
 | `yard.ts` | The `yard-*` admin tools. |
 | `settings.ts` | Runtime settings: environment, then `settings.json`, then defaults. |

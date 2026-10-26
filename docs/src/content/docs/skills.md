@@ -10,8 +10,12 @@ it.
 
 ## Adding a skill
 
-Every skill belongs to a server. Put it in the data directory, in a folder named after the server
-and then after the skill:
+Every skill belongs to a server. Open the server in the web UI, then its **Skills** tab, and click
+**Add skill**: a name, a description and the instructions in Markdown. Clients see it at once and
+nothing restarts. The same tab edits and deletes the skills added there.
+
+The web UI writes to the data directory, where you can also put a skill by hand, in a folder
+named after the server and then after the skill:
 
 ```text
 $MCPYARD_DATA_DIR/skills/
@@ -38,7 +42,7 @@ Archive newsletters older than a week. Read `references/folders.md` for the fold
 The description is what the agent reads to decide whether to load the skill: say what it covers
 and when to use it. Files next to `SKILL.md` are served too, and the agent reads them on demand.
 
-The hub reads the folder at startup and on every [reload](configuration.html#reloading). A skill
+A skill put there by hand is read at startup and on every [reload](configuration.html#reloading). A skill
 with a problem (no frontmatter, a name that does not match its folder) is left out and the reason
 goes to the logs.
 

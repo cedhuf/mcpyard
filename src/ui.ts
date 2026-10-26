@@ -9,6 +9,7 @@ import type { Hub } from './front.ts';
 import type { Oidc, Signer, User } from './oidc.ts';
 import type { Settings } from './settings.ts';
 import { configRoutes, type EnvRow } from './ui-config.ts';
+import { skillRoutes } from './ui-skills.ts';
 import { keyRoutes } from './ui-keys.ts';
 import { logRoutes } from './ui-logs.ts';
 import { dashboardRoutes } from './ui-dashboard.ts';
@@ -214,6 +215,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   });
 
   configRoutes(app, hub, guard, { keysPath, settings: options.settings, configFile: options.configFile, environment: options.environment, base });
+  skillRoutes(app, hub, guard, editable);
   keyRoutes(app, hub, guard, { keysPath, base });
   logRoutes(app, guard);
   dashboardRoutes(app, hub, guard, { keysPath, signIn: auth.kind === 'oidc', publicUrl: options.publicUrl, settings: options.settings, configFile: options.configFile });

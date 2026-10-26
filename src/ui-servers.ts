@@ -2,6 +2,7 @@ import { html } from 'hono/html';
 import type { ServerConfig } from './config.ts';
 import { newerVersion, type Hub, type PackageStatus } from './front.ts';
 import { allowed } from './keys.ts';
+import type { Served } from './skills.ts';
 import type { Upstream } from './upstream.ts';
 import { box, cell, chips, hero, ROW, ROW_ANCHOR, ROW_END, type Content, empty, linkButton, list, menu, type MenuEntry, note, onOff, pageHead, postButton, row as item, segLinks, status, tabs, tag, title, toolbar, type Tone } from './ui-kit.ts';
 import { mascot, type Mood } from './ui-icons.ts';
@@ -12,7 +13,7 @@ export const FILTERS = ['all', 'online', 'failed', 'disabled'] as const;
 export type FilterState = (typeof FILTERS)[number];
 export type Filter = { state: FilterState; q: string };
 
-export type Row = { name: string; config: ServerConfig; upstream: Upstream; pkg?: PackageStatus; uiDisabled: boolean };
+export type Row = { name: string; config: ServerConfig; upstream: Upstream; pkg?: PackageStatus; uiDisabled: boolean; skills: Served[] };
 
 const STATE_TONE: Record<string, Tone> = {
   ready: 'success',
@@ -63,11 +64,13 @@ function toolCounts(row: Row): { visible: number; total: number } {
   return { visible: row.upstream.tools.filter((t) => allowed(t.name, row.config.tools)).length, total };
 }
 
-/** Context a client spends on this server's exposed tool definitions. */
+/** Context a client spends up front on this server: its exposed tool definitions and its skills' descriptions. */
 // ponytail: JSON length / 4, a real tokenizer if the estimate needs to be exact
 export function contextTokens(row: Row): number {
   const exposed = row.upstream.tools.filter((t) => allowed(t.name, row.config.tools));
-  return Math.round(exposed.reduce((n, t) => n + JSON.stringify({ ...t, name: `${row.name}-${t.name}` }).length, 0) / 4);
+  const tools = exposed.reduce((n, t) => n + JSON.stringify({ ...t, name: `${row.name}-${t.name}` }).length, 0);
+  const skills = row.skills.reduce((n, { skill }) => n + JSON.stringify({ uri: skill.uri, name: skill.frontmatter.name, description: skill.frontmatter.description }).length, 0);
+  return Math.round((tools + skills) / 4);
 }
 
 function tokensText(row: Row): string {
@@ -78,7 +81,8 @@ function tokensText(row: Row): string {
 function toolsText(row: Row): string {
   const { visible, total } = toolCounts(row);
   const count = !total ? 'no tools' : visible === total ? plural(total, 'tool') : `${visible} of ${plural(total, 'tool')}`;
-  return visible ? `${count} · ${tokensText(row)}` : count;
+  const skills = row.skills.length ? ` · ${plural(row.skills.length, 'skill')}` : '';
+  return visible || skills ? `${count}${skills} · ${tokensText(row)}` : count;
 }
 
 function version(row: Row): string | undefined {
@@ -201,20 +205,22 @@ export const serverLabel = (name: string, config?: ServerConfig): Content => con
 export function rowOf(hub: Hub, name: string): Row | undefined {
   const upstream = hub.upstreams.get(name);
   if (!upstream) return undefined;
-  return { name, upstream, config: hub.configs[name]!, pkg: hub.packageStatus()[name], uiDisabled: hub.isDisabled(name) };
+  return { name, upstream, config: hub.configs[name]!, pkg: hub.packageStatus()[name], uiDisabled: hub.isDisabled(name), skills: hub.skillsOf(name) };
 }
 
-export type ServerTab = 'overview' | 'settings' | 'logs';
+export type ServerTab = 'overview' | 'skills' | 'settings' | 'logs';
+const TAB_LABELS: Record<ServerTab, string> = { overview: 'Overview', skills: 'Skills', settings: 'Settings', logs: 'Logs' };
 
 /** The top of every page of one server: name, state, switch, actions and tabs. */
 export function serverHead(row: Row, editable: boolean, active: ServerTab, logCount?: number): Fragment {
   return html`${pageHead(html`${serverLabel(row.name, row.config)}<span class="text-sm font-normal">${stateLabel(row)}</span>`, {
-      crumbs: [{ label: 'Servers', href: '/servers' }, { label: row.config.title ?? row.name, href: active === 'overview' ? undefined : `/servers/${row.name}` }, ...(active === 'overview' ? [] : [{ label: active === 'logs' ? 'Logs' : 'Settings' }])],
+      crumbs: [{ label: 'Servers', href: '/servers' }, { label: row.config.title ?? row.name, href: active === 'overview' ? undefined : `/servers/${row.name}` }, ...(active === 'overview' ? [] : [{ label: TAB_LABELS[active] }])],
       sub: html`<span class="font-mono text-xs break-all">${row.config.title ? `${row.name} · ` : ''}${source(row.config)}</span>`,
       actions: controls(row, editable, { settings: false }),
     })}
     ${tabs([
       { href: `/servers/${row.name}`, label: 'Overview', active: active === 'overview' },
+      { href: `/servers/${row.name}/skills`, label: 'Skills', count: row.skills.length, active: active === 'skills' },
       { href: `/servers/${row.name}/logs`, label: 'Logs', count: logCount, active: active === 'logs' },
       { href: `/servers/${row.name}/edit`, label: 'Settings', active: active === 'settings' },
     ])}`;
@@ -254,7 +260,7 @@ export function serverOverview(row: Row, editable: boolean, logCount: number): F
           ${fact('Owned by', pkg ? (pkg.pinned ? 'the server file (pinned)' : 'the hub') : html`<span class="opacity-40">n/a</span>`)}
           ${fact('Latest', pkg?.latest?.version ? html`<span class="font-mono">${pkg.latest.version}</span>` : html`<span class="opacity-40">${pkg ? 'not checked yet' : 'n/a'}</span>`)}
           ${fact('Tools', total ? `${visible} of ${total} exposed` : 'none yet')}
-          ${fact('Context', visible ? html`<span title="Estimated size of the exposed tool definitions in a client's context">${tokensText(row)}</span>` : html`<span class="opacity-40">n/a</span>`)}
+          ${fact('Context', visible || row.skills.length ? html`<span title="Estimated size of the exposed tool definitions and skill descriptions in a client's context">${tokensText(row)}</span>` : html`<span class="opacity-40">n/a</span>`)}
         </dl>`,
         { pad: true },
       )}

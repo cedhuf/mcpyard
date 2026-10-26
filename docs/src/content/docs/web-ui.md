@@ -50,13 +50,13 @@ or remove it.
 <img src="assets/servers-light.png" alt="The servers page in cards layout" class="dark:sl-hidden">
 <img src="assets/servers-dark.png" alt="The servers page in cards layout" class="light:sl-hidden">
 
-Click a server to open its own page, with three tabs: **Overview** (state, versions, its error or
-available update, and every tool with its description), **Logs** (that server's lines only) and
-**Settings** (its form).
+Click a server to open its own page, with four tabs: **Overview** (state, versions, its error or
+available update, and every tool with its description), **Skills** (its [skills](skills.html), to
+add, edit and delete), **Logs** (that server's lines only) and **Settings** (its form).
 
 Next to its tool count, each server shows an estimate of the context its exposed tools cost a
-client: the size of their definitions (name, description, input schema) divided by four, a rough
-token count. Tools hidden by the server file are left out. Keys can hide more, so a given client may
+client: the size of their definitions (name, description, input schema) plus its skills' names and
+descriptions, divided by four, a rough token count. Tools hidden by the server file are left out. Keys can hide more, so a given client may
 spend less.
 
 <img src="assets/server-light.png" alt="A server's own page, on its Overview tab" class="dark:sl-hidden">

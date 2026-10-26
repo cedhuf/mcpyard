@@ -13,6 +13,7 @@ import { event, logs, note } from '../src/logs.ts';
 import type { Key } from '../src/keys.ts';
 import { Oidc, Signer } from '../src/oidc.ts';
 import { ui } from '../src/ui.ts';
+import { Skills } from '../src/skills.ts';
 import { contextTokens, type Row } from '../src/ui-servers.ts';
 import type { Upstream } from '../src/upstream.ts';
 
@@ -90,6 +91,32 @@ test('each server has its own page with tabs and breadcrumbs', async () => {
   assert.equal((await request('/servers/nope')).status, 404);
 });
 
+test('skills are added, edited and deleted from the server page', async () => {
+  const { dir, request, post } = setup({ kind: 'none' });
+  hub.skills = await Skills.load(join(dir, 'skills'));
+  try {
+    assert.match(await (await request('/servers/alpha/skills')).text(), /No skills yet[\s\S]*href="\/servers\/alpha\/new-skill"/);
+    assert.equal((await post('/servers/alpha/skills', { name: 'Bad Name', description: 'x', body: '' })).status, 400);
+    assert.equal((await post('/servers/alpha/skills', { name: 'triage', description: '', body: '' })).status, 400, 'a description is required');
+    const added = await post('/servers/alpha/skills', { name: 'triage', description: 'Sort mail: use for inbox zero.', body: 'Archive old newsletters.' });
+    assert.equal(added.headers.get('location'), '/servers/alpha/skills?saved=triage');
+    assert.equal(readFileSync(join(dir, 'skills/alpha/triage/SKILL.md'), 'utf8'), '---\nname: triage\ndescription: "Sort mail: use for inbox zero."\n---\n\nArchive old newsletters.\n');
+    assert.equal((await post('/servers/alpha/skills', { name: 'triage', description: 'again', body: '' })).status, 400, 'names are unique per server');
+    const list = await (await request('/servers/alpha/skills')).text();
+    assert.match(list, /href="\/servers\/alpha\/skills"[^>]*>Skills<span[^>]*>1</);
+    assert.match(list, /Sort mail: use for inbox zero\./);
+    assert.match(await (await request('/servers/alpha/skills/triage')).text(), /<textarea[^>]*name="body"[^>]*>Archive old newsletters\.<\/textarea>/);
+    await post('/servers/alpha/skills/triage', { description: 'Sort mail.', body: 'New text.' });
+    assert.match(readFileSync(join(dir, 'skills/alpha/triage/SKILL.md'), 'utf8'), /description: Sort mail\.\n---\n\nNew text\.\n$/);
+    assert.match(await (await request('/servers')).text(), /1 skill · ~\d+ tokens/);
+    assert.equal((await post('/servers/alpha/skills/triage/delete', {})).headers.get('location'), '/servers/alpha/skills?deleted=triage');
+    assert.equal(hub.skillsOf('alpha').length, 0);
+    assert.equal((await request('/servers/alpha/skills/triage')).status, 404);
+  } finally {
+    hub.skills = undefined;
+  }
+});
+
 test('the context estimate counts only the exposed tools', () => {
   const tool = (name: string) => ({ name, description: 'x'.repeat(400), inputSchema: { type: 'object' as const } });
   const row = (deny: string[]): Row => ({
@@ -97,6 +124,7 @@ test('the context estimate counts only the exposed tools', () => {
     config: parseConfig(`servers:\n  s: { command: x, tools: { deny: [${deny.join(',')}] } }`).s!,
     upstream: { tools: [tool('a'), tool('b')] } as unknown as Upstream,
     uiDisabled: false,
+    skills: [],
   });
   const both = contextTokens(row([]));
   assert.ok(both > 200 && both < 260, String(both));
