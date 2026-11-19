@@ -26,6 +26,31 @@ the file is read for every call.
 
 The **Last used** column shows when each key last authenticated, recorded at most once an hour.
 
+## Signing in with OAuth
+
+Clients that support MCP authorization can sign in instead of carrying a pasted token. Add the hub
+by URL alone:
+
+```bash
+claude mcp add --transport http mcpyard https://mcpyard.example.lan/mcp
+```
+
+On first use the client opens the browser. You sign in to the web UI, see the client's name and the
+host it answers to, pick the servers, tool filters and hub administration exactly as for a key, and
+allow it. The sign-in becomes a key in **Keys**, tagged **OAuth**, that you edit, disable or delete
+like any other: deleting it revokes the client.
+
+Its access token lasts an hour and the client renews it with a refresh token, valid 90 days from the
+last renewal and replaced at every use. A refresh token presented twice means it leaked: the key is
+disabled.
+
+It needs the web UI with OIDC and an `https` `MCPYARD_PUBLIC_URL` (or `http://localhost` for a local
+trial). With `MCPYARD_UI_AUTH=none` it is off, since anyone could approve a sign-in.
+
+Clients identify themselves with a Client ID Metadata Document, a URL the hub fetches, or with
+Dynamic Client Registration. Redirects must go to `https` or to a loopback address; for a loopback
+one the consent page warns that any program on that computer could be listening.
+
 ## Scopes
 
 ```json
@@ -64,6 +89,7 @@ Actions from the web UI are logged the same way, with the signed-in user in `by`
 | Event | When |
 | --- | --- |
 | `key_created`, `key_updated`, `key_enable`, `key_disable`, `key_delete` | A key changes. |
+| `oauth_approved`, `oauth_key_created`, `oauth_refresh_reused` | A client sign-in is allowed, turns into a key, or replays a refresh token. |
 | `server_added`, `server_updated`, `server_deleted` | A server form is saved, or a server removed. |
 | `server_enabled`, `server_disabled` | A server is switched on or off. |
 | `server_restarted`, `package_update` | A server is restarted or a package updated. |

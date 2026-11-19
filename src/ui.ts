@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { ConfigFile } from './config.ts';
 import type { Hub } from './front.ts';
+import type { AuthServer } from './oauth-server.ts';
 import type { Oidc, Signer, User } from './oidc.ts';
 import type { Settings } from './settings.ts';
 import { configRoutes, type EnvRow } from './ui-config.ts';
@@ -23,7 +24,7 @@ export type { EnvRow };
 
 export type UiAuth = { kind: 'none' } | { kind: 'oidc'; oidc: Oidc; signer: Signer };
 
-export type UiOptions = { keysPath: string; auth: UiAuth; publicUrl?: string; settings?: Settings; configFile?: ConfigFile; environment?: EnvRow[] };
+export type UiOptions = { keysPath: string; auth: UiAuth; authServer?: AuthServer; publicUrl?: string; settings?: Settings; configFile?: ConfigFile; environment?: EnvRow[] };
 
 /** The logo files and the mascot, public like the stylesheet: browsers fetch them before any sign-in. */
 const STATIC_FILES = [
@@ -60,7 +61,10 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
       if (!user) {
         // A form posted after the session expired goes back to login, then to the page it came from; scripts get a 401.
         if (c.req.method !== 'GET' && c.req.header('sec-fetch-mode') !== 'navigate') return c.text('Unauthorized', 401);
-        if (c.req.method === 'GET') return c.redirect(`/auth/login?return=${encodeURIComponent(c.req.path)}`);
+        if (c.req.method === 'GET') {
+          const url = new URL(c.req.url);
+          return c.redirect(`/auth/login?return=${encodeURIComponent(url.pathname + url.search)}`);
+        }
         return c.redirect(`/auth/login?return=${encodeURIComponent(refererPath(c.req.header('referer'), base(c)))}`, 303);
       }
       c.set('user', user);
@@ -216,7 +220,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
 
   configRoutes(app, hub, guard, { keysPath, settings: options.settings, configFile: options.configFile, environment: options.environment, base });
   skillRoutes(app, hub, guard, editable);
-  keyRoutes(app, hub, guard, { keysPath, base });
+  keyRoutes(app, hub, guard, { keysPath, base, authServer: options.authServer });
   logRoutes(app, guard);
   dashboardRoutes(app, hub, guard, { keysPath, signIn: auth.kind === 'oidc', publicUrl: options.publicUrl, settings: options.settings, configFile: options.configFile });
   app.get('*', guard, (c) => notFound(c));

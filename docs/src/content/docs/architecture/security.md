@@ -14,7 +14,9 @@ Threats, most likely first:
 2. **A leaked key**: revocable per client, bounded by its scope, visible through `lastUsed` and the
    audit events.
 3. **Network access to the hub**: meant to sit behind a TLS reverse proxy. The UI needs a session,
-   `/mcp` a key; only `/healthz` and static assets are anonymous.
+   `/mcp` a key; only `/healthz`, static assets and the OAuth discovery, registration and token
+   endpoints are anonymous. An OAuth sign-in still needs a UI session to approve it, so it is off
+   without OIDC.
 4. **A compromised upstream package**: versions are installed and recorded, so nothing changes
    silently; install scripts are off by default; each child sees only its own environment.
 

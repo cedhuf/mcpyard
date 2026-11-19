@@ -2,13 +2,14 @@ import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import type { Hub } from './front.ts';
 import { isAdmin, loadKeys, newKey, saveKeys, type Key } from './keys.ts';
-import { box, cell, checkbox, dialogButton, empty, hero, field, fields, linkButton, list, menu, onOff, pageHead, row, tag, title } from './ui-kit.ts';
+import type { AuthServer, OAuthClient } from './oauth-server.ts';
+import { box, cell, checkbox, dialogButton, empty, hero, field, fields, linkButton, list, menu, note, onOff, pageHead, row, tag, title } from './ui-kit.ts';
 import { plural } from './ui-servers.ts';
 import { mascot } from './ui-icons.ts';
 import { icon, log, notFound, page, toast, type Env, type Fragment } from './ui-layout.ts';
 
-export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: { keysPath: string; base: (c: Context) => string }): void {
-  const { keysPath } = options;
+export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: { keysPath: string; base: (c: Context) => string; authServer?: AuthServer }): void {
+  const { keysPath, authServer } = options;
 
   app.get('/keys', guard, (c) => c.html(page(c, 'Keys', keysView(hub, loadKeys(keysPath), (c.req.query('q') ?? '').trim()))));
 
@@ -29,7 +30,8 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
   app.get('/keys/:id/edit', guard, (c) => {
     const key = loadKeys(keysPath).find((k) => k.id === c.req.param('id'));
     if (!key) return notFound(c);
-    return c.html(page(c, 'Edit key', html`${pageHead(key.name, { crumbs: [{ label: 'Keys', href: '/keys' }, { label: key.name }], sub: html`<span class="font-mono">${key.prefix}…</span>, created ${key.created.slice(0, 10)}, last used ${ago(key.lastUsed)}` })}${box(keyForm(hub, key), { pad: true })}`));
+    const via = key.oauth ? html`, signed in by ${key.oauth.user} with ${key.oauth.clientName}` : '';
+    return c.html(page(c, 'Edit key', html`${pageHead(key.name, { crumbs: [{ label: 'Keys', href: '/keys' }, { label: key.name }], sub: html`<span class="font-mono">${key.prefix}…</span>, created ${key.created.slice(0, 10)}${via}, last used ${ago(key.lastUsed)}` })}${box(keyForm(hub, key), { pad: true })}`));
   });
 
   app.post('/keys/:id', guard, async (c) => {
@@ -59,6 +61,38 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
       return c.redirect('/keys', 303);
     });
   }
+
+  if (!authServer) return;
+
+  app.get('/oauth/authorize', guard, async (c) => {
+    const checked = await authServer.authorize(new URL(c.req.url).searchParams);
+    if ('fail' in checked) return c.html(page(c, 'Sign-in refused', html`${pageHead('Sign-in refused')}${box(note(checked.fail, 'error'), { pad: true })}`), 400);
+    if ('redirect' in checked) return c.redirect(checked.redirect);
+    const res = await c.html(page(c, 'Allow access', consent(hub, checked.client, checked.request.redirectUri, authServer.seal(checked.request))));
+    // The approval answers with a redirect to the client, which CSP form-action also governs.
+    const csp = res.headers.get('content-security-policy');
+    if (csp) res.headers.set('content-security-policy', csp.replace("form-action 'self'", `form-action 'self' ${new URL(checked.request.redirectUri).origin}`));
+    return res;
+  });
+
+  app.post('/oauth/authorize', guard, async (c) => {
+    const form = await c.req.parseBody({ all: true });
+    const request = authServer.open(String(form.request ?? ''));
+    if (!request) return c.html(page(c, 'Sign-in expired', html`${pageHead('Sign-in expired')}${box(note('This sign-in took too long. Start it again from the client.', 'error'), { pad: true })}`), 400);
+    if ([form.decision].flat().at(-1) !== 'allow') return c.redirect(authServer.deny(request), 303);
+    const name = String(form.name ?? '').trim();
+    if (!name || name.length > 64) return c.text('Bad request: name is required, 64 characters at most', 400);
+    log(c, 'oauth_approved', { key: name, client: request.clientName });
+    return c.redirect(authServer.approve(request, name, scopeFrom(form), c.get('user')?.name ?? 'web UI'), 303);
+  });
+}
+
+function consent(hub: Hub, client: OAuthClient, redirectUri: string, sealed: string): Fragment {
+  const target = new URL(redirectUri);
+  const local = target.protocol === 'http:';
+  return html`${pageHead(html`Allow ${client.name}?`, { sub: html`It asks for access to this hub. Once allowed, the browser goes back to <span class="font-mono">${target.host}</span>.` })}
+    ${local ? html`<div class="mb-4">${note(html`The answer goes to a program on this computer (<span class="font-mono">${target.host}</span>). Any local program can claim a name, so allow only a sign-in you just started.`, 'warning')}</div>` : ''}
+    ${box(keyForm(hub, undefined, { request: sealed, name: client.name }), { pad: true })}`;
 }
 
 function globs(value: unknown): string[] {
@@ -97,7 +131,7 @@ function keyRow(k: Key): Fragment {
   const reach = list.includes('*') ? 'all servers' : list.length ? list.join(', ') : isAdmin(k) ? 'administration only' : 'no server';
   return row(
     html`${title(k.name, html`<span class="font-mono">${k.prefix}…</span><span class="lg:hidden"> · ${[list.length ? 'tools' : '', isAdmin(k) ? 'admin' : ''].filter(Boolean).join(' + ')}</span>`, { href: `/keys/${k.id}/edit` })}
-      ${cell(html`<span class="flex gap-1">${list.length ? tag('tools') : ''}${isAdmin(k) ? tag('admin', { tone: 'warning', icon: 'wrench' }) : ''}</span>`, { hide: true })}
+      ${cell(html`<span class="flex gap-1">${list.length ? tag('tools') : ''}${isAdmin(k) ? tag('admin', { tone: 'warning', icon: 'wrench' }) : ''}${oauthTag(k)}</span>`, { hide: true })}
       ${cell(html`<span class="block max-w-48 truncate" title="${reach}">${reach}</span>`, { hide: true })}
       ${cell(html`<span class="block max-w-48 truncate font-mono text-xs" title="${filter}">${filter}</span>`, { hide: true })}
       ${cell(html`<span title="Created ${k.created.slice(0, 10)}">${ago(k.lastUsed)}</span>`, { hide: true })}`,
@@ -110,6 +144,13 @@ function keyRow(k: Key): Fragment {
         ])}`,
     },
   );
+}
+
+function oauthTag(k: Key): Fragment | string {
+  if (!k.oauth) return '';
+  const expired = Date.parse(k.oauth.refreshExpires) <= Date.now();
+  const about = `Signed in by ${k.oauth.user} with ${k.oauth.clientName}, answers to ${k.oauth.redirectHost}${expired ? ', expired: sign in again' : `, renewable until ${k.oauth.refreshExpires.slice(0, 10)}`}`;
+  return tag(expired ? 'OAuth expired' : 'OAuth', { tone: expired ? 'error' : undefined, title: about });
 }
 
 function keysView(hub: Hub, all: Key[], q = ''): Fragment {
@@ -137,16 +178,25 @@ function servers(key: Key): string[] {
   return key.scope.servers.filter((s) => s !== 'yard');
 }
 
-function keyForm(hub: Hub, key?: Key): Fragment {
+/** The key form, or with `consent` the rights of an OAuth sign-in, posted back to the authorization endpoint. */
+function keyForm(hub: Hub, key?: Key, consent?: { request: string; name: string }): Fragment {
   const scope = key?.scope ?? { servers: ['*'], tools: {} };
   const all = scope.servers.includes('*');
   const known = [...new Set([...hub.upstreams.keys(), ...(key ? servers(key) : []).filter((s) => s !== '*')])];
-  return html`<form method="post" action="${key ? `/keys/${key.id}` : '/keys'}" class="grid gap-5">
+  const hint = consent
+    ? 'The sign-in becomes a key under Keys, where its rights can change later.'
+    : key?.oauth
+      ? 'Signed in through OAuth: the client renews its token, delete the key to revoke it.'
+      : key
+        ? 'The token does not change; create a new key to rotate it.'
+        : 'One key per client, so you can turn each off on its own.';
+  const actions = consent
+    ? html`<button class="btn btn-sm btn-ghost" name="decision" value="deny" formnovalidate>Deny</button><button class="btn btn-sm btn-primary" name="decision" value="allow">Allow</button>`
+    : html`${linkButton('/keys', 'Cancel', { tone: 'ghost' })}<button class="btn btn-sm btn-primary">${key ? 'Save' : 'Create key'}</button>`;
+  return html`<form method="post" action="${consent ? '/oauth/authorize' : key ? `/keys/${key.id}` : '/keys'}" class="grid gap-5">
+    ${consent ? html`<input type="hidden" name="request" value="${consent.request}" />` : ''}
     ${fields(html`
-      ${field('Name', html`<input class="input input-sm" name="name" required maxlength="64" placeholder="laptop-claude-code" value="${key?.name ?? ''}" />`, {
-        wide: true,
-        hint: key ? 'The token does not change; create a new key to rotate it.' : 'One key per client, so you can turn each off on its own.',
-      })}
+      ${field('Name', html`<input class="input input-sm" name="name" required maxlength="64" placeholder="laptop-claude-code" value="${key?.name ?? consent?.name ?? ''}" />`, { wide: true, hint })}
       ${field(
         'Servers',
         html`<span class="flex flex-wrap gap-x-5 gap-y-1">${checkbox('servers', '*', 'All, including future ones', all)}
@@ -161,7 +211,7 @@ function keyForm(hub: Hub, key?: Key): Fragment {
       <span class="grid gap-1"><strong class="flex items-center gap-1.5">${icon('wrench', 'xs')}Hub administration</strong>
         <small class="text-base-content/70">Adds the <span class="font-mono">yard-*</span> tools: inspect, restart, switch, update and roll back servers, reload the server file. Only for a client that needs it: an assistant that also reads mail or web pages could be talked into using them.</small></span>
     </label>
-    <div class="flex justify-end gap-2">${linkButton('/keys', 'Cancel', { tone: 'ghost' })}<button class="btn btn-sm btn-primary">${key ? 'Save' : 'Create key'}</button></div>
+    <div class="flex justify-end gap-2">${actions}</div>
   </form>`;
 }
 

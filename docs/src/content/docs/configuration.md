@@ -129,7 +129,7 @@ servers:
 | `MCPYARD_AUTO_UPDATE_TIME` | `02:00` | When, as `HH:MM` in hub time: set `TZ` in the container. |
 | `MCPYARD_HEALTH_CHECK` | `true` | `false` stops the automatic health check. |
 | `MCPYARD_HEALTH_CHECK_MINUTES` | `5` | How often every running server is pinged over MCP. |
-| `MCPYARD_PUBLIC_URL` | | Base URL browsers use. Required with OIDC. |
+| `MCPYARD_PUBLIC_URL` | | Base URL browsers use. Required with OIDC; `https` (or `http://localhost`) also enables [OAuth sign-in](keys.html#signing-in-with-oauth) for clients. |
 | `OIDC_ISSUER` | | Issuer URL of your identity provider. |
 | `OIDC_CLIENT_ID` | | Client id registered for MCP Yard. |
 | `OIDC_CLIENT_SECRET` | | Client secret; omit for a public client. |

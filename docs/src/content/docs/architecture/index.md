@@ -42,20 +42,21 @@ All code is in `src/`, run directly by Node from its TypeScript sources: there i
 | `upstream.ts` | One upstream server: transport, lifecycle, reconnection, side-by-side update. |
 | `packages.ts` | Installing npm and PyPI packages per version, registry checks, recorded versions. |
 | `skills.ts` | Skills: the hub's catalog in the skills folder, the relayed upstream skills, the Skills extension per key. |
-| `keys.ts` | Keys: token format, hashing, lookup, scopes and tool filters. |
+| `keys.ts` | Keys: token format, hashing, lookup, scopes and tool filters, OAuth token issue and rotation. |
 | `yard.ts` | The `yard-*` admin tools. |
 | `settings.ts` | Runtime settings: environment, then `settings.json`, then defaults. |
 | `logs.ts` | The log book behind the Logs page, and structured events on stdout. |
 | `insights.ts` | Figures shared by the dashboard and `yard-overview`. |
 | `release.ts` | The running version and the check for a newer MCP Yard release. |
 | `oidc.ts` | OIDC authorization code flow with PKCE, and signed cookies. |
+| `oauth-server.ts` | The hub as OAuth authorization server for clients: discovery, client metadata documents, registration, tokens. |
 | `ui*.ts` | The web UI: routes (`ui.ts`), layout and stylesheet (`ui-layout.ts`), components (`ui-kit.ts`), one file per page. |
 
 ## Where to read next
 
 - [Configuration](/mcpyard/architecture/configuration.html): the environment, the server file and live reloads.
 - [Upstreams and packages](/mcpyard/architecture/upstreams.html): how servers are started, isolated, installed and updated.
-- [Requests and keys](/mcpyard/architecture/requests.html): the `/mcp` endpoint, scopes and the admin tools.
+- [Requests and keys](/mcpyard/architecture/requests.html): the `/mcp` endpoint, scopes, OAuth sign-in and the admin tools.
 - [Web UI](/mcpyard/architecture/web-ui.html): rendering, themes and sign-in.
 - [State and logs](/mcpyard/architecture/state.html): what the hub keeps, and where.
 - [Security model](/mcpyard/architecture/security.html): the threats and what limits each one.

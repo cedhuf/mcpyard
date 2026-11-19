@@ -1,6 +1,7 @@
 import { McpServer, createMcpHandler, type CallToolResult, type Tool } from '@modelcontextprotocol/server';
 import { Hono } from 'hono';
 import type { ConfigFile, ServerConfig } from './config.ts';
+import type { AuthServer } from './oauth-server.ts';
 import { allowed, findKey, keySees, loadKeys, saveKeys, type Key } from './keys.ts';
 import { event, note } from './logs.ts';
 import { YARD, YARD_TOOLS } from './yard.ts';
@@ -379,17 +380,19 @@ function touch(keysPath: string, key: Key): void {
   saveKeys(keysPath, keys);
 }
 
-export function app(hub: Hub, keysPath: string, webUi?: Hono<any>): Hono {
+export function app(hub: Hub, keysPath: string, webUi?: Hono<any>, authServer?: AuthServer): Hono {
   hub.keysPath = keysPath;
   const app = new Hono();
   app.get('/healthz', (c) => c.text('ok'));
   app.all('/mcp', async (c) => {
     const token = c.req.header('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
     const key = findKey(loadKeys(keysPath), token);
-    if (!key) return c.text('Unauthorized', 401, { 'WWW-Authenticate': 'Bearer' });
+    const challenge = authServer ? `Bearer resource_metadata="${authServer.resourceMetadataUrl}"` : 'Bearer';
+    if (!key) return c.text('Unauthorized', 401, { 'WWW-Authenticate': challenge });
     touch(keysPath, key);
     return hub.handler.fetch(c.req.raw, { authInfo: { token: token!, clientId: key.id, scopes: [], extra: { key } } });
   });
+  authServer?.routes(app);
   if (webUi) app.route('/', webUi);
   return app;
 }

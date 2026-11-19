@@ -4,6 +4,7 @@ import { ConfigFile } from './config.ts';
 import { app, Hub } from './front.ts';
 import { newKey } from './keys.ts';
 import { OAuthStore } from './oauth.ts';
+import { AuthServer, oauthAllowed } from './oauth-server.ts';
 import { Oidc, Signer } from './oidc.ts';
 import { Packages } from './packages.ts';
 import { release } from './release.ts';
@@ -91,8 +92,10 @@ const environment: EnvRow[] = [
 
 const keysPath = join(dataDir, 'keys.json');
 const auth = uiAuth();
-const webUi = auth && ui(hub, { keysPath, auth, publicUrl: env.MCPYARD_PUBLIC_URL, settings, configFile, environment });
-const server = serve({ fetch: app(hub, keysPath, webUi).fetch, port }, () => note(`mcpyard listening on :${port}`));
+const authServer = auth?.kind === 'oidc' && oauthAllowed(env.MCPYARD_PUBLIC_URL) ? new AuthServer(env.MCPYARD_PUBLIC_URL!, auth.signer, keysPath) : undefined;
+if (auth?.kind === 'oidc' && !authServer) note('OAuth sign-in for clients is off: MCPYARD_PUBLIC_URL must be https, or http on localhost');
+const webUi = auth && ui(hub, { keysPath, auth, authServer, publicUrl: env.MCPYARD_PUBLIC_URL, settings, configFile, environment });
+const server = serve({ fetch: app(hub, keysPath, webUi, authServer).fetch, port }, () => note(`mcpyard listening on :${port}`));
 
 process.on('SIGHUP', () => {
   hub.reload().then(

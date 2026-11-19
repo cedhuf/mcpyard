@@ -54,7 +54,9 @@ claude mcp add --transport http mcpyard http://localhost:3000/mcp \
   --header "Authorization: Bearer yard_..."
 ```
 
-Any client that speaks streamable HTTP works the same way: one URL, one bearer token. Tools appear as
+Any client that speaks streamable HTTP works the same way: one URL, one bearer token. Behind
+OIDC and HTTPS, clients with MCP authorization can [sign in](keys.html#signing-in-with-oauth)
+instead, with no token to paste. Tools appear as
 `<server>-<tool>`, for example `time-get_current_time`.
 
 ## Next

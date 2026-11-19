@@ -48,6 +48,28 @@ The server file's own `tools` filter applies to every key first; a key can only 
 `lastUsed` is written at most once an hour per key, so a busy client does not rewrite the file on
 every call.
 
+## OAuth sign-in
+
+`src/oauth-server.ts` makes the hub the authorization server for its own `/mcp` (MCP authorization,
+revision 2026-07-28). The 401 on `/mcp` names the protected resource metadata, which names the hub
+as issuer. Its endpoints: `/oauth/authorize` behind the UI session, `/oauth/token` and
+`/oauth/register` open, with CORS for browser clients.
+
+- **Clients.** A URL `client_id` is a Client ID Metadata Document: fetched over https only, never
+  from a host resolving to a private address, without redirects, at most 10 KB and 5 seconds,
+  cached per `Cache-Control` up to a day. Its `client_id` must equal the URL. Dynamic Client
+  Registration answers with the client's metadata signed by the session key as its `client_id`:
+  nothing is stored, so the open endpoint cannot fill the disk.
+- **Authorization.** PKCE S256 is required, `resource` must be the hub's `/mcp` when sent, and the
+  redirect URI must match a registered one exactly, the port aside for loopback. Errors before the
+  redirect URI is verified are shown, never redirected. The request rides through the consent form
+  signed, and the consent page widens CSP `form-action` to the client's origin so the approval can
+  redirect there. Codes live 60 seconds in memory and are single use.
+- **Tokens.** The approval creates a key with an `oauth` record: client, approving user, access
+  expiry, refresh hash and expiry. The access token is an ordinary `yard_<id>_<secret>`, valid an
+  hour; `findKey` refuses it once expired. Each refresh replaces both hashes; a refresh token that
+  is not the current one disables the key.
+
 ## Admin tools
 
 The `yard-*` tools let an agent supervise the hub: read state, versions, logs and the dashboard
