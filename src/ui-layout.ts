@@ -209,7 +209,7 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
               ${brand}
             </div>
             <div class="navbar-center hidden lg:flex"><ul class="menu menu-horizontal gap-1 p-0">${links}</ul></div>
-            <div class="navbar-end flex-1 gap-2">
+            <div class="navbar-end flex-1 gap-2 sm:gap-4">
               <button type="button" class="btn btn-sm btn-ghost max-sm:btn-square sm:w-60 sm:justify-start sm:border-base-300 sm:bg-base-100 sm:font-normal sm:text-base-content/60" data-palette-open aria-label="Search" title="Search (/ or Ctrl+K)">${icon('search', 'sm')}<span class="max-sm:hidden">Search…</span><kbd class="kbd kbd-xs ml-auto max-sm:hidden">/</kbd></button>
               ${accountMenu(c)}
             </div>
@@ -331,7 +331,10 @@ const swap = (text) => {
   let swapped = false;
   document.querySelectorAll('[data-refresh]').forEach((zone) => {
     const next = fresh.getElementById(zone.id);
-    if (next) { zone.replaceWith(next); swapped = true; }
+    if (!next) return;
+    zone.querySelectorAll('details[id][open]').forEach((d) => next.querySelector('#' + CSS.escape(d.id))?.setAttribute('open', ''));
+    zone.replaceWith(next);
+    swapped = true;
   });
   return swapped;
 };
@@ -349,6 +352,14 @@ document.addEventListener('input', (e) => {
     if (!res || !res.ok || !document.querySelector('[data-refresh]')) return;
     if (swap(await res.text())) history.replaceState(null, '', url);
   }, 200);
+});
+document.addEventListener('submit', async (e) => {
+  const form = e.target.closest('form[data-stay]');
+  if (!form || e.defaultPrevented) return;
+  e.preventDefault();
+  const res = await fetch(form.action, { method: 'POST', body: new URLSearchParams(new FormData(form)) }).catch(() => null);
+  if (!res || !res.ok || new URL(res.url).pathname !== location.pathname) return (location.href = res?.url || location.href);
+  swap(await res.text());
 });
 const palette = document.getElementById('palette');
 if (palette) {

@@ -8,7 +8,7 @@ import { logs, type LogEntry } from './logs.ts';
 import { release } from './release.ts';
 import type { Settings } from './settings.ts';
 import { icon, mascot, type Mood } from './ui-icons.ts';
-import { type Content, box, linkButton, pageHead, postButton, stats, status, tag } from './ui-kit.ts';
+import { type Content, box, cardEmpty, linkButton, pageHead, postButton, stats, status, tag } from './ui-kit.ts';
 import { log, page, toast, type Env, type Fragment } from './ui-layout.ts';
 import { plural, readableError, serverLabel } from './ui-servers.ts';
 
@@ -213,7 +213,7 @@ function healthCard(hub: Hub, names: string[], off: (name: string) => boolean): 
   return box(
     names.length
       ? html`<ul class="list">${rows}</ul>`
-      : html`<p class="p-5 text-base-content/60">No servers to check yet. <a class="link link-primary" href="/servers/new">Add one</a>.</p>`,
+      : cardEmpty('server', 'No servers to check yet', html`<a class="link link-primary" href="/servers/new">Add a first one</a>.`),
     {
       title: html`<span class="text-primary">${icon('pulse')}</span>Health check`,
       aside: html`<div class="flex items-center gap-3"><span class="text-xs text-base-content/50">${report ? `Last run ${ago(report.at)}` : 'Not run yet'} · ${hub.healthEveryMinutes ? `every ${hub.healthEveryMinutes} min` : html`<a class="link link-hover" href="/settings">automatic check off</a>`}</span>${postButton('/dashboard/health', 'Run now', { icon: 'refresh' })}</div>`,
@@ -265,16 +265,16 @@ function securityCard(checks: SecurityCheck[]): Fragment {
     ${end}
   </li>`;
   const review = (k: SecurityCheck, undo: boolean) =>
-    postButton(`/dashboard/review/${k.id}`, undo ? 'Undo' : 'Mark reviewed', { small: true, tone: 'ghost', fields: { fingerprint: undo ? '' : k.fingerprint! }, title: undo ? 'Show it again' : 'Hide it until what it covers changes' });
+    postButton(`/dashboard/review/${k.id}`, undo ? 'Undo' : 'Mark reviewed', { small: true, tone: 'ghost', stay: true, fields: { fingerprint: undo ? '' : k.fingerprint! }, title: undo ? 'Show it again' : 'Hide it until what it covers changes' });
   const attention = open.map((k) => line(k, k.kind === 'choice' ? review(k, false) : html`<span class="text-xs font-semibold text-error">${k.label}</span>`));
   const passes = settled.map((k) => line(k, k.reviewed ? html`<span class="flex items-center gap-1 text-xs text-base-content/60">Reviewed${review(k, true)}</span>` : html`<span class="text-xs font-semibold text-base-content/60">${k.label}</span>`));
   return box(
-    html`${attention.length ? html`<ul class="list">${attention}</ul>` : html`<p class="px-5 pt-4 text-sm text-base-content/70">Nothing needs your attention.</p>`}
-    <details class="collapse collapse-arrow m-2 w-auto">
+    html`${attention.length ? html`<ul class="list">${attention}</ul>` : cardEmpty('shield', 'Nothing needs your attention', 'Every risk is fixed and every choice reviewed.', 'bg-success/15 text-success')}
+    <details id="security-passes" class="collapse collapse-arrow m-2 w-auto">
       <summary class="collapse-title text-sm font-medium">${plural(settled.length, 'check')} ${settled.length === 1 ? 'passes' : 'pass'}${reviewed ? `, ${reviewed} of them reviewed` : ''}</summary>
       <div class="collapse-content px-0"><ul class="list">${passes}</ul></div>
     </details>`,
-    { title: html`<span class="text-secondary">${icon('shield')}</span>Security check`, aside: open.length ? tag(`${open.length} to review`, { tone: open.some((k) => k.kind === 'risk') ? 'error' : 'warning' }) : tag('all clear', { tone: 'success' }) },
+    { title: html`<span class="text-secondary">${icon('shield')}</span>Security check`, aside: html`<span class="btn btn-sm btn-ghost pointer-events-none ${!open.length ? 'text-success' : open.some((k) => k.kind === 'risk') ? 'text-error' : 'text-warning'}">${icon(open.length ? 'alert' : 'check', 'sm')}${open.length ? `${open.length} to review` : 'All clear'}</span>` },
   );
 }
 
@@ -303,7 +303,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 function activityCard(recent: LogEntry[]): Fragment {
-  const items = recent.filter((e) => e.kind === 'action' || e.error).slice(0, 6);
+  const items = recent.filter((e) => e.kind === 'action' || e.error).slice(0, 5);
   const time = (iso: string) => new Intl.DateTimeFormat('en-GB', { timeZone: ZONE, hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
   return box(
     items.length
@@ -317,12 +317,13 @@ function activityCard(recent: LogEntry[]): Fragment {
             <time class="font-mono text-xs text-base-content/50">${time(e.time)}</time>
           </li>`;
         })}</ul>`
-      : html`<p class="p-5 text-base-content/60">Nothing happened in the last 24 hours.</p>`,
+      : cardEmpty('logs', 'All quiet', 'Actions and errors of the last 24 hours show up here.'),
     { title: html`<span class="text-accent">${icon('logs')}</span>Recent activity`, aside: linkButton('/logs', 'All logs', { tone: 'ghost' }) },
   );
 }
 
-function toolsCard(top: { tool: string; count: number }[]): Fragment {
+function toolsCard(all: { tool: string; count: number }[]): Fragment {
+  const top = all.slice(0, 5);
   const max = top[0]?.count ?? 1;
   return box(
     top.length
@@ -332,7 +333,7 @@ function toolsCard(top: { tool: string; count: number }[]): Fragment {
             <progress class="progress progress-primary w-full" value="${n}" max="${max}"></progress>
           </li>`,
         )}</ul>`
-      : html`<p class="p-5 text-base-content/60">No MCP calls in the last 24 hours.</p>`,
+      : cardEmpty('wrench', 'No calls yet', 'The tools your clients call in the last 24 hours show up here.'),
     { title: html`<span class="text-info">${icon('wrench')}</span>Most used tools`, aside: linkButton('/logs?kind=calls', 'All calls', { tone: 'ghost' }) },
   );
 }

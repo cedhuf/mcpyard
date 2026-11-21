@@ -89,9 +89,10 @@ test('a reviewed security choice stays quiet until what it covers changes, and r
   const { request, post } = setup({ kind: 'none' });
   t.after(() => hub.review('admin'));
   await post('/keys', { name: 'ops', servers: '*', admin: 'true' });
-  const attention = (page: string) => page.slice(page.indexOf('Security check'), page.indexOf('<details class="collapse'));
+  const attention = (page: string) => page.slice(page.indexOf('Security check'), page.indexOf('<details id="security-passes"'));
   const first = await (await request('/')).text();
   assert.match(attention(first), /Hub administration[\s\S]*Mark reviewed/);
+  assert.match(first, /action="\/dashboard\/review\/admin" class="inline-flex"  data-stay>/, 'reviewing stays in place');
   assert.match(attention(first), /Web UI sign-in/, 'a risk shows');
   const fingerprint = first.match(/action="\/dashboard\/review\/admin"[\s\S]*?name="fingerprint" value="([^"]+)"/)![1]!;
   assert.equal((await post('/dashboard/review/admin', { fingerprint })).status, 303);

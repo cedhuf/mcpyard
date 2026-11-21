@@ -233,8 +233,9 @@ export function dialogButton(dialog: string, label: Content, options: ButtonOpti
 }
 
 /** A button that POSTs, with hidden fields and an optional confirmation. */
-export function postButton(action: string, label: Content, options: ButtonOptions & { confirm?: string; fields?: Record<string, string> } = {}): Fragment {
-  return html`<form method="post" action="${action}" class="inline-flex" ${options.confirm ? html`data-confirm="${options.confirm}"` : ''}>${hidden(options.fields)}<button class="${buttonClass(options)}" ${options.title ? html`title="${options.title}"` : ''}>${options.icon ? icon(options.icon, options.small ? 'xs' : 'sm') : ''}${label}</button></form>`;
+/** A one-button form; `stay` posts it in the background and refreshes the page's zones, keeping the scroll position. */
+export function postButton(action: string, label: Content, options: ButtonOptions & { confirm?: string; fields?: Record<string, string>; stay?: boolean } = {}): Fragment {
+  return html`<form method="post" action="${action}" class="inline-flex" ${options.confirm ? html`data-confirm="${options.confirm}"` : ''} ${options.stay ? 'data-stay' : ''}>${hidden(options.fields)}<button class="${buttonClass(options)}" ${options.title ? html`title="${options.title}"` : ''}>${options.icon ? icon(options.icon, options.small ? 'xs' : 'sm') : ''}${label}</button></form>`;
 }
 
 function hidden(fields: Record<string, string> = {}): Fragment[] {
@@ -243,6 +244,15 @@ function hidden(fields: Record<string, string> = {}): Fragment[] {
 
 export function empty(content: Content): Fragment {
   return html`<div class="card card-border border-base-300 bg-base-100"><div class="card-body items-center py-10 text-base-content/60">${content}</div></div>`;
+}
+
+/** The empty state inside a card: an icon in a soft circle, a line and a quieter hint. */
+export function cardEmpty(glyph: string, heading: string, hint: Content, tint = 'bg-base-200 text-base-content/50'): Fragment {
+  return html`<div class="flex flex-col items-center gap-2 px-5 py-8 text-center">
+    <span class="grid size-12 place-items-center rounded-full ${tint}">${icon(glyph)}</span>
+    <p class="font-medium">${heading}</p>
+    <p class="max-w-xs text-xs text-base-content/60">${hint}</p>
+  </div>`;
 }
 
 /** An empty or lost page: the mascot, a title, a line and what to do next. */
