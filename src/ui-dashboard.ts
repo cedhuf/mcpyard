@@ -10,7 +10,7 @@ import type { Settings } from './settings.ts';
 import { icon, mascot, type Mood } from './ui-icons.ts';
 import { type Content, box, cardEmpty, linkButton, pageHead, postButton, stats, status, tag } from './ui-kit.ts';
 import { log, page, toast, type Env, type Fragment } from './ui-layout.ts';
-import { plural, readableError, serverLabel } from './ui-servers.ts';
+import { plural, rowOf, serverLabel, stateWithError } from './ui-servers.ts';
 
 export type DashboardOptions = { keysPath: string; signIn: boolean; publicUrl?: string; settings?: Settings; configFile?: ConfigFile };
 
@@ -181,7 +181,7 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
       )}
 
       <div class="grid gap-4 lg:grid-cols-3">
-        <div class="lg:col-span-2">${healthCard(hub, names, off)}</div>
+        <div class="lg:col-span-2">${healthCard(hub, names)}</div>
         ${updatesCard(hub, updates, packages, upToDate, ov.updates.hubOwned)}
       </div>
 
@@ -194,19 +194,13 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
   </div>`;
 }
 
-function healthCard(hub: Hub, names: string[], off: (name: string) => boolean): Fragment {
+function healthCard(hub: Hub, names: string[]): Fragment {
   const report = hub.lastHealth;
-  const result = (name: string) => report?.results.find((r) => r.server === name);
   const rows = names.map((name) => {
-    const upstream = hub.upstreams.get(name)!;
-    const r = result(name);
-    const state = off(name) ? status('neutral', 'Switched off') : r ? (r.ok ? status('success', 'Answering') : status('error', 'No answer')) : status(upstream.state === 'ready' ? 'success' : upstream.state === 'failed' ? 'error' : 'info', upstream.state[0]!.toUpperCase() + upstream.state.slice(1));
+    const r = report?.results.find((p) => p.server === name);
     return html`<li class="list-row items-center">
-      <div class="min-w-0 list-col-grow">
-        <a class="font-semibold link link-hover" href="/servers/${name}">${serverLabel(name, hub.configs[name])}</a>
-        ${r && !r.ok ? html`<p class="text-xs text-error/80 line-clamp-2" title="${r.error}">${readableError(r.error ?? '')}</p>` : ''}
-      </div>
-      <span class="text-sm">${state}</span>
+      <a class="list-col-grow min-w-0 truncate font-semibold link link-hover" href="/servers/${name}">${serverLabel(name, hub.configs[name])}</a>
+      <span class="text-sm">${stateWithError(rowOf(hub, name)!, r)}</span>
       <span class="w-16 text-right font-mono text-xs text-base-content/60 tabular-nums">${r?.ms !== undefined ? `${r.ms} ms` : ''}</span>
     </li>`;
   });

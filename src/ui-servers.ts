@@ -54,11 +54,16 @@ function stateLabel(row: Row): Fragment {
   return status(STATE_TONE[state] ?? 'neutral', state[0]!.toUpperCase() + state.slice(1), { busy: BUSY.includes(state) });
 }
 
-/** The state, with the last error in a tooltip; above the row's link so hovering reaches it. */
-function stateWithError(row: Row): Fragment {
-  const error = stateOf(row) === 'disabled' ? undefined : row.upstream.lastError;
-  if (!error) return stateLabel(row);
-  return html`<span class="${ROW_END} tooltip tooltip-bottom before:font-mono before:text-xs before:break-words" data-tip="${readableError(error)}">${stateLabel(row)}</span>`;
+/**
+ * The state, with the last error in a tooltip; above the row's link so hovering reaches it. Given the last health
+ * check, a ready server that did not answer it reads "No answer": the one place the dashboard and this page differ.
+ */
+export function stateWithError(row: Row, ping?: { ok: boolean; error?: string }): Fragment {
+  const silent = stateOf(row) === 'ready' && ping && !ping.ok;
+  const error = stateOf(row) === 'disabled' ? undefined : silent ? ping.error : row.upstream.lastError;
+  const label = silent ? status('warning', 'No answer') : stateLabel(row);
+  if (!error) return label;
+  return html`<span class="${ROW_END} tooltip tooltip-bottom before:font-mono before:text-xs before:break-words" data-tip="${readableError(error)}">${label}</span>`;
 }
 
 /** The server's own words out of a transport error such as `Error POSTing to endpoint: {"jsonrpc":…,"message":"…"}`. */

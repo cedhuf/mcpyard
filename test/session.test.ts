@@ -6,7 +6,7 @@ import { parseConfig } from '../src/config.ts';
 import { Upstream } from '../src/upstream.ts';
 
 /** A bare Streamable HTTP server whose sessions all vanish when `restart` is called, like a remote server redeployed. */
-async function forgetfulServer() {
+async function forgetfulServer(options: { noPing?: boolean } = {}) {
   let generation = 1;
   let initializations = 0;
   const server = createServer(async (req, res) => {
@@ -26,6 +26,9 @@ async function forgetfulServer() {
     }
     if (message.id === undefined) return res.writeHead(202).end();
     if (message.method === 'tools/list') return reply({ tools: [] });
+    if (message.method === 'ping' && options.noPing) {
+      return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'Method not found: ping' } }));
+    }
     return reply({});
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -51,4 +54,14 @@ test('an upstream that lost our session reconnects instead of failing every call
   await upstream.ping();
   assert.equal(upstream.state, 'ready');
   assert.equal(remote.initializations(), 2, 'a new session was opened');
+});
+
+test('a server that does not implement ping still counts as answering', async (t) => {
+  const remote = await forgetfulServer({ noPing: true });
+  t.after(remote.close);
+  const upstream = new Upstream('remote', parseConfig(`servers:\n  remote: { url: "${remote.url}" }`).remote!, () => {});
+  t.after(() => upstream.stop());
+  upstream.start();
+  for (let i = 0; i < 50 && upstream.state !== 'ready'; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(typeof (await upstream.ping()), 'number');
 });

@@ -1,4 +1,4 @@
-import { Client, SdkHttpError, SSEClientTransport, StreamableHTTPClientTransport, UnauthorizedError, type Tool } from '@modelcontextprotocol/client';
+import { Client, ProtocolError, SdkHttpError, SSEClientTransport, StreamableHTTPClientTransport, UnauthorizedError, type Tool } from '@modelcontextprotocol/client';
 import { SkillsClient, type Skill } from '@modelcontextprotocol/client/ext/skills';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio';
 import type { ServerConfig } from './config.ts';
@@ -76,7 +76,9 @@ export class Upstream {
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error(`no answer within ${timeoutMs / 1000}s`)), timeoutMs)));
     try {
-      await Promise.race([this.withSession((client) => client.ping()), timeout]);
+      // An MCP error in reply, "Method not found" from a server without ping included, still proves the server answers.
+      const ping = (client: Client) => client.ping().then(() => {}, (e: unknown) => { if (!(e instanceof ProtocolError)) throw e; });
+      await Promise.race([this.withSession(ping), timeout]);
     } finally {
       clearTimeout(timer);
     }
