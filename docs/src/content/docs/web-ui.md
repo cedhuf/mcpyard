@@ -25,8 +25,9 @@ their failures and median duration, and active keys. The hub's own clock sits ne
   answering also gets a line in the logs.
 - **Updates**: how many hub-owned packages run their latest version, the ones that do not, **Check
   now** to ask the registries at once, and **Update all** to update every one of them, each keeping
-  the old version serving until the new one answers. Nightly updates, when turned on, show up in
-  the activity.
+  the old version serving until the new one answers. With nothing waiting, it lists the last three
+  updates (or a failed one first), whether nightly updates run and at what time, and how many
+  packages are pinned. Nightly updates, when turned on, also show up in the activity.
 - **Security check**: only what needs attention, the passing checks folded underneath. **Risks**
   (sign-in off, no HTTPS address, an older MCP Yard) stay until fixed. **Choices** (keys that can
   administer the hub, keys idle for 30 days, keys without limits, packages allowed to run install

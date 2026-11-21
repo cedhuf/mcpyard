@@ -138,7 +138,6 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
 
   const packages = hub.packageStatus();
   const names = [...hub.upstreams.keys()];
-  const off = (name: string) => !hub.configs[name]!.enabled || hub.isDisabled(name);
   const keys = loadKeys(options.keysPath);
   const ov = overview(hub, keys);
   const care = ov.servers.needCare;
@@ -182,7 +181,7 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
 
       <div class="grid gap-4 lg:grid-cols-3">
         <div class="lg:col-span-2">${healthCard(hub, names)}</div>
-        ${updatesCard(hub, updates, packages, upToDate, ov.updates.hubOwned)}
+        ${updatesCard(hub, updates, packages, upToDate, ov.updates.hubOwned, options.settings)}
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
@@ -215,13 +214,19 @@ function healthCard(hub: Hub, names: string[]): Fragment {
   );
 }
 
-function updatesCard(hub: Hub, updates: [string, ReturnType<Hub['packageStatus']>[string]][], packages: ReturnType<Hub['packageStatus']>, upToDate: number, owned: number): Fragment {
+function updatesCard(hub: Hub, updates: [string, ReturnType<Hub['packageStatus']>[string]][], packages: ReturnType<Hub['packageStatus']>, upToDate: number, owned: number, settings?: Settings): Fragment {
+  const recent = Object.entries(packages)
+    .filter(([, p]) => p.updateError || (p.updatedAt && p.previous))
+    .sort(([, a], [, b]) => Number(!!b.updateError) - Number(!!a.updateError) || (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))
+    .slice(0, 3);
+  const pinned = Object.values(packages).filter((p) => p.pinned).length;
+  const nightly = settings?.value('autoUpdate') ? `Nightly at ${settings.value('autoUpdateTime')}` : '';
   const checked = Object.values(packages)
     .map((p) => p.latest?.checkedAt)
     .filter((t): t is string => !!t)
     .sort()
     .at(-1);
-  return html`<section class="card bg-neutral text-neutral-content">
+  return html`<section class="card h-full bg-neutral text-neutral-content">
     <div class="card-body gap-4">
       <div class="flex items-start justify-between gap-3">
         <div><h2 class="card-title font-display text-lg font-medium">Updates</h2><p class="text-xs opacity-70">${checked ? `Registries checked ${ago(checked)}` : 'Registries not checked yet'}</p></div>
@@ -239,7 +244,16 @@ function updatesCard(hub: Hub, updates: [string, ReturnType<Hub['packageStatus']
       </div>
       ${updates.length
         ? html`<ul class="grid gap-1.5 rounded-box bg-base-content/10 p-3 text-sm">${updates.map(([name, p]) => html`<li class="flex items-center justify-between gap-3"><a class="link link-hover" href="/servers/${name}">${serverLabel(name, hub.configs[name])}</a><span class="font-mono text-xs opacity-80">${p.installed} → <span class="text-secondary">${p.latest!.version}</span></span></li>`)}</ul>`
-        : html`<p class="text-sm opacity-70">${owned ? 'Every hub-owned package runs its latest version.' : 'No hub-owned packages: pinned versions stay as written.'}</p>`}
+        : html`<div class="grid gap-1.5">
+            <p class="text-xs font-semibold uppercase tracking-wider opacity-60">Last updates</p>
+            ${recent.length
+              ? html`<ul class="grid gap-1.5 text-sm">${recent.map(([name, p]) => html`<li class="flex items-center justify-between gap-3"><a class="link link-hover truncate" href="/servers/${name}">${serverLabel(name, hub.configs[name])}</a>${p.updateError ? html`<span class="text-xs text-error" title="${p.updateError}">update failed</span>` : html`<span class="whitespace-nowrap font-mono text-xs opacity-80">${p.previous} → ${p.installed} · ${ago(p.updatedAt!)}</span>`}</li>`)}</ul>`
+              : html`<p class="text-sm opacity-70">${owned ? 'None yet. Every hub-owned package runs its latest version.' : 'No hub-owned packages: pinned versions stay as written.'}</p>`}
+          </div>`}
+      <p class="flex flex-wrap gap-x-3 gap-y-1 text-xs opacity-70">
+        ${nightly ? html`<span class="flex items-center gap-1">${icon('clock', 'xs')}${nightly}</span>` : html`<a class="link link-hover flex items-center gap-1" href="/settings">${icon('clock', 'xs')}Nightly updates off</a>`}
+        ${pinned ? html`<span class="flex items-center gap-1">${icon('pin', 'xs')}${pinned} pinned, never moved</span>` : ''}
+      </p>
       <div class="card-actions mt-auto grid grid-cols-2 gap-2">
         <form method="post" action="/dashboard/check-updates" class="contents"><button class="btn btn-sm">${icon('refresh', 'sm')}Check now</button></form>
         <form method="post" action="/dashboard/update-all" class="contents" data-confirm="Update ${plural(updates.length, 'server')} now? Each keeps serving until its new version answers."><button class="btn btn-sm btn-primary" ${updates.length ? '' : 'disabled'}>${icon('up', 'sm')}Update all</button></form>

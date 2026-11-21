@@ -31,7 +31,7 @@ export function breadcrumbs(items: Crumb[]): Fragment {
 
 /** A daisyUI card with a border. */
 export function box(content: Content, options: { title?: Content; aside?: Content; pad?: boolean } = {}): Fragment {
-  return html`<section class="card card-border border-base-300 bg-base-100 min-w-0">
+  return html`<section class="card card-border border-base-300 bg-base-100 min-w-0 h-full">
     ${options.title ? html`<div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-5 py-3 border-b border-base-300"><h2 class="card-title font-display text-lg font-medium whitespace-nowrap">${options.title}</h2>${options.aside ?? ''}</div>` : ''}
     ${options.pad ? html`<div class="card-body p-5">${content}</div>` : content}
   </section>`;
@@ -248,7 +248,7 @@ export function empty(content: Content): Fragment {
 
 /** The empty state inside a card: an icon in a soft circle, a line and a quieter hint. */
 export function cardEmpty(glyph: string, heading: string, hint: Content, tint = 'bg-base-200 text-base-content/50'): Fragment {
-  return html`<div class="flex flex-col items-center gap-2 px-5 py-8 text-center">
+  return html`<div class="flex flex-1 flex-col items-center justify-center gap-2 px-5 py-8 text-center">
     <span class="grid size-12 place-items-center rounded-full ${tint}">${icon(glyph)}</span>
     <p class="font-medium">${heading}</p>
     <p class="max-w-xs text-xs text-base-content/60">${hint}</p>

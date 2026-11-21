@@ -19,7 +19,7 @@ export interface Installer {
 
 export type LatestStatus = { version?: string; error?: string; checkedAt: string };
 
-type Recorded = { version: string; previous?: string };
+type Recorded = { version: string; previous?: string; at?: string };
 
 const INSTALLED_MARKER = '.mcpyard-installed';
 /** setInterval's ceiling, about 24.8 days: longer periods fire at once in Node. */
@@ -129,7 +129,7 @@ export class Packages {
 
   record(server: string, version: string, previous?: string): void {
     const versions = this.readVersions();
-    versions[server] = previous ? { version, previous } : { version };
+    versions[server] = previous ? { version, previous, at: new Date().toISOString() } : { version };
     const path = join(this.dataDir, 'versions.json');
     mkdirSync(this.dataDir, { recursive: true });
     writeFileSync(`${path}.tmp`, `${JSON.stringify(versions, null, 2)}\n`);

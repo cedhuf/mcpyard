@@ -22,6 +22,8 @@ export type PackageStatus = {
   pinned: boolean;
   installed?: string;
   previous?: string;
+  /** When the hub last moved it from `previous` to `installed`. */
+  updatedAt?: string;
   latest?: LatestStatus;
   updating: boolean;
   updateError?: string;
@@ -273,6 +275,7 @@ export class Hub {
         pinned: !!config.package.version,
         installed: upstream.version,
         previous: config.package.version ? undefined : this.packages?.recorded(name)?.previous,
+        updatedAt: config.package.version ? undefined : this.packages?.recorded(name)?.at,
         latest: this.packages?.latestStatus(config.package),
         updating: upstream.updating,
         updateError: upstream.updateError,

@@ -67,6 +67,7 @@ test('unpinned package installs the registry latest and records it', async () =>
     pinned: false,
     installed: '1.0.0',
     previous: undefined,
+    updatedAt: undefined,
     latest: { version: '2.0.0', checkedAt: again.hub.packageStatus().pkg!.latest!.checkedAt },
     updating: false,
     updateError: undefined,
@@ -82,7 +83,9 @@ test('update switches to the new version, keeps one for rollback, survives a bro
   await hub.update('pkg', '1.2.0');
   assert.equal(await servedVersion(hub, 'pkg'), '1.2.0');
   assert.equal(hub.packageStatus().pkg!.previous, '1.1.0');
-  assert.deepEqual(JSON.parse(readFileSync(join(dataDir, 'versions.json'), 'utf8')), { pkg: { version: '1.2.0', previous: '1.1.0' } });
+  const recorded = JSON.parse(readFileSync(join(dataDir, 'versions.json'), 'utf8')) as { pkg: { version: string; previous: string; at: string } };
+  assert.deepEqual({ ...recorded.pkg, at: undefined }, { version: '1.2.0', previous: '1.1.0', at: undefined });
+  assert.ok(Date.now() - Date.parse(recorded.pkg.at) < 60_000, 'the update time is recorded');
   assert.deepEqual(readdirSync(join(dataDir, 'packages', 'pkg')).sort(), ['1.1.0', '1.2.0']);
 
   await assert.rejects(hub.update('pkg', '1.3.0-broken'));
