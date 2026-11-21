@@ -1,4 +1,4 @@
-import { Client, SSEClientTransport, StreamableHTTPClientTransport, UnauthorizedError, type Tool } from '@modelcontextprotocol/client';
+import { Client, SdkHttpError, SSEClientTransport, StreamableHTTPClientTransport, UnauthorizedError, type Tool } from '@modelcontextprotocol/client';
 import { SkillsClient, type Skill } from '@modelcontextprotocol/client/ext/skills';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/client/stdio';
 import type { ServerConfig } from './config.ts';
@@ -11,6 +11,11 @@ import { VERSION } from './release.ts';
 export type State = 'installing' | 'starting' | 'ready' | 'degraded' | 'stopped' | 'failed';
 
 const MIN_BACKOFF = 1_000;
+
+/** A remote server that restarted forgets our session: 404 per the spec, or a 400 naming the session for some servers. */
+function sessionLost(e: unknown): boolean {
+  return e instanceof SdkHttpError && (e.status === 404 || (e.status === 400 && /session/i.test(e.message)));
+}
 const MAX_BACKOFF = 5 * 60_000;
 
 export class Upstream {
@@ -71,7 +76,7 @@ export class Upstream {
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error(`no answer within ${timeoutMs / 1000}s`)), timeoutMs)));
     try {
-      await Promise.race([this.client.ping(), timeout]);
+      await Promise.race([this.withSession((client) => client.ping()), timeout]);
     } finally {
       clearTimeout(timer);
     }
@@ -79,19 +84,36 @@ export class Upstream {
   }
 
   async callTool(name: string, args: Record<string, unknown> | undefined) {
-    if (!this.client || this.state !== 'ready') throw new Error(`server ${this.name} is not ready`);
     try {
-      return await this.client.callTool({ name, arguments: args });
+      return await this.withSession((client) => client.callTool({ name, arguments: args }));
     } catch (e) {
       if (e instanceof UnauthorizedError && this.auth?.signInUrl) this.needsSignIn();
       throw e;
     }
   }
 
+  /** Runs `work` on the connected client; when the server lost our session, reconnects once and runs it again. */
+  private async withSession<T>(work: (client: Client) => Promise<T>): Promise<T> {
+    const client = this.client;
+    if (!client || this.state !== 'ready') throw new Error(`server ${this.name} is not ready`);
+    try {
+      return await work(client);
+    } catch (e) {
+      if (!sessionLost(e)) throw e;
+      if (this.client === client) {
+        note('session expired on the server, reconnecting', { server: this.name, error: true });
+        this.client = undefined;
+        void client.close().catch(() => {});
+        await this.run();
+      }
+      if (!this.client || this.state !== 'ready') throw new Error(`server ${this.name} lost its session and did not reconnect: ${this.lastError ?? this.state}`);
+      return work(this.client);
+    }
+  }
+
   /** One file of a skill this server serves, by its own URI. */
   async readSkillFile(uri: string): Promise<{ text: string; mimeType?: string } | { bytes: Uint8Array; mimeType?: string }> {
-    if (!this.client || this.state !== 'ready') throw new Error(`server ${this.name} is not ready`);
-    const file = (await this.client.readResource({ uri })).contents[0];
+    const file = (await this.withSession((client) => client.readResource({ uri }))).contents[0];
     if (!file) throw new Error(`server ${this.name} returned nothing for ${uri}`);
     return 'text' in file ? { text: file.text, mimeType: file.mimeType } : { bytes: Buffer.from(file.blob, 'base64'), mimeType: file.mimeType };
   }
