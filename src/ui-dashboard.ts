@@ -333,6 +333,6 @@ function toolsCard(top: { tool: string; count: number }[]): Fragment {
           </li>`,
         )}</ul>`
       : html`<p class="p-5 text-base-content/60">No MCP calls in the last 24 hours.</p>`,
-    { title: html`<span class="text-info">${icon('wrench')}</span>Most used tools`, aside: html`<a class="link link-hover text-xs" href="/logs?kind=calls">Calls</a>` },
+    { title: html`<span class="text-info">${icon('wrench')}</span>Most used tools`, aside: linkButton('/logs?kind=calls', 'All calls', { tone: 'ghost' }) },
   );
 }
