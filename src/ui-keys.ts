@@ -11,7 +11,7 @@ import { icon, log, notFound, page, toast, type Env, type Fragment } from './ui-
 export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: { keysPath: string; base: (c: Context) => string; authServer?: AuthServer }): void {
   const { keysPath, authServer } = options;
 
-  app.get('/keys', guard, (c) => c.html(page(c, 'Access', keysView(hub, loadKeys(keysPath), (c.req.query('q') ?? '').trim(), authServer?.resource))));
+  app.get('/keys', guard, (c) => c.html(page(c, 'Access', keysView(hub, loadKeys(keysPath), authServer?.resource))));
 
   app.get('/keys/new', guard, (c) => c.html(page(c, 'New key', html`${pageHead('New key', { crumbs: [{ label: 'Access', href: '/keys' }, { label: 'New key' }] })}${box(keyForm(hub), { pad: true })}`)));
 
@@ -24,7 +24,7 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
     const keys = loadKeys(keysPath);
     saveKeys(keysPath, [...keys, key]);
     log(c, 'key_created', { key: key.name });
-    return c.html(page(c, 'Access', html`${keysView(hub, [...keys, key], '', authServer?.resource)}${created(key, token, options.base(c))}`));
+    return c.html(page(c, 'Access', html`${keysView(hub, [...keys, key], authServer?.resource)}${created(key, token, options.base(c))}`));
   });
 
   app.get('/keys/:id/edit', guard, (c) => {
@@ -178,11 +178,9 @@ function section(heading: string, glyph: string, count: number, body: Content): 
 }
 
 /** The access page: clients signed in through OAuth, then hand-made keys. `signIn` is the URL to give clients when OAuth is on. */
-function keysView(hub: Hub, all: Key[], q = '', signIn?: string): Fragment {
-  const needle = q.toLowerCase();
-  const found = all.filter((k) => !needle || [k.name, k.prefix, ...k.scope.servers, k.oauth?.clientName ?? '', k.oauth?.user ?? ''].some((v) => v.toLowerCase().includes(needle)));
-  const grants = found.filter((k) => k.oauth);
-  const keys = found.filter((k) => !k.oauth);
+function keysView(hub: Hub, all: Key[], signIn?: string): Fragment {
+  const grants = all.filter((k) => k.oauth);
+  const keys = all.filter((k) => !k.oauth);
   const signedIn = all.filter((k) => k.oauth).length;
   const off = all.filter((k) => !k.enabled).length;
   const admins = all.filter((k) => k.enabled && isAdmin(k)).length;
@@ -197,12 +195,9 @@ function keysView(hub: Hub, all: Key[], q = '', signIn?: string): Fragment {
       sub: html`${plural(signedIn, 'signed-in client')} and ${plural(all.length - signedIn, 'key')}${admins ? `, ${admins} with administration` : ''}${off ? `, ${off} off` : ''}. Every client reaches <span class="font-mono">/mcp</span> with its own sign-in or key.`,
       actions: dialogButton('new-key', 'New key', { tone: 'primary', icon: 'key' }),
     })}
-    ${q ? html`<div class="mb-3"><a class="badge badge-ghost gap-1" href="/keys" title="Clear the search">“${q}” ✕</a></div>` : ''}
     ${!all.length
       ? hero('Nobody gets in yet', html`Every client gets its own access, so you can see who calls what and switch one off without touching the others. ${how}`, dialogButton('new-key', 'Make a key', { tone: 'primary', icon: 'key' }), 'hello')
-      : !found.length
-        ? empty(html`<p>Nothing matches <strong>${q}</strong>.</p>`)
-        : html`<div class="grid gap-6">
+      : html`<div class="grid gap-6">
             ${signIn || grants.length ? section('Signed-in clients', 'lock', grants.length, grantList) : ''}
             ${section('Keys', 'key', keys.length, keyList)}
           </div>`}

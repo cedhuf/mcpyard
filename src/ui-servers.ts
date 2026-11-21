@@ -6,12 +6,12 @@ import type { Served } from './skills.ts';
 import type { Upstream } from './upstream.ts';
 import { box, cell, chips, hero, ROW, ROW_ANCHOR, ROW_END, type Content, empty, linkButton, list, menu, type MenuEntry, note, onOff, pageHead, postButton, row as item, segLinks, status, tabs, tag, title, toolbar, type Tone } from './ui-kit.ts';
 import { mascot, type Mood } from './ui-icons.ts';
-import { icon, type Fragment } from './ui-layout.ts';
+import { icon, type Fragment, type PaletteServer } from './ui-layout.ts';
 
 export type View = 'cards' | 'list';
 export const FILTERS = ['all', 'online', 'failed', 'disabled'] as const;
 export type FilterState = (typeof FILTERS)[number];
-export type Filter = { state: FilterState; q: string };
+export type Filter = { state: FilterState };
 
 export type Row = { name: string; config: ServerConfig; upstream: Upstream; pkg?: PackageStatus; uiDisabled: boolean; skills: Served[] };
 
@@ -184,10 +184,9 @@ function tile(row: Row, editable: boolean): Fragment {
 export function serversView(hub: Hub, editable: boolean, view: View, filter: Filter): Fragment {
   const all = [...hub.upstreams.keys()].map((name) => rowOf(hub, name)!);
   const count = (f: FilterState) => all.filter((r) => GROUP[f](stateOf(r))).length;
-  const q = filter.q.toLowerCase();
-  const rows = all.filter((r) => GROUP[filter.state](stateOf(r)) && (!q || [r.name, r.config.title ?? '', source(r.config)].some((s) => s.toLowerCase().includes(q))));
+  const rows = all.filter((r) => GROUP[filter.state](stateOf(r)));
   const updates = all.filter((r) => newerVersion(r.pkg)).length;
-  const link = (state: FilterState) => `/servers?state=${state}${filter.q ? `&q=${encodeURIComponent(filter.q)}` : ''}`;
+  const link = (state: FilterState) => `/servers?state=${state}`;
   return html`<div id="servers" data-refresh>
     ${pageHead('Servers', {
       sub: all.length
@@ -198,7 +197,6 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
     })}
     ${toolbar(html`
       ${chips(FILTERS.map((f) => ({ href: link(f), label: `${f[0]!.toUpperCase()}${f.slice(1)}`, count: count(f), active: filter.state === f })))}
-      ${filter.q ? html`<a class="badge badge-ghost gap-1" href="${filter.state === 'all' ? '/servers' : `/servers?state=${filter.state}`}" title="Clear the search">“${filter.q}” ✕</a>` : ''}
       <span class="flex-1"></span>
       ${segLinks('Layout', [
         { href: '/servers?view=list', icon: 'list', label: 'List', active: view === 'list' },
@@ -213,11 +211,19 @@ export function serversView(hub: Hub, editable: boolean, view: View, filter: Fil
           'hello',
         )
       : !rows.length
-        ? empty(filter.q ? html`<p>No server matches <strong>${filter.q}</strong>. <a class="link link-primary" href="/servers">Show all</a></p>` : 'No server matches this filter.')
+        ? empty('No server matches this filter.')
         : view === 'list'
           ? list(['Name', 'State', { label: 'Kind', hide: true }, { label: 'Version', hide: true }, { label: 'Tools', hide: true }], rows.map((r) => listRow(r, editable)))
           : html`<div class="grid gap-3 auto-rows-fr grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))]">${rows.map((r) => tile(r, editable))}</div>`}
   </div>`;
+}
+
+/** Every server with its state, for the command palette. */
+export function paletteServers(hub: Hub): PaletteServer[] {
+  return [...hub.upstreams.keys()].map((name) => {
+    const state = stateOf(rowOf(hub, name)!);
+    return { name, label: hub.configs[name]?.title ?? name, state, tone: STATE_TONE[state] ?? 'neutral' };
+  });
 }
 
 /** The server's title when the file sets one, else its name in monospace. */

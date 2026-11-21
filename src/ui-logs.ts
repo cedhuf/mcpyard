@@ -1,7 +1,7 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
 import { html } from 'hono/html';
 import { logs, type LogEntry } from './logs.ts';
-import { chips, empty, pageHead, stats, status, tag, toolbar } from './ui-kit.ts';
+import { chips, empty, pageHead, search, stats, status, tag, toolbar } from './ui-kit.ts';
 import { page, type Env, type Fragment } from './ui-layout.ts';
 
 const SHOWN = 300;
@@ -112,16 +112,19 @@ function logsView(q: Query): Fragment {
   const all = logs.list();
   const scoped = all.filter((e) => (!q.server || e.server === q.server) && matches(e, q.q));
   const shown = scoped.filter(FILTERS[q.kind].match);
-  return html`<div id="logs" data-refresh>
-    ${pageHead('Logs', { sub: `The last ${all.length} lines, newest first, in hub time (${Intl.DateTimeFormat().resolvedOptions().timeZone}). Calls and actions survive a restart; the same lines go to the container's output.` })}
+  const keep = Object.fromEntries(Object.entries({ kind: q.kind === 'all' ? '' : q.kind, server: q.server }).filter(([, v]) => v));
+  // The search field sits outside the refreshed zones, so typing in it is never interrupted.
+  return html`${pageHead('Logs', { sub: `Newest first, in hub time (${Intl.DateTimeFormat().resolvedOptions().timeZone}). Calls and actions survive a restart; the same lines go to the container's output.` })}
     ${toolbar(html`
-      ${chips((Object.keys(FILTERS) as FilterName[]).map((k) => ({ href: href(q, { kind: k }), label: FILTERS[k].label, count: scoped.filter(FILTERS[k].match).length, active: q.kind === k })))}
-      ${q.q ? html`<a class="badge badge-ghost gap-1" href="${href(q, { q: '' })}" title="Clear the search">“${q.q}” ✕</a>` : ''}
-      ${q.server ? html`<a class="badge badge-primary badge-soft gap-1" href="${href(q, { server: '' })}" title="Show every server"><span class="font-mono">${q.server}</span>✕</a>` : ''}
+      <div id="logs-filters" data-refresh class="flex flex-wrap items-center gap-2">
+        ${chips((Object.keys(FILTERS) as FilterName[]).map((k) => ({ href: href(q, { kind: k }), label: FILTERS[k].label, count: scoped.filter(FILTERS[k].match).length, active: q.kind === k })))}
+        ${q.server ? html`<a class="badge badge-primary badge-soft gap-1" href="${href(q, { server: '' })}" title="Show every server"><span class="font-mono">${q.server}</span>✕</a>` : ''}
+      </div>
+      <span class="flex-1"></span>
+      ${search('/logs', q.q, 'Search logs', keep)}
     `)}
-    <div class="grid gap-4">
+    <div id="logs" data-refresh class="grid gap-4">
       ${q.kind === 'calls' ? callStats(shown) : ''}
       ${shown.length ? logsBlock(shown, (server) => href(q, { server })) : empty(all.length ? 'Nothing matches this filter.' : 'Nothing logged yet.')}
-    </div>
-  </div>`;
+    </div>`;
 }

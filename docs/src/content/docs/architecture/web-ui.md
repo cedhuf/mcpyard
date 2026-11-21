@@ -16,12 +16,14 @@ follows the device with `prefers-color-scheme`, or forces one half with `data-th
 
 Interaction is HTML first: forms that post, links, the popover API for menus, `<dialog>` for
 modals, `<details>` for folding. One small inline script, behind a CSP nonce, handles what HTML
-cannot: auto refresh, live search, settings autosave, the clock, copy buttons and the confirm
-modal.
+cannot: auto refresh, live search, the command palette, settings autosave, the clock, copy buttons
+and the confirm modal.
 
 Auto refresh and live search fetch the page again and replace each zone marked `data-refresh` with
 its fresh copy, by id. Anything outside those zones stays in place: the dashboard clock is never
-moved, since moving an element cuts its CSS animation.
+moved, since moving an element cuts its CSS animation. The command palette's list is such a zone
+too, so the server states it shows follow the page's refresh; it filters in the browser, without a
+request.
 
 Every UI response carries a strict Content-Security-Policy (`default-src 'none'`, nonce-only
 scripts, `frame-ancestors 'none'`). Every POST is checked against the hub's own origin. The page

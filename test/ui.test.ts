@@ -46,15 +46,20 @@ test('servers page lists every server with its state', async () => {
   assert.ok(!/ on[a-z]+="/.test(body), 'no inline event handlers');
 });
 
-test('the navbar search looks in the current section and keeps its filters', async () => {
-  const { request, post } = setup({ kind: 'none' });
-  await post('/keys', { name: 'laptop' });
-  assert.match(await (await request('/')).text(), /<form method="get" action="\/servers"[^>]*role="search"/, 'the dashboard searches servers');
-  assert.match(await (await request('/logs?kind=calls')).text(), /<form method="get" action="\/logs"[^>]*>\s*<input type="hidden" name="kind" value="calls"/);
-  const keys = await (await request('/keys?q=nothing-like-this')).text();
-  assert.match(keys, /<form method="get" action="\/keys"/);
-  assert.match(keys, /Nothing matches <strong>nothing-like-this<\/strong>/);
-  assert.ok(!(await (await request('/servers?q=bet')).text()).includes('href="/servers/alpha"'), 'the servers search filters');
+test('the command palette lists servers with their state, pages and actions on every page', async () => {
+  const { request } = setup({ kind: 'none' });
+  for (const path of ['/', '/keys', '/logs']) {
+    const page = await (await request(path)).text();
+    const palette = page.slice(page.indexOf('<dialog id="palette"'));
+    assert.match(page, /data-palette-open/, path);
+    assert.match(palette, /data-palette="alpha alpha [a-z]+ servers"[^>]*><a href="\/servers\/alpha"><span class="status status-/, path);
+    assert.match(palette, /href="\/settings"/);
+    assert.match(palette, /action="\/dashboard\/health"/);
+  }
+  assert.ok(!(await (await request('/')).text()).includes('role="search"'), 'no navbar search form any more');
+  const logs = await (await request('/logs?kind=calls')).text();
+  assert.match(logs, /<form method="get" action="\/logs"[^>]*>\s*<input type="hidden" name="kind" value="calls"/, 'logs keep their own search, with the filter');
+  assert.ok(logs.indexOf('role="search"') < logs.indexOf('id="logs" data-refresh'), 'the logs search sits outside the refreshed list');
 });
 
 test('unknown pages get the mascot, and the font and mascot are served', async () => {
@@ -173,8 +178,7 @@ test('a server is switched off from the UI, kept off across restarts, and filter
 
   const off = await (await request('/servers?state=disabled')).text();
   assert.match(off, /action="\/servers\/alpha\/enable"/);
-  assert.ok(!off.includes('>beta<'), 'the filter hides the other servers');
-  assert.match(await (await request('/servers?q=bet')).text(), />beta</);
+  assert.ok(!off.slice(0, off.indexOf('<dialog id="palette"')).includes('>beta<'), 'the filter hides the other servers');
 
   const again = new Hub(parseConfig('servers:\n  alpha: { command: /bin/true }'));
   again.useState(state);

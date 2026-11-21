@@ -64,7 +64,7 @@ export async function setAppearance(next: Appearance): Promise<void> {
 }
 
 import { icon, LOGO } from './ui-icons.ts';
-import { hero, linkButton, menu, search, type MenuEntry } from './ui-kit.ts';
+import { hero, linkButton, menu, type MenuEntry, type Tone } from './ui-kit.ts';
 import { themeCss } from './ui-theme.ts';
 
 export { icon, LOGO };
@@ -93,13 +93,49 @@ const NAV = [
   ['/logs', 'Logs', 'logs', 'text-accent'],
 ] as const;
 
-/** The navbar search looks in the section the page belongs to, keeping that section's filters. */
-function sectionSearch(c: Context<Env>): { action: string; placeholder: string; keep: Record<string, string> } {
-  const path = c.req.path;
-  const keep = (...names: string[]) => Object.fromEntries(names.flatMap((n) => (c.req.query(n) ? [[n, c.req.query(n)!]] : [])));
-  if (path.startsWith('/keys')) return { action: '/keys', placeholder: 'Search access', keep: {} };
-  if (path.startsWith('/logs')) return { action: '/logs', placeholder: 'Search logs', keep: keep('kind', 'server') };
-  return { action: '/servers', placeholder: 'Search servers', keep: path === '/servers' ? keep('state') : {} };
+export type PaletteServer = { name: string; label: string; state: string; tone: Tone };
+
+let paletteServers: () => PaletteServer[] = () => [];
+
+/** Where the command palette reads the servers and their state; set by the web UI, which knows the hub. */
+export function setPaletteServers(source: () => PaletteServer[]): void {
+  paletteServers = source;
+}
+
+const PALETTE_PAGES = [
+  ['/', 'Dashboard', 'home'],
+  ['/servers', 'Servers', 'server'],
+  ['/keys', 'Access', 'key'],
+  ['/logs', 'Logs', 'logs'],
+  ['/settings', 'Settings', 'settings'],
+] as const;
+
+/** The command palette: a daisyUI modal listing servers, pages and actions, filtered as you type. */
+function palette(): Fragment {
+  const item = (group: string, words: string, content: Fragment) => html`<li data-palette="${`${words} ${group}`.toLowerCase()}" data-in="${group}">${content}</li>`;
+  const title = (group: string) => html`<li class="menu-title" data-group="${group}">${group}</li>`;
+  const servers = paletteServers();
+  const post = (action: string, label: string, glyph: string) => html`<form method="post" action="${action}"><button class="w-full">${icon(glyph, 'sm')}${label}</button></form>`;
+  return html`<dialog id="palette" class="modal modal-top sm:modal-middle" aria-label="Go to">
+    <div class="modal-box w-full max-w-xl p-0 max-sm:rounded-t-none">
+      <label class="input input-lg w-full rounded-none border-0 border-b border-base-300 bg-transparent outline-none">${icon('search')}<input type="search" placeholder="Go to a server, a page or an action" autocomplete="off" aria-label="Search" /><kbd class="kbd kbd-sm max-sm:hidden">Esc</kbd></label>
+      <div id="palette-items" data-refresh class="max-h-[60dvh] overflow-y-auto p-2">
+        <ul class="menu w-full">
+          ${servers.length ? title('Servers') : ''}
+          ${servers.map((s) => item('Servers', `${s.name} ${s.label} ${s.state}`, html`<a href="/servers/${s.name}"><span class="status status-${s.tone}" aria-hidden="true"></span><span class="truncate">${s.label}</span><span class="ml-auto text-xs text-base-content/50">${s.state}</span></a>`))}
+          ${title('Pages')}
+          ${PALETTE_PAGES.map(([href, label, glyph]) => item('Pages', label, html`<a href="${href}">${icon(glyph, 'sm')}${label}</a>`))}
+          ${title('Actions')}
+          ${item('Actions', 'add new server', html`<a href="/servers/new">${icon('sprout', 'sm')}Add a server</a>`)}
+          ${item('Actions', 'new key token', html`<a href="/keys/new">${icon('key', 'sm')}New key</a>`)}
+          ${item('Actions', 'run health check ping', post('/dashboard/health', 'Run the health check', 'pulse'))}
+          ${item('Actions', 'reload server file configuration', post('/dashboard/reload', 'Reload the server file', 'refresh'))}
+        </ul>
+        <p data-palette-empty hidden class="p-6 text-center text-base-content/60">Nothing matches.</p>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>`;
 }
 
 /** The account menu: who is signed in, the settings, and signing out. */
@@ -160,7 +196,6 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
       </body>
     </html>`;
   }
-  const find = sectionSearch(c);
   const links = NAV.map(([href, label, name, tint]) => html`<li><a href="${href}" class="font-medium ${active(href) ? 'menu-active' : ''}" ${active(href) ? html`aria-current="page"` : ''}><span class="${active(href) ? '' : tint}">${icon(name, 'sm')}</span>${label}</a></li>`);
   return html`${head}
     <body class="min-h-dvh flex flex-col text-sm">
@@ -175,18 +210,18 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
             </div>
             <div class="navbar-center hidden lg:flex"><ul class="menu menu-horizontal gap-1 p-0">${links}</ul></div>
             <div class="navbar-end flex-1 gap-2">
-              <div class="max-sm:hidden">${search(find.action, c.req.query('q') ?? '', find.placeholder, find.keep)}</div>
+              <button type="button" class="btn btn-sm btn-ghost max-sm:btn-square sm:w-60 sm:justify-start sm:border-base-300 sm:bg-base-100 sm:font-normal sm:text-base-content/60" data-palette-open aria-label="Search" title="Search (/ or Ctrl+K)">${icon('search', 'sm')}<span class="max-sm:hidden">Search…</span><kbd class="kbd kbd-xs ml-auto max-sm:hidden">/</kbd></button>
               ${accountMenu(c)}
             </div>
           </nav>
           <div class="collapse-content lg:hidden">
-            <div class="sm:hidden px-2 pb-2">${search(find.action, c.req.query('q') ?? '', find.placeholder, find.keep)}</div>
             <ul class="menu w-full">${links}</ul>
           </div>
         </div>
       </header>
       <main class="flex-1 px-4 sm:px-6 lg:px-8 pt-6 pb-16">${body}</main>
       ${footer()}
+      ${palette()}
       ${nonce ? html`${CONFIRM}<script nonce="${nonce}">${raw(SCRIPT)}</script>` : ''}
     </body>
   </html>`;
@@ -315,7 +350,48 @@ document.addEventListener('input', (e) => {
     if (swap(await res.text())) history.replaceState(null, '', url);
   }, 200);
 });
-if (document.querySelector('[data-refresh]')) setInterval(async () => {
+const palette = document.getElementById('palette');
+if (palette) {
+  const input = palette.querySelector('input');
+  const items = () => [...palette.querySelectorAll('[data-palette]')];
+  const shown = () => items().filter((li) => !li.hidden);
+  const target = (li) => li.querySelector('a, button');
+  let at = 0;
+  const mark = () => shown().forEach((li, i) => target(li).classList.toggle('menu-focus', i === at));
+  const filter = () => {
+    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    items().forEach((li) => (li.hidden = !words.every((w) => li.dataset.palette.includes(w))));
+    palette.querySelectorAll('[data-group]').forEach((t) => (t.hidden = !items().some((li) => li.dataset.in === t.dataset.group && !li.hidden)));
+    palette.querySelector('[data-palette-empty]').hidden = shown().length > 0;
+    at = 0;
+    mark();
+  };
+  const open = () => {
+    if (palette.open) return;
+    input.value = '';
+    filter();
+    palette.showModal();
+    input.focus();
+  };
+  document.querySelectorAll('[data-palette-open]').forEach((b) => b.addEventListener('click', open));
+  document.addEventListener('keydown', (e) => {
+    const typing = e.target.closest('input, textarea, select, [contenteditable]');
+    if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) { e.preventDefault(); open(); }
+  });
+  input.addEventListener('input', filter);
+  input.addEventListener('keydown', (e) => {
+    const list = shown();
+    if (!list.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      at = (at + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length;
+      mark();
+      list[at].scrollIntoView({ block: 'nearest' });
+    }
+    if (e.key === 'Enter') { e.preventDefault(); target(list[at]).click(); }
+  });
+}
+if (document.querySelector('[data-refresh]:not(#palette-items)')) setInterval(async () => {
   if (document.hidden || document.querySelector('dialog[open], :popover-open') || String(getSelection()) || document.activeElement?.matches('input')) return;
   const res = await fetch(location.pathname + location.search).catch(() => null);
   if (!res || !res.ok || res.redirected) return;

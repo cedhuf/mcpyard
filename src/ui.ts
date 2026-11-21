@@ -16,9 +16,9 @@ import { logRoutes } from './ui-logs.ts';
 import { dashboardRoutes } from './ui-dashboard.ts';
 import { mascot, MOODS } from './ui-icons.ts';
 import { note as inlineNote } from './ui-kit.ts';
-import { FILTERS, serversView, type Filter, type FilterState, type View } from './ui-servers.ts';
+import { FILTERS, paletteServers, serversView, type Filter, type FilterState, type View } from './ui-servers.ts';
 import { note } from './logs.ts';
-import { log, notFound, page, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
+import { log, notFound, page, setPaletteServers, stylesheet, toast, type Env, type Fragment } from './ui-layout.ts';
 
 export type { EnvRow };
 
@@ -48,6 +48,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
   const app = new Hono<Env>();
   const { auth, keysPath } = options;
   void stylesheet();
+  setPaletteServers(() => paletteServers(hub));
   const secure = (c: Context) => new URL(options.publicUrl ?? c.req.url).protocol === 'https:';
   const base = (c: Context) => (options.publicUrl ?? new URL(c.req.url).origin).replace(/\/$/, '');
   const editable = () => !!options.configFile && !options.configFile.readOnlyReason();
@@ -145,7 +146,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
 
   const filter = (c: Context<Env>): Filter => {
     const state = c.req.query('state');
-    return { state: FILTERS.includes(state as FilterState) ? (state as FilterState) : 'all', q: (c.req.query('q') ?? '').trim() };
+    return { state: FILTERS.includes(state as FilterState) ? (state as FilterState) : 'all' };
   };
 
   app.get('/servers', guard, (c) => {
@@ -215,7 +216,7 @@ export function ui(hub: Hub, options: UiOptions): Hono<Env> {
     } catch (e) {
       notice = html`<div class="mb-4">${inlineNote(html`Configuration not reloaded, the running servers are unchanged: <span class="font-mono">${(e as Error).message}</span>`, 'error')}</div>`;
     }
-    return c.html(page(c, 'Servers', html`${notice}${serversView(hub, editable(), view(c), { state: 'all', q: '' })}`));
+    return c.html(page(c, 'Servers', html`${notice}${serversView(hub, editable(), view(c), { state: 'all' })}`));
   });
 
   configRoutes(app, hub, guard, { keysPath, settings: options.settings, configFile: options.configFile, environment: options.environment, base });

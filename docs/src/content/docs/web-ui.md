@@ -7,9 +7,11 @@ tools and versions, restarts servers, updates and rolls back packages, reloads t
 manages who reaches `/mcp` (OAuth sign-ins and keys), and shows the hub's logs. It refreshes itself every few
 seconds.
 
-The top bar holds the sections (**Servers**, **Access**, **Logs**), a search field and the account
-menu with **Settings** and **Sign out**. The search filters the section you are in as you type; on
-the dashboard it searches the servers. The **MCP Yard** title and the house at the start of every
+The top bar holds the sections (**Servers**, **Access**, **Logs**), a **Search** button and the
+account menu with **Settings** and **Sign out**. **Search**, or `/` and Ctrl+K (⌘K on a Mac)
+anywhere, opens a command palette: every server with its state, the pages, and a few actions (add a
+server, new key, run the health check, reload the server file). Type to filter, arrows to move,
+Enter to open. On a phone it drops from the top, so the keyboard does not hide it. The **MCP Yard** title and the house at the start of every
 page's breadcrumbs lead back to the dashboard, and the footer shows the running version, with a
 badge when a newer release is out.
 
@@ -41,8 +43,8 @@ their failures and median duration, and active keys. The hub's own clock sits ne
 
 The servers page, at `/servers`, has two layouts, switched with the buttons at the right of the toolbar and
 remembered in a cookie: **cards**, one per server, and a **list** with one row per server. Tabs
-filter the servers by state (**All**, **Online**, **Failed**, **Disabled**) and the search field in
-the top bar matches names, titles and packages. A server with a `title` in the server file shows it
+filter the servers by state (**All**, **Online**, **Failed**, **Disabled**); to find one by name, use
+the palette. A server with a `title` in the server file shows it
 in place of its name; tools keep the short name. Each server has a switch and a **⋯** menu to restart, update, roll back
 or remove it.
 
@@ -111,8 +113,8 @@ The **Logs** page shows the last 2000 log lines, newest first:
 - **Output**: what the servers write on stderr, their state changes, and the hub's own messages.
 - **Errors**: everything that failed, whatever its kind.
 
-Click a server name to see only its lines; on this page the search field in the top bar matches
-tools, keys and messages as you type. The same lines go to the container's output, so `docker logs`
+Click a server name to see only its lines; the search field next to the filters matches tools, keys
+and messages as you type. The same lines go to the container's output, so `docker logs`
 and your log shipper see them too. MCP calls and actions are also kept in
 `$MCPYARD_DATA_DIR/activity.json`, so the dashboard and this page survive a restart; servers' output
 starts afresh.
