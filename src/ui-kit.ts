@@ -30,10 +30,11 @@ export function breadcrumbs(items: Crumb[]): Fragment {
 }
 
 /** A daisyUI card with a border. */
-export function box(content: Content, options: { title?: Content; aside?: Content; pad?: boolean } = {}): Fragment {
+/** A bordered card. `scroll` keeps its height set by the layout and scrolls the content inside instead of growing. */
+export function box(content: Content, options: { title?: Content; aside?: Content; pad?: boolean; scroll?: boolean } = {}): Fragment {
   return html`<section class="card card-border border-base-300 bg-base-100 min-w-0 h-full">
     ${options.title ? html`<div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-5 py-3 border-b border-base-300"><h2 class="card-title font-display text-lg font-medium whitespace-nowrap">${options.title}</h2>${options.aside ?? ''}</div>` : ''}
-    ${options.pad ? html`<div class="card-body p-5">${content}</div>` : content}
+    ${options.pad ? html`<div class="card-body p-5">${content}</div>` : options.scroll ? html`<div class="flex min-h-0 flex-1 flex-col overflow-y-auto">${content}</div>` : content}
   </section>`;
 }
 

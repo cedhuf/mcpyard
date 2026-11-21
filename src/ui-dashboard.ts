@@ -184,7 +184,7 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
         ${updatesCard(hub, updates, packages, upToDate, ov.updates.hubOwned, options.settings)}
       </div>
 
-      <div class="grid gap-4 lg:grid-cols-3">
+      <div class="grid gap-4 lg:h-[27rem] lg:grid-cols-3">
         ${securityCard(checks)}
         ${activityCard(recent)}
         ${toolsCard(calls.top)}
@@ -229,7 +229,11 @@ function updatesCard(hub: Hub, updates: [string, ReturnType<Hub['packageStatus']
   return html`<section class="card h-full bg-neutral text-neutral-content">
     <div class="card-body gap-4">
       <div class="flex items-start justify-between gap-3">
-        <div><h2 class="card-title font-display text-lg font-medium">Updates</h2><p class="text-xs opacity-70">${checked ? `Registries checked ${ago(checked)}` : 'Registries not checked yet'}</p></div>
+        <div><h2 class="card-title font-display text-lg font-medium">Updates</h2><p class="text-xs opacity-70">${checked ? `Registries checked ${ago(checked)}` : 'Registries not checked yet'}</p>
+          <p class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs opacity-70">
+            ${nightly ? html`<span class="flex items-center gap-1">${icon('clock', 'xs')}${nightly}</span>` : html`<a class="link link-hover flex items-center gap-1" href="/settings">${icon('clock', 'xs')}Nightly updates off</a>`}
+            ${pinned ? html`<span class="flex items-center gap-1">${icon('pin', 'xs')}${pinned} pinned</span>` : ''}
+          </p></div>
         <span class="text-secondary">${icon('up')}</span>
       </div>
       <div class="flex items-center gap-6">
@@ -250,10 +254,6 @@ function updatesCard(hub: Hub, updates: [string, ReturnType<Hub['packageStatus']
               ? html`<ul class="grid gap-1.5 text-sm">${recent.map(([name, p]) => html`<li class="flex items-center justify-between gap-3"><a class="link link-hover truncate" href="/servers/${name}">${serverLabel(name, hub.configs[name])}</a>${p.updateError ? html`<span class="text-xs text-error" title="${p.updateError}">update failed</span>` : html`<span class="whitespace-nowrap font-mono text-xs opacity-80">${p.previous} → ${p.installed} · ${ago(p.updatedAt!)}</span>`}</li>`)}</ul>`
               : html`<p class="text-sm opacity-70">${owned ? 'None yet. Every hub-owned package runs its latest version.' : 'No hub-owned packages: pinned versions stay as written.'}</p>`}
           </div>`}
-      <p class="flex flex-wrap gap-x-3 gap-y-1 text-xs opacity-70">
-        ${nightly ? html`<span class="flex items-center gap-1">${icon('clock', 'xs')}${nightly}</span>` : html`<a class="link link-hover flex items-center gap-1" href="/settings">${icon('clock', 'xs')}Nightly updates off</a>`}
-        ${pinned ? html`<span class="flex items-center gap-1">${icon('pin', 'xs')}${pinned} pinned, never moved</span>` : ''}
-      </p>
       <div class="card-actions mt-auto grid grid-cols-2 gap-2">
         <form method="post" action="/dashboard/check-updates" class="contents"><button class="btn btn-sm">${icon('refresh', 'sm')}Check now</button></form>
         <form method="post" action="/dashboard/update-all" class="contents" data-confirm="Update ${plural(updates.length, 'server')} now? Each keeps serving until its new version answers."><button class="btn btn-sm btn-primary" ${updates.length ? '' : 'disabled'}>${icon('up', 'sm')}Update all</button></form>
@@ -282,7 +282,7 @@ function securityCard(checks: SecurityCheck[]): Fragment {
       <summary class="collapse-title text-sm font-medium">${plural(settled.length, 'check')} ${settled.length === 1 ? 'passes' : 'pass'}${reviewed ? `, ${reviewed} of them reviewed` : ''}</summary>
       <div class="collapse-content px-0"><ul class="list">${passes}</ul></div>
     </details>`,
-    { title: html`<span class="text-secondary">${icon('shield')}</span>Security check`, aside: html`<span class="btn btn-sm btn-ghost pointer-events-none ${!open.length ? 'text-success' : open.some((k) => k.kind === 'risk') ? 'text-error' : 'text-warning'}">${icon(open.length ? 'alert' : 'check', 'sm')}${open.length ? `${open.length} to review` : 'All clear'}</span>` },
+    { title: html`<span class="text-secondary">${icon('shield')}</span>Security check`, aside: html`<span class="btn btn-sm btn-ghost pointer-events-none ${!open.length ? 'text-success' : open.some((k) => k.kind === 'risk') ? 'text-error' : 'text-warning'}">${icon(open.length ? 'alert' : 'check', 'sm')}${open.length ? `${open.length} to review` : 'All clear'}</span>`, scroll: true },
   );
 }
 
@@ -326,7 +326,7 @@ function activityCard(recent: LogEntry[]): Fragment {
           </li>`;
         })}</ul>`
       : cardEmpty('logs', 'All quiet', 'Actions and errors of the last 24 hours show up here.'),
-    { title: html`<span class="text-accent">${icon('logs')}</span>Recent activity`, aside: linkButton('/logs', 'All logs', { tone: 'ghost' }) },
+    { title: html`<span class="text-accent">${icon('logs')}</span>Recent activity`, aside: linkButton('/logs', 'All logs', { tone: 'ghost' }), scroll: true },
   );
 }
 
@@ -342,6 +342,6 @@ function toolsCard(all: { tool: string; count: number }[]): Fragment {
           </li>`,
         )}</ul>`
       : cardEmpty('wrench', 'No calls yet', 'The tools your clients call in the last 24 hours show up here.'),
-    { title: html`<span class="text-info">${icon('wrench')}</span>Most used tools`, aside: linkButton('/logs?kind=calls', 'All calls', { tone: 'ghost' }) },
+    { title: html`<span class="text-info">${icon('wrench')}</span>Most used tools`, aside: linkButton('/logs?kind=calls', 'All calls', { tone: 'ghost' }), scroll: true },
   );
 }

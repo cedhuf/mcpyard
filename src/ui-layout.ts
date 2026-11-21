@@ -209,7 +209,7 @@ export function page(c: Context<Env>, title: string, body: Fragment, options: { 
               ${brand}
             </div>
             <div class="navbar-center hidden lg:flex"><ul class="menu menu-horizontal gap-1 p-0">${links}</ul></div>
-            <div class="navbar-end flex-1 gap-2 sm:gap-4">
+            <div class="navbar-end flex-1 gap-2 sm:gap-6">
               <button type="button" class="btn btn-sm btn-ghost max-sm:btn-square sm:w-60 sm:justify-start sm:border-base-300 sm:bg-base-100 sm:font-normal sm:text-base-content/60" data-palette-open aria-label="Search" title="Search (/ or Ctrl+K)">${icon('search', 'sm')}<span class="max-sm:hidden">Search…</span><kbd class="kbd kbd-xs ml-auto max-sm:hidden">/</kbd></button>
               ${accountMenu(c)}
             </div>
