@@ -57,7 +57,7 @@ import { Card, CardGrid, LinkButton } from '@astrojs/starlight/components';
     The new version starts next to the old one and takes over only once it answers. The previous one stays for rollback.
   </Card>
   <Card title="Keys with scopes" icon="approve-check">
-    One bearer key per client, limited to servers and tool globs. Tokens are shown once and stored hashed.
+    One key per client, limited to servers and tool globs, made by hand or by an OAuth sign-in where you pick the rights. Tokens are stored hashed.
   </Card>
   <Card title="Behind your identity provider" icon="seti:lock">
     The web UI signs in with OpenID Connect: PocketID, Authelia, Keycloak. No local password to leak.

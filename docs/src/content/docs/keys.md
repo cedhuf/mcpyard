@@ -7,7 +7,7 @@ and the hub refuses calls to anything else.
 
 ## Creating keys
 
-In the web UI, open **Keys**, name the key after the client (`laptop-claude-code`, `home-agent`), pick
+In the web UI, open **Access**, name the key after the client (`laptop-claude-code`, `home-agent`), pick
 its servers and tool filters, and create it. The token is displayed once; only its SHA-256 hash is
 stored, in `$MCPYARD_DATA_DIR/keys.json`.
 
@@ -37,8 +37,8 @@ claude mcp add --transport http mcpyard https://mcpyard.example.lan/mcp
 
 On first use the client opens the browser. You sign in to the web UI, see the client's name and the
 host it answers to, pick the servers, tool filters and hub administration exactly as for a key, and
-allow it. The sign-in becomes a key in **Keys**, tagged **OAuth**, that you edit, disable or delete
-like any other: deleting it revokes the client.
+allow it. The sign-in becomes a key, listed under **Signed-in clients** in **Access**, that you edit, disable
+or revoke like any other.
 
 Its access token lasts an hour and the client renews it with a refresh token, valid 90 days from the
 last renewal and replaced at every use. A refresh token presented twice means it leaked: the key is

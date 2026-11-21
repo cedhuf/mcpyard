@@ -122,7 +122,7 @@ test('a metadata-document client signs in, picks rights, refreshes, and reuse di
   assert.equal((await bearer(renewed.access_token)).status, 401);
 
   const listing = await (await t.request('/keys', { headers: { cookie: t.cookie } })).text();
-  assert.match(listing, />OAuth</);
+  assert.match(listing, /Signed-in clients[\s\S]*Test Client · <span class="font-mono">127\.0\.0\.1:43123<\/span>[\s\S]*>Keys</);
 });
 
 test('an expired access token is refused until the client refreshes', async () => {

@@ -53,7 +53,7 @@ test('the navbar search looks in the current section and keeps its filters', asy
   assert.match(await (await request('/logs?kind=calls')).text(), /<form method="get" action="\/logs"[^>]*>\s*<input type="hidden" name="kind" value="calls"/);
   const keys = await (await request('/keys?q=nothing-like-this')).text();
   assert.match(keys, /<form method="get" action="\/keys"/);
-  assert.match(keys, /No key matches <strong>nothing-like-this<\/strong>/);
+  assert.match(keys, /Nothing matches <strong>nothing-like-this<\/strong>/);
   assert.ok(!(await (await request('/servers?q=bet')).text()).includes('href="/servers/alpha"'), 'the servers search filters');
 });
 

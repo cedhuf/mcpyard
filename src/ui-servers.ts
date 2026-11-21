@@ -58,7 +58,14 @@ function stateLabel(row: Row): Fragment {
 function stateWithError(row: Row): Fragment {
   const error = stateOf(row) === 'disabled' ? undefined : row.upstream.lastError;
   if (!error) return stateLabel(row);
-  return html`<span class="${ROW_END} tooltip tooltip-bottom before:font-mono before:text-xs before:break-words" data-tip="${error}">${stateLabel(row)}</span>`;
+  return html`<span class="${ROW_END} tooltip tooltip-bottom before:font-mono before:text-xs before:break-words" data-tip="${readableError(error)}">${stateLabel(row)}</span>`;
+}
+
+/** The server's own words out of a transport error such as `Error POSTing to endpoint: {"jsonrpc":…,"message":"…"}`. */
+export function readableError(error: string): string {
+  const quoted = error.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1];
+  const text = quoted === undefined ? error : (JSON.parse(`"${quoted}"`) as string);
+  return text.replace(/^(Error POSTing to endpoint( \(HTTP \d+\))?|MCP error -?\d+):\s*/i, '') || error;
 }
 
 export function plural(n: number, word: string): string {

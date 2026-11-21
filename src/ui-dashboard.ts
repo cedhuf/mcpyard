@@ -10,7 +10,7 @@ import type { Settings } from './settings.ts';
 import { icon, mascot, type Mood } from './ui-icons.ts';
 import { box, linkButton, pageHead, postButton, stats, status, tag } from './ui-kit.ts';
 import { log, page, toast, type Env, type Fragment } from './ui-layout.ts';
-import { plural, serverLabel } from './ui-servers.ts';
+import { plural, readableError, serverLabel } from './ui-servers.ts';
 
 export type DashboardOptions = { keysPath: string; signIn: boolean; publicUrl?: string; settings?: Settings; configFile?: ConfigFile };
 
@@ -146,7 +146,7 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
       sub: summary,
       crumbs: [{ label: 'Dashboard' }],
       wideActions: true,
-      actions: html`<div class="flex w-full items-center justify-end gap-4">
+      actions: html`<div class="flex w-full items-center justify-end gap-4 sm:gap-8">
         ${mascot('md', mood)}
         <div class="grid gap-2 max-sm:flex-1">
           ${clock()}
@@ -190,7 +190,7 @@ function healthCard(hub: Hub, names: string[], off: (name: string) => boolean): 
     return html`<li class="list-row items-center">
       <div class="min-w-0 list-col-grow">
         <a class="font-semibold link link-hover" href="/servers/${name}">${serverLabel(name, hub.configs[name])}</a>
-        ${r && !r.ok ? html`<p class="text-xs text-error truncate" title="${r.error}">${r.error}</p>` : ''}
+        ${r && !r.ok ? html`<p class="text-xs text-error/80 line-clamp-2" title="${r.error}">${readableError(r.error ?? '')}</p>` : ''}
       </div>
       <span class="text-sm">${state}</span>
       <span class="w-16 text-right font-mono text-xs text-base-content/60 tabular-nums">${r?.ms !== undefined ? `${r.ms} ms` : ''}</span>

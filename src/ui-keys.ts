@@ -3,7 +3,7 @@ import { html } from 'hono/html';
 import type { Hub } from './front.ts';
 import { isAdmin, loadKeys, newKey, saveKeys, type Key } from './keys.ts';
 import type { AuthServer, OAuthClient } from './oauth-server.ts';
-import { box, cell, checkbox, dialogButton, empty, hero, field, fields, linkButton, list, menu, note, onOff, pageHead, row, tag, title } from './ui-kit.ts';
+import { type Content, box, cell, checkbox, dialogButton, empty, hero, field, fields, linkButton, list, menu, note, onOff, pageHead, row, tag, title } from './ui-kit.ts';
 import { plural } from './ui-servers.ts';
 import { mascot } from './ui-icons.ts';
 import { icon, log, notFound, page, toast, type Env, type Fragment } from './ui-layout.ts';
@@ -11,9 +11,9 @@ import { icon, log, notFound, page, toast, type Env, type Fragment } from './ui-
 export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: { keysPath: string; base: (c: Context) => string; authServer?: AuthServer }): void {
   const { keysPath, authServer } = options;
 
-  app.get('/keys', guard, (c) => c.html(page(c, 'Keys', keysView(hub, loadKeys(keysPath), (c.req.query('q') ?? '').trim()))));
+  app.get('/keys', guard, (c) => c.html(page(c, 'Access', keysView(hub, loadKeys(keysPath), (c.req.query('q') ?? '').trim(), authServer?.resource))));
 
-  app.get('/keys/new', guard, (c) => c.html(page(c, 'New key', html`${pageHead('New key', { crumbs: [{ label: 'Keys', href: '/keys' }, { label: 'New key' }] })}${box(keyForm(hub), { pad: true })}`)));
+  app.get('/keys/new', guard, (c) => c.html(page(c, 'New key', html`${pageHead('New key', { crumbs: [{ label: 'Access', href: '/keys' }, { label: 'New key' }] })}${box(keyForm(hub), { pad: true })}`)));
 
   app.post('/keys', guard, async (c) => {
     const form = await c.req.parseBody({ all: true });
@@ -24,14 +24,14 @@ export function keyRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env
     const keys = loadKeys(keysPath);
     saveKeys(keysPath, [...keys, key]);
     log(c, 'key_created', { key: key.name });
-    return c.html(page(c, 'Keys', html`${keysView(hub, [...keys, key])}${created(key, token, options.base(c))}`));
+    return c.html(page(c, 'Access', html`${keysView(hub, [...keys, key], '', authServer?.resource)}${created(key, token, options.base(c))}`));
   });
 
   app.get('/keys/:id/edit', guard, (c) => {
     const key = loadKeys(keysPath).find((k) => k.id === c.req.param('id'));
     if (!key) return notFound(c);
     const via = key.oauth ? html`, signed in by ${key.oauth.user} with ${key.oauth.clientName}` : '';
-    return c.html(page(c, 'Edit key', html`${pageHead(key.name, { crumbs: [{ label: 'Keys', href: '/keys' }, { label: key.name }], sub: html`<span class="font-mono">${key.prefix}…</span>, created ${key.created.slice(0, 10)}${via}, last used ${ago(key.lastUsed)}` })}${box(keyForm(hub, key), { pad: true })}`));
+    return c.html(page(c, 'Edit key', html`${pageHead(key.name, { crumbs: [{ label: 'Access', href: '/keys' }, { label: key.name }], sub: html`<span class="font-mono">${key.prefix}…</span>, created ${key.created.slice(0, 10)}${via}, last used ${ago(key.lastUsed)}` })}${box(keyForm(hub, key), { pad: true })}`));
   });
 
   app.post('/keys/:id', guard, async (c) => {
@@ -122,48 +122,90 @@ function ago(iso: string | null): string {
   return `${Math.round(minutes / 1440)} days ago`;
 }
 
+function reach(k: Key): string {
+  const list = servers(k);
+  return list.includes('*') ? 'all servers' : list.length ? list.join(', ') : isAdmin(k) ? 'administration only' : 'no server';
+}
+
+function access(k: Key): Fragment {
+  return html`<span class="flex gap-1">${servers(k).length ? tag('tools') : ''}${isAdmin(k) ? tag('admin', { tone: 'warning', icon: 'wrench' }) : ''}</span>`;
+}
+
+function controls(k: Key, remove: string, warning: string): Fragment {
+  return html`${onOff(`/keys/${k.id}/${k.enabled ? 'disable' : 'enable'}`, k.enabled, `${k.enabled ? 'Disable' : 'Enable'} ${k.name}`)}
+    ${menu(`key-${k.id}`, `Actions for ${k.name}`, [
+      { href: `/keys/${k.id}/edit`, label: 'Edit', icon: 'pencil' },
+      { post: `/keys/${k.id}/delete`, label: remove, icon: 'trash', danger: true, confirm: warning },
+    ])}`;
+}
+
+const truncated = (text: string, mono = false) => html`<span class="block max-w-48 truncate ${mono ? 'font-mono text-xs' : ''}" title="${text}">${text}</span>`;
+
 function keyRow(k: Key): Fragment {
   const filter =
     [k.scope.tools.allow?.length ? `allow ${k.scope.tools.allow.join(', ')}` : '', k.scope.tools.deny?.length ? `deny ${k.scope.tools.deny.join(', ')}` : '']
       .filter(Boolean)
       .join(' · ') || 'all tools';
-  const list = servers(k);
-  const reach = list.includes('*') ? 'all servers' : list.length ? list.join(', ') : isAdmin(k) ? 'administration only' : 'no server';
   return row(
-    html`${title(k.name, html`<span class="font-mono">${k.prefix}…</span><span class="lg:hidden"> · ${[list.length ? 'tools' : '', isAdmin(k) ? 'admin' : ''].filter(Boolean).join(' + ')}</span>`, { href: `/keys/${k.id}/edit` })}
-      ${cell(html`<span class="flex gap-1">${list.length ? tag('tools') : ''}${isAdmin(k) ? tag('admin', { tone: 'warning', icon: 'wrench' }) : ''}${oauthTag(k)}</span>`, { hide: true })}
-      ${cell(html`<span class="block max-w-48 truncate" title="${reach}">${reach}</span>`, { hide: true })}
-      ${cell(html`<span class="block max-w-48 truncate font-mono text-xs" title="${filter}">${filter}</span>`, { hide: true })}
+    html`${title(k.name, html`<span class="font-mono">${k.prefix}…</span><span class="lg:hidden"> · ${[servers(k).length ? 'tools' : '', isAdmin(k) ? 'admin' : ''].filter(Boolean).join(' + ')}</span>`, { href: `/keys/${k.id}/edit` })}
+      ${cell(access(k), { hide: true })}
+      ${cell(truncated(reach(k)), { hide: true })}
+      ${cell(truncated(filter, true), { hide: true })}
       ${cell(html`<span title="Created ${k.created.slice(0, 10)}">${ago(k.lastUsed)}</span>`, { hide: true })}`,
-    {
-      off: !k.enabled,
-      end: html`${onOff(`/keys/${k.id}/${k.enabled ? 'disable' : 'enable'}`, k.enabled, `${k.enabled ? 'Disable' : 'Enable'} key ${k.name}`)}
-        ${menu(`key-${k.id}`, `Actions for ${k.name}`, [
-          { href: `/keys/${k.id}/edit`, label: 'Edit', icon: 'pencil' },
-          { post: `/keys/${k.id}/delete`, label: 'Delete', icon: 'trash', danger: true, confirm: `Delete key ${k.name}? Clients using it lose access.` },
-        ])}`,
-    },
+    { off: !k.enabled, end: controls(k, 'Delete', `Delete key ${k.name}? Clients using it lose access.`) },
   );
 }
 
-function oauthTag(k: Key): Fragment | string {
-  if (!k.oauth) return '';
-  const expired = Date.parse(k.oauth.refreshExpires) <= Date.now();
-  const about = `Signed in by ${k.oauth.user} with ${k.oauth.clientName}, answers to ${k.oauth.redirectHost}${expired ? ', expired: sign in again' : `, renewable until ${k.oauth.refreshExpires.slice(0, 10)}`}`;
-  return tag(expired ? 'OAuth expired' : 'OAuth', { tone: expired ? 'error' : undefined, title: about });
+function grantRow(k: Key): Fragment {
+  const g = k.oauth!;
+  const expired = Date.parse(g.refreshExpires) <= Date.now();
+  return row(
+    html`${title(k.name, html`${g.clientName} · <span class="font-mono">${g.redirectHost}</span>`, { href: `/keys/${k.id}/edit` })}
+      ${cell(g.user, { hide: true })}
+      ${cell(access(k), { hide: true })}
+      ${cell(truncated(reach(k)), { hide: true })}
+      ${cell(html`<span title="Signed in ${k.created.slice(0, 10)}">${ago(k.lastUsed)}</span>`, { hide: true })}
+      ${cell(expired ? tag('Expired', { tone: 'error', title: 'Sign in again from the client' }) : html`<span title="The client renews its token by itself until then">${g.refreshExpires.slice(0, 10)}</span>`, { hide: true })}`,
+    { off: !k.enabled || expired, end: controls(k, 'Revoke', `Revoke ${k.name}? ${g.clientName} has to sign in again.`) },
+  );
 }
 
-function keysView(hub: Hub, all: Key[], q = ''): Fragment {
+function section(heading: string, glyph: string, count: number, body: Content): Fragment {
+  return html`<section class="grid gap-2">
+    <h2 class="flex items-center gap-2 font-display text-lg font-semibold"><span class="text-secondary">${icon(glyph, 'sm')}</span>${heading}<span class="badge badge-sm badge-ghost">${count}</span></h2>
+    ${body}
+  </section>`;
+}
+
+/** The access page: clients signed in through OAuth, then hand-made keys. `signIn` is the URL to give clients when OAuth is on. */
+function keysView(hub: Hub, all: Key[], q = '', signIn?: string): Fragment {
   const needle = q.toLowerCase();
-  const keys = all.filter((k) => !needle || [k.name, k.prefix, ...k.scope.servers].some((v) => v.toLowerCase().includes(needle)));
+  const found = all.filter((k) => !needle || [k.name, k.prefix, ...k.scope.servers, k.oauth?.clientName ?? '', k.oauth?.user ?? ''].some((v) => v.toLowerCase().includes(needle)));
+  const grants = found.filter((k) => k.oauth);
+  const keys = found.filter((k) => !k.oauth);
+  const signedIn = all.filter((k) => k.oauth).length;
   const off = all.filter((k) => !k.enabled).length;
   const admins = all.filter((k) => k.enabled && isAdmin(k)).length;
-  return html`${pageHead('Keys', {
-      sub: html`${plural(all.length, 'key')}${admins ? `, ${admins} with administration` : ''}${off ? `, ${off} off` : ''}. Every client connects to <span class="font-mono">/mcp</span> with its own key.`,
+  const how = signIn ? html`Clients that support MCP sign-in need only the URL, <span class="font-mono">${signIn}</span>: they open a browser and you pick their rights.` : '';
+  const grantList = grants.length
+    ? list(['Client', { label: 'Signed in by', hide: true }, { label: 'Access', hide: true }, { label: 'Servers', hide: true }, { label: 'Last used', hide: true }, { label: 'Renews until', hide: true }], grants.map(grantRow))
+    : empty(html`<p class="text-center">No client signed in yet. ${how}</p>`);
+  const keyList = keys.length
+    ? list(['Name', { label: 'Access', hide: true }, { label: 'Servers', hide: true }, { label: 'Tools', hide: true }, { label: 'Last used', hide: true }], keys.map(keyRow))
+    : empty(html`<p class="text-center">No key yet. Make one for a client that cannot sign in, or for a script.</p>`);
+  return html`${pageHead('Access', {
+      sub: html`${plural(signedIn, 'signed-in client')} and ${plural(all.length - signedIn, 'key')}${admins ? `, ${admins} with administration` : ''}${off ? `, ${off} off` : ''}. Every client reaches <span class="font-mono">/mcp</span> with its own sign-in or key.`,
       actions: dialogButton('new-key', 'New key', { tone: 'primary', icon: 'key' }),
     })}
     ${q ? html`<div class="mb-3"><a class="badge badge-ghost gap-1" href="/keys" title="Clear the search">“${q}” ✕</a></div>` : ''}
-    ${!all.length ? hero('No keys yet', 'Every client gets its own key, so you can see who calls what and switch one off without touching the others.', dialogButton('new-key', 'Make the first key', { tone: 'primary', icon: 'key' }), 'hello') : !keys.length && q ? empty(html`<p>No key matches <strong>${q}</strong>.</p>`) : keys.length ? list(['Name', { label: 'Access', hide: true }, { label: 'Servers', hide: true }, { label: 'Tools', hide: true }, { label: 'Last used', hide: true }], keys.map(keyRow)) : empty('No keys yet. Create one for each client.')}
+    ${!all.length
+      ? hero('Nobody gets in yet', html`Every client gets its own access, so you can see who calls what and switch one off without touching the others. ${how}`, dialogButton('new-key', 'Make a key', { tone: 'primary', icon: 'key' }), 'hello')
+      : !found.length
+        ? empty(html`<p>Nothing matches <strong>${q}</strong>.</p>`)
+        : html`<div class="grid gap-6">
+            ${signIn || grants.length ? section('Signed-in clients', 'lock', grants.length, grantList) : ''}
+            ${section('Keys', 'key', keys.length, keyList)}
+          </div>`}
     <dialog id="new-key" class="modal">
       <div class="modal-box max-w-2xl">
         <h3 class="font-display text-xl font-semibold mb-4 flex items-center gap-2"><span class="text-secondary">${icon('key')}</span>New key</h3>
@@ -184,7 +226,7 @@ function keyForm(hub: Hub, key?: Key, consent?: { request: string; name: string 
   const all = scope.servers.includes('*');
   const known = [...new Set([...hub.upstreams.keys(), ...(key ? servers(key) : []).filter((s) => s !== '*')])];
   const hint = consent
-    ? 'The sign-in becomes a key under Keys, where its rights can change later.'
+    ? 'The sign-in becomes a key under Access, where its rights can change later.'
     : key?.oauth
       ? 'Signed in through OAuth: the client renews its token, delete the key to revoke it.'
       : key

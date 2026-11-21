@@ -41,7 +41,7 @@ it with `chown 1000 mcpyard.yaml`. The first start installs each package into th
 ## 3. Create a key
 
 Open [http://localhost:3000](http://localhost:3000), check that both servers are **ready**, then open
-**Keys** and create one for your client. The token is shown once, with the command to add it to
+**Access** and create a key for your client. The token is shown once, with the command to add it to
 Claude Code:
 
 <img src="assets/token-light.png" alt="A freshly created key with its token and the Claude Code command" class="dark:sl-hidden">

@@ -140,7 +140,7 @@ export const YARD_TOOLS: YardTool[] = [
         ...overview(hub, keys, (s) => manages(hub, key, s)),
         ...(all
           ? {
-              keyList: keys.map((k) => ({ name: k.name, prefix: k.prefix, enabled: k.enabled, admin: isAdmin(k), servers: k.scope.servers.filter((s) => s !== YARD), tools: k.scope.tools, created: k.created, lastUsed: k.lastUsed })),
+              keyList: keys.map((k) => ({ name: k.name, prefix: k.prefix, enabled: k.enabled, admin: isAdmin(k), servers: k.scope.servers.filter((s) => s !== YARD), tools: k.scope.tools, created: k.created, lastUsed: k.lastUsed, ...(k.oauth ? { signedIn: { client: k.oauth.clientName, by: k.oauth.user, renewsUntil: k.oauth.refreshExpires } } : {}) })),
               security: hub.security?.() ?? null,
             }
           : {}),

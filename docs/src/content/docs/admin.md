@@ -45,7 +45,7 @@ no server tools and manages every server.
 A key that manages only some servers sees only their lines in `yard-read_logs` and their figures in
 `yard-overview`; the keys, the security check and the hub's own lines are for keys that manage
 every server. Keys are listed with their name, prefix, scope and last use, never their token or
-hash.
+hash; a key made by an OAuth sign-in also gives the client, who approved it and until when it renews.
 
 A `yard-list_servers` entry looks like this:
 

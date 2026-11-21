@@ -27,7 +27,8 @@ MCP Yard aims at the small intersection none of them covers:
   click, with rollback if it fails to start, or every night at an hour you pick. Pin a version in
   the file to freeze it.
 - **Keys with scopes from day one.** One bearer key per client, each limited to a set of servers
-  and tools.
+  and tools. Clients that support MCP authorization sign in with OAuth instead: you approve them in
+  the browser and pick their rights, no token to paste.
 - **OIDC first.** The web UI sits behind your identity provider (PocketID, Authelia, Keycloak...).
   No local password.
 - **Configured by environment and one file.** Runtime settings in env vars, servers in a single
@@ -67,6 +68,8 @@ Open http://localhost:3000, create a key, then point your client at `/mcp`:
 ```bash
 claude mcp add --transport http mcpyard http://localhost:3000/mcp --header "Authorization: Bearer yard_..."
 ```
+
+Behind OIDC and HTTPS, the URL alone is enough: the client signs in through the browser.
 
 ![The MCP Yard dashboard: server health, updates and security check](docs/public/assets/dashboard-light.png)
 

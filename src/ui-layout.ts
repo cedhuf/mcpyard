@@ -89,7 +89,7 @@ export function notFound(c: Context<Env>): Response | Promise<Response> {
 
 const NAV = [
   ['/servers', 'Servers', 'server', 'text-primary'],
-  ['/keys', 'Keys', 'key', 'text-secondary'],
+  ['/keys', 'Access', 'key', 'text-secondary'],
   ['/logs', 'Logs', 'logs', 'text-accent'],
 ] as const;
 
@@ -97,7 +97,7 @@ const NAV = [
 function sectionSearch(c: Context<Env>): { action: string; placeholder: string; keep: Record<string, string> } {
   const path = c.req.path;
   const keep = (...names: string[]) => Object.fromEntries(names.flatMap((n) => (c.req.query(n) ? [[n, c.req.query(n)!]] : [])));
-  if (path.startsWith('/keys')) return { action: '/keys', placeholder: 'Search keys', keep: {} };
+  if (path.startsWith('/keys')) return { action: '/keys', placeholder: 'Search access', keep: {} };
   if (path.startsWith('/logs')) return { action: '/logs', placeholder: 'Search logs', keep: keep('kind', 'server') };
   return { action: '/servers', placeholder: 'Search servers', keep: path === '/servers' ? keep('state') : {} };
 }

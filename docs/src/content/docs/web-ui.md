@@ -4,10 +4,10 @@ title: Web UI and sign-in
 
 The web UI is served at the root of the hub. It opens on a dashboard, shows each server's state,
 tools and versions, restarts servers, updates and rolls back packages, reloads the server file,
-creates, edits, disables and deletes keys, and shows the hub's logs. It refreshes itself every few
+manages who reaches `/mcp` (OAuth sign-ins and keys), and shows the hub's logs. It refreshes itself every few
 seconds.
 
-The top bar holds the sections (**Servers**, **Keys**, **Logs**), a search field and the account
+The top bar holds the sections (**Servers**, **Access**, **Logs**), a search field and the account
 menu with **Settings** and **Sign out**. The search filters the section you are in as you type; on
 the dashboard it searches the servers. The **MCP Yard** title and the house at the start of every
 page's breadcrumbs lead back to the dashboard, and the footer shows the running version, with a
@@ -84,6 +84,19 @@ rewrites the server file and restarts only that server.
 - The whole file must still be valid, or nothing is written and the error is shown.
 - If the file is read-only (a `:ro` mount, or not writable by uid 1000), the forms are shown locked
   and the file stays yours to edit by hand; **Reload** applies it.
+
+## Access
+
+The **Access** page lists who reaches `/mcp`, in two parts:
+
+- **Signed-in clients**: clients that signed in through [OAuth](keys.html#signing-in-with-oauth),
+  with the client's name and the host it answers to, who approved it, its last use and the date
+  until which it renews its token by itself. **Revoke** deletes it; the client has to sign in again.
+- **Keys**: tokens made by hand for clients that cannot sign in, or for scripts. **New key** makes
+  one and shows its token once.
+
+Both open the same form: name, servers, tool filters, hub administration. A sign-in shows that form
+first, as the consent page, so the rights are picked before the client gets anything.
 
 ## Logs
 
