@@ -30,6 +30,7 @@ MCPYARD_PUBLIC_URL=https://mcpyard.example.lan
 OIDC_ISSUER=https://id.example.lan
 OIDC_CLIENT_ID=mcpyard
 OIDC_CLIENT_SECRET=...
+TZ=Europe/Paris   # hub time: logs, dashboard clock, nightly updates; UTC without it
 # secrets referenced from mcpyard.yaml
 SEARCH_TOKEN=...
 ```

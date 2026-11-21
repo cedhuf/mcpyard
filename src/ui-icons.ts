@@ -42,9 +42,9 @@ const ICONS: Record<string, string> = {
   wrench: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 8-8M14.7 6.3 13 4.7a4 4 0 0 0-5 5L3 15l3 3 5.3-5.3"/>',
 };
 
-const SIZES = { xs: 'size-3', sm: 'size-4', md: 'size-[18px]' } as const;
+const SIZES = { xs: 'size-3', sm: 'size-4', md: 'size-[18px]', lg: 'size-8' } as const;
 
-export function icon(name: string, size: 'xs' | 'sm' | 'md' = 'md'): Fragment {
+export function icon(name: string, size: keyof typeof SIZES = 'md'): Fragment {
   return html`<svg class="${SIZES[size]} shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${raw(ICONS[name] ?? '')}</svg>`;
 }
 

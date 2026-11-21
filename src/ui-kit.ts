@@ -14,7 +14,7 @@ export type Crumb = { label: Content; href?: string };
 /** The top of every page: breadcrumbs from the home page, the title, a line under it, and the page's actions. */
 export function pageHead(title: Content, options: { sub?: Content; actions?: Content; crumbs?: Crumb[]; eyebrow?: Content; wideActions?: boolean } = {}): Fragment {
   return html`<header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 mb-6">
-    <div class="min-w-0">
+    <div class="min-w-0 self-start">
       ${breadcrumbs(options.crumbs ?? [{ label: title }])}
       ${options.eyebrow ? html`<p class="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">${options.eyebrow}</p>` : ''}
       <h1 class="flex flex-wrap items-center gap-3 font-display text-3xl font-semibold">${title}</h1>
@@ -208,7 +208,7 @@ export function checkbox(name: string, value: string, label: Content, checked: b
 export function stats(items: { label: string; value: Content; tone?: Tone; desc?: Content; icon?: string; tint?: string }[], options: { large?: boolean } = {}): Fragment {
   return html`<div class="stats grid grid-flow-row grid-cols-2 lg:grid-cols-4 w-full border border-base-300 bg-base-100">${items.map(
     (s) => html`<div class="stat ${options.large ? 'py-4' : 'py-2.5'}">
-      ${s.icon ? html`<div class="stat-figure ${s.tint ?? 'text-base-content/40'}">${icon(s.icon, 'md')}</div>` : ''}
+      ${s.icon ? html`<div class="stat-figure ${s.tint ?? 'text-base-content/40'}">${icon(s.icon, options.large ? 'lg' : 'md')}</div>` : ''}
       <div class="stat-title">${s.label}</div>
       <div class="stat-value ${options.large ? 'font-display text-3xl' : 'text-xl'} ${s.tone === 'error' ? 'text-error' : ''}">${s.value}</div>
       ${s.desc ? html`<div class="stat-desc whitespace-normal">${s.desc}</div>` : ''}
