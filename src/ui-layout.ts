@@ -290,8 +290,16 @@ if (clock) {
   };
   tick();
 }
-/** Moves the elements marked data-keep from the page into its refreshed copy, so a clock keeps ticking. */
-const keep = (from, to) => from.querySelectorAll('[data-keep]').forEach((el) => to.querySelector('#' + CSS.escape(el.id))?.replaceWith(el));
+/** Replaces each zone marked data-refresh with its copy from a fetched page. Nothing outside them moves, so the clock's animation is never cut. */
+const swap = (text) => {
+  const fresh = new DOMParser().parseFromString(text, 'text/html');
+  let swapped = false;
+  document.querySelectorAll('[data-refresh]').forEach((zone) => {
+    const next = fresh.getElementById(zone.id);
+    if (next) { zone.replaceWith(next); swapped = true; }
+  });
+  return swapped;
+};
 let searching;
 document.addEventListener('input', (e) => {
   const form = e.target.closest('form[role=search]');
@@ -303,20 +311,13 @@ document.addEventListener('input', (e) => {
   clearTimeout(searching);
   searching = setTimeout(async () => {
     const res = await fetch(url).catch(() => null);
-    const area = document.querySelector('[data-refresh]');
-    if (!res || !res.ok || !area) return;
-    const next = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById(area.id);
-    if (next) { keep(area, next); area.replaceWith(next); history.replaceState(null, '', url); }
+    if (!res || !res.ok || !document.querySelector('[data-refresh]')) return;
+    if (swap(await res.text())) history.replaceState(null, '', url);
   }, 200);
 });
-const live = document.querySelector('[data-refresh]');
-if (live) setInterval(async () => {
-  const current = document.getElementById(live.id);
+if (document.querySelector('[data-refresh]')) setInterval(async () => {
   if (document.hidden || document.querySelector('dialog[open], :popover-open') || String(getSelection()) || document.activeElement?.matches('input')) return;
   const res = await fetch(location.pathname + location.search).catch(() => null);
   if (!res || !res.ok || res.redirected) return;
-  const next = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById(live.id);
-  if (!next) return;
-  keep(current, next);
-  current.replaceWith(next);
+  swap(await res.text());
 }, 4000);`;

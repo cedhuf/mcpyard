@@ -86,7 +86,7 @@ function clock(): Fragment {
   const now = new Date();
   const { hour, minute, second } = clockParts(now);
   const digit = (unit: string, value: number) => html`<span data-unit="${unit}" style="--value:${value};--digits:2" aria-live="polite" aria-label="${value}">${value}</span>`;
-  return html`<div id="hub-clock" data-keep class="card card-border border-base-300 bg-base-100">
+  return html`<div id="hub-clock" class="card card-border border-base-300 bg-base-100">
     <div class="card-body gap-1 px-5 py-3">
       <span class="flex items-center gap-1.5 text-xs text-base-content/60">${icon('clock', 'xs')}Hub time · ${ZONE}</span>
       <span class="countdown font-mono text-3xl tabular-nums" data-clock data-now="${now.getTime()}" data-zone="${ZONE}">${digit('hour', hour)}:${digit('minute', minute)}:${digit('second', second)}</span>
@@ -154,14 +154,14 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
     ? 'Your yard is empty: add a first server to get going.'
     : `${care.length ? `${plural(care.length, 'server')} ${care.length === 1 ? 'needs' : 'need'} care` : 'Every server is healthy'}${updates.length ? `, ${plural(updates.length, 'update')} ${updates.length === 1 ? 'is' : 'are'} ready` : ''} and ${passed} of ${checks.length} security checks pass.`;
 
-  return html`<div id="dashboard" data-refresh>
+  return html`<div id="dashboard">
     ${pageHead(`${greeting}${user ? `, ${user.name}` : ''}.`, {
       eyebrow: date,
-      sub: summary,
+      sub: html`<span id="dashboard-summary" data-refresh>${summary}</span>`,
       crumbs: [{ label: 'Dashboard' }],
       wideActions: true,
       actions: html`<div class="flex w-full items-center justify-end gap-4 sm:gap-8">
-        ${mascot('md', mood)}
+        <span id="dashboard-mascot" data-refresh>${mascot('md', mood)}</span>
         <div class="grid gap-2 max-sm:flex-1">
           ${clock()}
           <form method="post" action="/dashboard/reload" class="contents"><button class="btn btn-sm w-full" title="Re-read the server file and apply the changes">${icon('refresh', 'sm')}Reload server file</button></form>
@@ -169,7 +169,7 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
       </div>`,
     })}
 
-    <div class="grid gap-4">
+    <div id="dashboard-body" class="grid gap-4" data-refresh>
       ${stats(
         [
           { label: 'Healthy servers', value: `${ov.servers.healthy.length}/${ov.servers.running}`, desc: care.length ? html`<span class="text-error">${care.length} ${care.length === 1 ? 'needs' : 'need'} care</span>` : `${ov.servers.switchedOff.length} switched off`, icon: 'server', tint: 'text-primary' },

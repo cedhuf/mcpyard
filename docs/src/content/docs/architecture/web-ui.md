@@ -19,6 +19,10 @@ modals, `<details>` for folding. One small inline script, behind a CSP nonce, ha
 cannot: auto refresh, live search, settings autosave, the clock, copy buttons and the confirm
 modal.
 
+Auto refresh and live search fetch the page again and replace each zone marked `data-refresh` with
+its fresh copy, by id. Anything outside those zones stays in place: the dashboard clock is never
+moved, since moving an element cuts its CSS animation.
+
 Every UI response carries a strict Content-Security-Policy (`default-src 'none'`, nonce-only
 scripts, `frame-ancestors 'none'`). Every POST is checked against the hub's own origin. The page
 font is served by the hub, so the UI makes no external request.
