@@ -138,12 +138,15 @@ function palette(): Fragment {
   </dialog>`;
 }
 
+/** Round, with a thin ring in the text color of the theme, so it reads on light and dark alike. */
+const FACE = 'w-8 rounded-full ring-2 ring-base-content/30 ring-offset-2 ring-offset-base-200';
+
 /** The account menu: who is signed in, the settings, and signing out. */
 function accountMenu(c: Context<Env>): Fragment {
   const user = c.get('user');
   const face = user?.picture
-    ? html`<div class="w-9 rounded-full"><img src="${user.picture}" alt="" referrerpolicy="no-referrer" /></div>`
-    : html`<div class="w-9 rounded-full ${user ? 'bg-primary text-primary-content' : 'bg-base-300'}">${user ? html`<span class="font-display font-semibold">${user.name.slice(0, 1).toUpperCase()}</span>` : icon('lock', 'sm')}</div>`;
+    ? html`<div class="${FACE}"><img src="${user.picture}" alt="" referrerpolicy="no-referrer" /></div>`
+    : html`<div class="${FACE} ${user ? 'bg-primary text-primary-content' : 'bg-base-300'}">${user ? html`<span class="font-display font-semibold">${user.name.slice(0, 1).toUpperCase()}</span>` : icon('lock', 'sm')}</div>`;
   return menu(
     'account',
     user ? `Account of ${user.name}` : 'Account',
