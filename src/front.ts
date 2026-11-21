@@ -10,6 +10,7 @@ import type { OAuthStore } from './oauth.ts';
 import type { LatestStatus, Packages } from './packages.ts';
 import { Upstream } from './upstream.ts';
 import { VERSION } from './release.ts';
+import type { SecurityCheck } from './insights.ts';
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 
 const CLIENT_PREFIX = 'mcp__mcpyard__';
@@ -55,7 +56,7 @@ export class Hub {
   /** Skills added in the hub, served to the keys that see their server. */
   skills?: Skills;
   /** The web UI's security check, when the UI runs; the admin tools return it too. */
-  security?: () => { ok: boolean; title: string; detail: string; label: string }[];
+  security?: () => SecurityCheck[];
 
   /** `load` re-reads the server file for `reload()`. */
   constructor(configs: Record<string, ServerConfig>, packages?: Packages, load?: () => Record<string, ServerConfig>, oauth?: OAuthStore) {
@@ -113,12 +114,16 @@ export class Hub {
 
   /** Servers switched off from the UI: state kept in the data directory, on top of what the server file says. */
   private disabled = new Set<string>();
+  /** Security choices marked as reviewed: check id to the fingerprint of the situation that was reviewed. */
+  reviewed: Record<string, string> = {};
   private statePath?: string;
 
   useState(path: string): void {
     this.statePath = path;
     try {
-      this.disabled = new Set((JSON.parse(readFileSync(path, 'utf8')) as { disabled?: string[] }).disabled ?? []);
+      const saved = JSON.parse(readFileSync(path, 'utf8')) as { disabled?: string[]; reviewed?: Record<string, string> };
+      this.disabled = new Set(saved.disabled ?? []);
+      this.reviewed = saved.reviewed ?? {};
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     }
@@ -140,6 +145,19 @@ export class Hub {
     return !!this.configs[name]?.enabled && !this.disabled.has(name);
   }
 
+  /** Marks a security choice as reviewed for this fingerprint, or forgets the review with none. */
+  review(id: string, fingerprint?: string): void {
+    if (fingerprint) this.reviewed[id] = fingerprint;
+    else delete this.reviewed[id];
+    this.saveState();
+  }
+
+  private saveState(): void {
+    if (!this.statePath) return;
+    writeFileSync(`${this.statePath}.tmp`, `${JSON.stringify({ disabled: [...this.disabled].sort(), reviewed: this.reviewed }, null, 2)}\n`);
+    renameSync(`${this.statePath}.tmp`, this.statePath);
+  }
+
   isDisabled(name: string): boolean {
     return this.disabled.has(name);
   }
@@ -151,10 +169,7 @@ export class Hub {
     if (disabled === this.disabled.has(name)) return;
     if (disabled) this.disabled.add(name);
     else this.disabled.delete(name);
-    if (this.statePath) {
-      writeFileSync(`${this.statePath}.tmp`, `${JSON.stringify({ disabled: [...this.disabled].sort() }, null, 2)}\n`);
-      renameSync(`${this.statePath}.tmp`, this.statePath);
-    }
+    this.saveState();
     const old = this.upstreams.get(name)!;
     this.upstreams.set(name, this.newUpstream(name, config));
     await old.stop();

@@ -46,7 +46,7 @@ SEARCH_TOKEN=...
 | `/data/packages/` | Installed packages, one directory per version. |
 | `/data/python/`, `/data/cache/` | Python interpreters and package caches. |
 | `/data/settings.json` | Settings saved from the UI's Settings page. |
-| `/data/state.json` | Servers switched off from the UI. |
+| `/data/state.json` | Servers switched off from the UI, and the security choices marked reviewed. |
 | `/data/oauth.json` | Client registrations and tokens of OAuth servers. Secret, mode 600. |
 | `/data/activity.json` | The last MCP calls and UI actions, so the dashboard and the logs survive a restart. |
 | `/data/session.key` | Signs web UI sessions. |

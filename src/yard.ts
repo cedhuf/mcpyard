@@ -130,7 +130,7 @@ export const YARD_TOOLS: YardTool[] = [
   ),
   define(
     'overview',
-    "The dashboard in one call: servers healthy, needing care or switched off, tools exposed, MCP calls of the last 24 hours, updates ready and the last health check. Keys that manage every server also get the keys (never their tokens) and the security check.",
+    "The dashboard in one call: servers healthy, needing care or switched off, tools exposed, MCP calls of the last 24 hours, updates ready and the last health check. Keys that manage every server also get the keys (never their tokens) and the security check, where a reviewed choice is marked as such.",
     z.object({}),
     true,
     (hub, key) => {

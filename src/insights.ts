@@ -4,7 +4,11 @@ import { logs, type LogEntry } from './logs.ts';
 
 const DAY = 86_400_000;
 
-export type SecurityCheck = { ok: boolean; title: string; detail: string; label: string };
+/**
+ * A risk always shows until fixed. A choice can be marked as reviewed: it stays quiet while its `fingerprint` (what
+ * the choice covers, such as the keys concerned) is the one that was reviewed.
+ */
+export type SecurityCheck = { id: string; kind: 'risk' | 'choice'; ok: boolean; reviewed: boolean; fingerprint?: string; title: string; detail: string; label: string };
 
 /** The figures the dashboard shows and `yard-overview` returns, computed once for both. */
 export function overview(hub: Hub, keys: Key[], only: (server: string) => boolean = () => true) {

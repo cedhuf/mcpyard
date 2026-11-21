@@ -80,6 +80,23 @@ test('the dashboard sums up the yard and runs checks', async () => {
   assert.equal((await post('/dashboard/reload', {})).status, 400, 'no server file to reload');
 });
 
+test('a reviewed security choice stays quiet until what it covers changes, and risks cannot be reviewed', async (t) => {
+  const { request, post } = setup({ kind: 'none' });
+  t.after(() => hub.review('admin'));
+  await post('/keys', { name: 'ops', servers: '*', admin: 'true' });
+  const attention = (page: string) => page.slice(page.indexOf('Security check'), page.indexOf('<details class="collapse'));
+  const first = await (await request('/')).text();
+  assert.match(attention(first), /Hub administration[\s\S]*Mark reviewed/);
+  assert.match(attention(first), /Web UI sign-in/, 'a risk shows');
+  const fingerprint = first.match(/action="\/dashboard\/review\/admin"[\s\S]*?name="fingerprint" value="([^"]+)"/)![1]!;
+  assert.equal((await post('/dashboard/review/admin', { fingerprint })).status, 303);
+  assert.doesNotMatch(attention(await (await request('/')).text()), /Hub administration/);
+  assert.equal((await post('/dashboard/review/sign-in', { fingerprint: 'x' })).status, 400);
+
+  await post('/keys', { name: 'ops-2', servers: '*', admin: 'true' });
+  assert.match(attention(await (await request('/')).text()), /Hub administration/, 'a new admin key brings it back');
+});
+
 test('each server has its own page with tabs and breadcrumbs', async () => {
   const { request } = setup({ kind: 'none' });
   note('hello from alpha', { server: 'alpha' });
@@ -152,7 +169,7 @@ test('a server is switched off from the UI, kept off across restarts, and filter
   assert.equal(res.headers.get('location'), '/servers?state=online');
   assert.ok(hub.isDisabled('alpha'));
   assert.equal(hub.upstreams.get('alpha')!.state, 'stopped');
-  assert.deepEqual(JSON.parse(readFileSync(state, 'utf8')), { disabled: ['alpha'] });
+  assert.deepEqual(JSON.parse(readFileSync(state, 'utf8')), { disabled: ['alpha'], reviewed: {} });
 
   const off = await (await request('/servers?state=disabled')).text();
   assert.match(off, /action="\/servers\/alpha\/enable"/);

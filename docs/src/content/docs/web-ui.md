@@ -25,9 +25,11 @@ their failures and median duration, and active keys. The hub's own clock sits ne
   now** to ask the registries at once, and **Update all** to update every one of them, each keeping
   the old version serving until the new one answers. Nightly updates, when turned on, show up in
   the activity.
-- **Security check**: sign-in on, HTTPS address, keys that can administer the hub, keys idle for 30
-  days, keys without limits, packages allowed to run install scripts, the hub's version and whether
-  the server file is writable from the UI.
+- **Security check**: only what needs attention, the passing checks folded underneath. **Risks**
+  (sign-in off, no HTTPS address, an older MCP Yard) stay until fixed. **Choices** (keys that can
+  administer the hub, keys idle for 30 days, keys without limits, packages allowed to run install
+  scripts, a server file writable from the UI) can be **marked reviewed**: they stay quiet until what
+  they cover changes, a new admin key for instance, and **Undo** brings them back.
 - **Recent activity** and **Most used tools**, from the logs.
 
 **Reload server file** re-reads the server file, as on the servers page.

@@ -8,7 +8,7 @@ import { logs, type LogEntry } from './logs.ts';
 import { release } from './release.ts';
 import type { Settings } from './settings.ts';
 import { icon, mascot, type Mood } from './ui-icons.ts';
-import { box, linkButton, pageHead, postButton, stats, status, tag } from './ui-kit.ts';
+import { type Content, box, linkButton, pageHead, postButton, stats, status, tag } from './ui-kit.ts';
 import { log, page, toast, type Env, type Fragment } from './ui-layout.ts';
 import { plural, readableError, serverLabel } from './ui-servers.ts';
 
@@ -21,6 +21,18 @@ const ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 export function dashboardRoutes(app: Hono<Env>, hub: Hub, guard: MiddlewareHandler<Env>, options: DashboardOptions): void {
   hub.security = () => securityChecks(hub, loadKeys(options.keysPath), options);
   app.get('/', guard, (c) => c.html(page(c, 'Dashboard', html`${dashboard(c, hub, options)}${notice(c)}`)));
+
+  app.post('/dashboard/review/:id', guard, async (c) => {
+    const id = c.req.param('id');
+    const check = securityChecks(hub, loadKeys(options.keysPath), options).find((k) => k.id === id && k.kind === 'choice');
+    if (!check) return c.text('Bad request: not a security choice', 400);
+    const fingerprint = String((await c.req.parseBody()).fingerprint ?? '');
+    // What the page showed changed since: the user reviews the new situation.
+    if (fingerprint && fingerprint !== check.fingerprint) return c.redirect('/', 303);
+    hub.review(id, fingerprint || undefined);
+    log(c, fingerprint ? 'security_reviewed' : 'security_review_undone', { check: id });
+    return c.redirect('/', 303);
+  });
 
   app.post('/dashboard/health', guard, async (c) => {
     const report = await hub.healthCheck();
@@ -103,16 +115,18 @@ function securityChecks(hub: Hub, keys: Key[], options: DashboardOptions): Secur
   const about = release.status();
   const readOnly = options.configFile?.readOnlyReason();
   const https = options.publicUrl?.startsWith('https://');
-  return [
-    { ok: options.signIn, title: 'Web UI sign-in', detail: options.signIn ? 'OpenID Connect guards every page.' : 'Sign-in is off: anyone reaching the port manages the hub.', label: options.signIn ? 'On' : 'Off' },
-    { ok: !!https, title: 'HTTPS address', detail: options.publicUrl ? options.publicUrl : 'MCPYARD_PUBLIC_URL is not set.', label: https ? 'Yes' : 'No' },
-    { ok: !adminTools || admins.length === 0, title: 'Hub administration', detail: !adminTools ? 'The yard-* tools are off for every key.' : admins.length ? `${plural(admins.length, 'key')} can restart, switch and update servers.` : 'No key can administer the hub.', label: !adminTools ? 'Off' : `${admins.length}` },
-    { ok: idle.length === 0, title: 'Idle keys', detail: idle.length ? `${idle.map((k) => k.name).join(', ')}: unused for ${IDLE_DAYS} days or more.` : `Every key was used in the last ${IDLE_DAYS} days.`, label: `${idle.length}` },
-    { ok: wide.length === 0, title: 'Keys without limits', detail: wide.length ? `${wide.map((k) => k.name).join(', ')}: every tool of every server.` : 'Every key is limited to some servers or tools.', label: `${wide.length}` },
-    { ok: scripts.length === 0, title: 'Install scripts', detail: scripts.length ? `Allowed for ${scripts.join(', ')}.` : 'No package runs install scripts.', label: `${scripts.length}` },
-    { ok: !about.newer, title: 'MCP Yard version', detail: about.newer && about.latest ? `v${about.latest.version} is out; you run v${about.current}.` : about.current === 'dev' ? 'Development build.' : `v${about.current}, the latest known.`, label: about.newer ? 'Behind' : 'Current' },
-    { ok: !!readOnly, title: 'Server file', detail: readOnly ? 'Read-only: servers change only where you keep the file.' : 'Writable: servers can be edited from the UI.', label: readOnly ? 'Read-only' : 'Writable' },
+  const ids = (list: Key[]) => list.map((k) => k.id).sort().join(',');
+  const checks: Omit<SecurityCheck, 'reviewed'>[] = [
+    { id: 'sign-in', kind: 'risk', ok: options.signIn, title: 'Web UI sign-in', detail: options.signIn ? 'OpenID Connect guards every page.' : 'Sign-in is off: anyone reaching the port manages the hub.', label: options.signIn ? 'On' : 'Off' },
+    { id: 'https', kind: 'risk', ok: !!https, title: 'HTTPS address', detail: options.publicUrl ? options.publicUrl : 'MCPYARD_PUBLIC_URL is not set.', label: https ? 'Yes' : 'No' },
+    { id: 'admin', kind: 'choice', fingerprint: ids(admins), ok: !adminTools || admins.length === 0, title: 'Hub administration', detail: !adminTools ? 'The yard-* tools are off for every key.' : admins.length ? `${plural(admins.length, 'key')} can restart, switch and update servers.` : 'No key can administer the hub.', label: !adminTools ? 'Off' : `${admins.length}` },
+    { id: 'idle', kind: 'choice', fingerprint: ids(idle), ok: idle.length === 0, title: 'Idle keys', detail: idle.length ? `${idle.map((k) => k.name).join(', ')}: unused for ${IDLE_DAYS} days or more.` : `Every key was used in the last ${IDLE_DAYS} days.`, label: `${idle.length}` },
+    { id: 'wide', kind: 'choice', fingerprint: ids(wide), ok: wide.length === 0, title: 'Keys without limits', detail: wide.length ? `${wide.map((k) => k.name).join(', ')}: every tool of every server.` : 'Every key is limited to some servers or tools.', label: `${wide.length}` },
+    { id: 'scripts', kind: 'choice', fingerprint: scripts.join(','), ok: scripts.length === 0, title: 'Install scripts', detail: scripts.length ? `Allowed for ${scripts.join(', ')}.` : 'No package runs install scripts.', label: `${scripts.length}` },
+    { id: 'version', kind: 'risk', ok: !about.newer, title: 'MCP Yard version', detail: about.newer && about.latest ? `v${about.latest.version} is out; you run v${about.current}.` : about.current === 'dev' ? 'Development build.' : `v${about.current}, the latest known.`, label: about.newer ? 'Behind' : 'Current' },
+    { id: 'server-file', kind: 'choice', fingerprint: 'writable', ok: !!readOnly, title: 'Server file', detail: readOnly ? 'Read-only: servers change only where you keep the file.' : 'Writable: servers can be edited from the UI.', label: readOnly ? 'Read-only' : 'Writable' },
   ];
+  return checks.map((k) => ({ ...k, reviewed: !k.ok && k.kind === 'choice' && hub.reviewed[k.id] === k.fingerprint }));
 }
 
 function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragment {
@@ -133,7 +147,7 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
   const recent = logs.list().filter((e) => Date.now() - Date.parse(e.time) < DAY);
   const calls = ov.calls24h;
   const checks = securityChecks(hub, keys, options);
-  const passed = checks.filter((k) => k.ok).length;
+  const passed = checks.filter((k) => k.ok || k.reviewed).length;
   const mood: Mood = Object.values(packages).some((p) => p.updating) ? 'busy' : care.length ? 'worried' : names.length && passed === checks.length ? 'celebrating' : 'yard';
 
   const summary = !names.length
@@ -172,7 +186,7 @@ function dashboard(c: Context<Env>, hub: Hub, options: DashboardOptions): Fragme
       </div>
 
       <div class="grid gap-4 lg:grid-cols-3">
-        ${securityCard(checks, passed)}
+        ${securityCard(checks)}
         ${activityCard(recent)}
         ${toolsCard(calls.top)}
       </div>
@@ -240,25 +254,35 @@ function updatesCard(hub: Hub, updates: [string, ReturnType<Hub['packageStatus']
   </section>`;
 }
 
-function securityCard(checks: SecurityCheck[], passed: number): Fragment {
+function securityCard(checks: SecurityCheck[]): Fragment {
+  const open = checks.filter((k) => !k.ok && !k.reviewed);
+  const settled = checks.filter((k) => k.ok || k.reviewed);
+  const reviewed = settled.filter((k) => k.reviewed).length;
+  const tone = (k: SecurityCheck) => (k.ok || k.reviewed ? 'bg-success/15 text-success' : k.kind === 'risk' ? 'bg-error/15 text-error' : 'bg-warning/20 text-warning');
+  const line = (k: SecurityCheck, end: Content) => html`<li class="list-row items-center">
+    <span class="grid size-8 place-items-center rounded-full ${tone(k)}">${icon(k.ok || k.reviewed ? 'check' : 'alert', 'sm')}</span>
+    <div class="min-w-0"><div class="font-medium">${k.title}</div><div class="text-xs text-base-content/60 break-words">${k.detail}</div></div>
+    ${end}
+  </li>`;
+  const review = (k: SecurityCheck, undo: boolean) =>
+    postButton(`/dashboard/review/${k.id}`, undo ? 'Undo' : 'Mark reviewed', { small: true, tone: 'ghost', fields: { fingerprint: undo ? '' : k.fingerprint! }, title: undo ? 'Show it again' : 'Hide it until what it covers changes' });
+  const attention = open.map((k) => line(k, k.kind === 'choice' ? review(k, false) : html`<span class="text-xs font-semibold text-error">${k.label}</span>`));
+  const passes = settled.map((k) => line(k, k.reviewed ? html`<span class="flex items-center gap-1 text-xs text-base-content/60">Reviewed${review(k, true)}</span>` : html`<span class="text-xs font-semibold text-base-content/60">${k.label}</span>`));
   return box(
-    html`<ul class="list">${checks.map(
-      (k) => html`<li class="list-row items-center">
-        <span class="grid size-8 place-items-center rounded-full ${k.ok ? 'bg-success/15 text-success' : 'bg-warning/20 text-warning'}">${icon(k.ok ? 'check' : 'alert', 'sm')}</span>
-        <div class="min-w-0"><div class="font-medium">${k.title}</div><div class="text-xs text-base-content/60 break-words">${k.detail}</div></div>
-        <span class="text-xs font-semibold ${k.ok ? 'text-base-content/60' : 'text-warning'}">${k.label}</span>
-      </li>`,
-    )}</ul>
-    <div class="m-4 mt-1 rounded-box bg-base-200 p-4">
-      <div class="mb-2 flex justify-between text-sm font-medium"><span>Checks passed</span><span>${passed} / ${checks.length}</span></div>
-      <progress class="progress ${passed === checks.length ? 'progress-success' : 'progress-warning'} w-full" value="${passed}" max="${checks.length}"></progress>
-    </div>`,
-    { title: html`<span class="text-secondary">${icon('shield')}</span>Security check`, aside: passed === checks.length ? tag('all clear', { tone: 'success' }) : tag(`${checks.length - passed} to review`, { tone: 'warning' }) },
+    html`${attention.length ? html`<ul class="list">${attention}</ul>` : html`<p class="px-5 pt-4 text-sm text-base-content/70">Nothing needs your attention.</p>`}
+    <details class="collapse collapse-arrow m-2 w-auto">
+      <summary class="collapse-title text-sm font-medium">${plural(settled.length, 'check')} ${settled.length === 1 ? 'passes' : 'pass'}${reviewed ? `, ${reviewed} of them reviewed` : ''}</summary>
+      <div class="collapse-content px-0"><ul class="list">${passes}</ul></div>
+    </details>`,
+    { title: html`<span class="text-secondary">${icon('shield')}</span>Security check`, aside: open.length ? tag(`${open.length} to review`, { tone: open.some((k) => k.kind === 'risk') ? 'error' : 'warning' }) : tag('all clear', { tone: 'success' }) },
   );
 }
 
 const ACTION_LABEL: Record<string, string> = {
   key_created: 'Key created',
+  oauth_approved: 'Client signed in',
+  security_reviewed: 'Security choice reviewed',
+  security_review_undone: 'Security review undone',
   key_updated: 'Key updated',
   key_enable: 'Key switched on',
   key_disable: 'Key switched off',
