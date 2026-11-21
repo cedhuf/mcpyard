@@ -122,6 +122,9 @@ test('a metadata-document client signs in, picks rights, refreshes, and reuse di
   assert.equal((await bearer(renewed.access_token)).status, 401);
 
   const listing = await (await t.request('/keys', { headers: { cookie: t.cookie } })).text();
+  assert.match(listing, /commandfor="connect"[^>]*>[\s\S]*?Connect<\/button>/, 'a Connect button opens the sign-in help');
+  assert.match(listing, /<code id="connect-url"[^>]*>https:\/\/yard\.test\/mcp<\/code>/);
+  assert.match(listing, /<code id="connect-prompt"[^>]*>Add the MCP server &quot;mcpyard&quot;/);
   assert.match(listing, /Signed-in clients[\s\S]*Test Client · <span class="font-mono">127\.0\.0\.1:43123<\/span>[\s\S]*>Keys</);
 });
 

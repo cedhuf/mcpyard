@@ -193,7 +193,7 @@ function keysView(hub: Hub, all: Key[], signIn?: string): Fragment {
     : empty(html`<p class="text-center">No key yet. Make one for a client that cannot sign in, or for a script.</p>`);
   return html`${pageHead('Access', {
       sub: html`${plural(signedIn, 'signed-in client')} and ${plural(all.length - signedIn, 'key')}${admins ? `, ${admins} with administration` : ''}${off ? `, ${off} off` : ''}. Every client reaches <span class="font-mono">/mcp</span> with its own sign-in or key.`,
-      actions: dialogButton('new-key', 'New key', { tone: 'primary', icon: 'key' }),
+      actions: html`${signIn ? dialogButton('connect', 'Connect', { tone: 'soft', icon: 'globe' }) : ''}${dialogButton('new-key', 'New key', { tone: 'primary', icon: 'key' })}`,
     })}
     ${!all.length
       ? hero('Nobody gets in yet', html`Every client gets its own access, so you can see who calls what and switch one off without touching the others. ${how}`, dialogButton('new-key', 'Make a key', { tone: 'primary', icon: 'key' }), 'hello')
@@ -207,7 +207,32 @@ function keysView(hub: Hub, all: Key[], signIn?: string): Fragment {
         ${keyForm(hub)}
       </div>
       <form method="dialog" class="modal-backdrop"><button>close</button></form>
-    </dialog>`;
+    </dialog>
+    ${signIn ? connect(signIn) : ''}`;
+}
+
+/** A value on one line with a button that copies it. */
+function copyable(id: string, value: string): Fragment {
+  return html`<div class="flex items-start gap-2 rounded-field bg-base-200 py-1.5 pl-3 pr-1.5"><code id="${id}" class="flex-1 min-w-0 whitespace-pre-wrap wrap-anywhere py-1 font-mono text-xs">${value}</code><button type="button" class="btn btn-sm btn-ghost" data-copy="${id}">${icon('copy', 'xs')}<span>Copy</span></button></div>`;
+}
+
+/** How to connect a client that signs in with OAuth: the URL, the Claude Code command, and a prompt to hand to an AI. */
+function connect(url: string): Fragment {
+  const prompt = `Add the MCP server "mcpyard" to your MCP configuration. It is a remote server over Streamable HTTP at ${url}. It signs in with OAuth: do not add any token or Authorization header. On first use, open the sign-in page in my browser; I will approve the connection and pick its rights there.`;
+  return html`<dialog id="connect" class="modal">
+    <div class="modal-box max-w-2xl grid gap-4">
+      <div class="flex items-center gap-4">${mascot('sm', 'hello')}<div><h3 class="font-display text-xl font-semibold">Connect a client</h3>
+        <p class="text-base-content/60">Clients that support MCP sign-in need only this URL. On first use they open your browser: you sign in, pick the servers and tools, and the client appears under Signed-in clients.</p></div></div>
+      <div class="grid gap-1.5">
+        <span class="text-xs font-semibold">Server URL</span>${copyable('connect-url', url)}
+        <span class="mt-2 text-xs font-semibold">Claude Code</span>${copyable('connect-command', `claude mcp add --transport http mcpyard ${url}`)}
+        <span class="mt-2 text-xs font-semibold">Or ask your AI to set it up</span>${copyable('connect-prompt', prompt)}
+      </div>
+      <p class="text-xs text-base-content/60">A client without MCP sign-in needs a key instead: use New key.</p>
+      <form method="dialog" class="modal-action mt-0"><button class="btn btn-sm btn-primary">Done</button></form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+  </dialog>`;
 }
 
 /** The key's servers, without the hub administration it may also have. */
@@ -254,15 +279,13 @@ function keyForm(hub: Hub, key?: Key, consent?: { request: string; name: string 
 
 function created(key: Key, token: string, base: string): Fragment {
   const command = `claude mcp add --transport http mcpyard ${base}/mcp --header "Authorization: Bearer ${token}"`;
-  const secret = (id: string, value: string) =>
-    html`<div class="flex items-center gap-2 rounded-field bg-base-200 py-1.5 pl-3 pr-1.5"><code id="${id}" class="flex-1 min-w-0 break-all font-mono text-xs">${value}</code><button type="button" class="btn btn-sm btn-ghost" data-copy="${id}">${icon('copy', 'xs')}<span>Copy</span></button></div>`;
   return html`<dialog class="modal modal-open" open>
     <div class="modal-box max-w-2xl grid gap-4">
       <div class="flex items-center gap-4">${mascot('sm', 'hello')}<div><h3 class="font-display text-xl font-semibold">Here is the key for ${key.name}</h3>
       <p class="text-base-content/60">Copy it now: it is shown once, and only its hash is kept.</p></div></div>
       <div class="grid gap-1.5">
-        <span class="text-xs font-semibold">Token</span>${secret('new-token', token)}
-        <span class="text-xs font-semibold mt-2">Claude Code</span>${secret('new-command', command)}
+        <span class="text-xs font-semibold">Token</span>${copyable('new-token', token)}
+        <span class="text-xs font-semibold mt-2">Claude Code</span>${copyable('new-command', command)}
       </div>
       <div class="modal-action mt-0">${linkButton('/keys', 'Done', { tone: 'primary' })}</div>
     </div>

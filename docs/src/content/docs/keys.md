@@ -35,6 +35,9 @@ by URL alone:
 claude mcp add --transport http mcpyard https://mcpyard.example.lan/mcp
 ```
 
+**Connect** on the **Access** page shows that URL, the command, and a prompt to paste to an AI
+assistant so it sets the server up itself.
+
 On first use the client opens the browser. You sign in to the web UI, see the client's name and the
 host it answers to, pick the servers, tool filters and hub administration exactly as for a key, and
 allow it. The sign-in becomes a key, listed under **Signed-in clients** in **Access**, that you edit, disable

@@ -100,6 +100,10 @@ The **Access** page lists who reaches `/mcp`, in two parts:
 - **Keys**: tokens made by hand for clients that cannot sign in, or for scripts. **New key** makes
   one and shows its token once.
 
+When OAuth is on, **Connect** gives what a client needs to sign in: the server URL, the Claude Code
+command, and a short prompt to paste to an AI assistant so it adds the server by itself. Each has a
+copy button.
+
 Both open the same form: name, servers, tool filters, hub administration. A sign-in shows that form
 first, as the consent page, so the rights are picked before the client gets anything.
 
